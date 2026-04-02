@@ -234,6 +234,20 @@ export async function spawnInstanceWithResume(
   return state;
 }
 
+/**
+ * Callbacks for the orchestrator to receive progress updates from runInstanceRounds.
+ * All callbacks are optional — only provided fields are called.
+ */
+export interface ProgressCallback {
+  onRoundStart?: (instanceNumber: number, round: number) => void;
+  onRoundComplete?: (instanceNumber: number, round: number, durationMs: number) => void;
+  onFailure?: (instanceNumber: number, round: number, error: string) => void;
+  onRetry?: (instanceNumber: number, round: number, attempt: number, maxRetries: number) => void;
+  onRetrySuccess?: (instanceNumber: number, round: number) => void;
+  onCompleted?: (instanceNumber: number) => void;
+  onPermanentlyFailed?: (instanceNumber: number, error: string) => void;
+}
+
 export interface RoundExecutionConfig {
   /** Instance number (1-based) */
   instanceNumber: number;
@@ -251,6 +265,8 @@ export interface RoundExecutionConfig {
   assignedAreas?: string[];
   /** Maximum retry attempts per round on failure (default: 3) */
   maxRetries?: number;
+  /** Optional callbacks for progress reporting to the orchestrator */
+  progress?: ProgressCallback;
 }
 
 export interface RoundExecutionResult {
@@ -286,6 +302,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
   const areas = config.assignedAreas ?? [];
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retries: RetryInfo[] = [];
+  const cb = config.progress;
 
   for (let round = 1; round <= config.totalRounds; round++) {
     // For round 2+, recalibrate the checkpoint areas to use the more granular
@@ -303,6 +320,10 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
     const initialCheckpoint = createInitialCheckpoint(config.instanceNumber, roundAreas, round);
     writeCheckpoint(config.instanceNumber, initialCheckpoint);
 
+    cb?.onRoundStart?.(config.instanceNumber, round);
+
+    const roundStartTime = Date.now();
+
     // Spawn the instance for this round
     const instanceConfig: InstanceConfig = {
       instanceNumber: config.instanceNumber,
@@ -317,6 +338,8 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
 
     // If the round failed, enter the retry loop
     if (state.status === 'failed') {
+      cb?.onFailure?.(config.instanceNumber, round, state.error || 'Unknown error');
+
       const retryInfo: RetryInfo = {
         round,
         attempts: 0,
@@ -326,6 +349,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
 
       while (retryInfo.attempts < maxRetries) {
         retryInfo.attempts++;
+        cb?.onRetry?.(config.instanceNumber, round, retryInfo.attempts, maxRetries);
 
         // Read the checkpoint to determine resume state
         const savedCheckpoint = readCheckpoint(config.instanceNumber);
@@ -342,6 +366,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
 
         if (state.status === 'completed') {
           retryInfo.succeeded = true;
+          cb?.onRetrySuccess?.(config.instanceNumber, round);
           break;
         }
 
@@ -353,6 +378,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
       if (!retryInfo.succeeded) {
         // Retry limit exceeded — permanently failed
         roundResults.push(state);
+        cb?.onPermanentlyFailed?.(config.instanceNumber, state.error || 'Unknown error');
         return {
           instanceNumber: config.instanceNumber,
           status: 'failed',
@@ -365,8 +391,13 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
       }
     }
 
+    const roundDurationMs = Date.now() - roundStartTime;
+    cb?.onRoundComplete?.(config.instanceNumber, round, roundDurationMs);
+
     roundResults.push(state);
   }
+
+  cb?.onCompleted?.(config.instanceNumber);
 
   return {
     instanceNumber: config.instanceNumber,

@@ -1,0 +1,714 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { extractAreasFromPlanChunk } from '../src/orchestrator.js';
+
+// --- Mocks ---
+
+// Mock work-distribution
+vi.mock('../src/work-distribution.js', () => ({
+  distributePlan: vi.fn(),
+}));
+
+// Mock instance-manager
+vi.mock('../src/instance-manager.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/instance-manager.js')>();
+  return {
+    ...original,
+    runInstanceRounds: vi.fn(),
+  };
+});
+
+// Mock consolidation
+vi.mock('../src/consolidation.js', () => ({
+  consolidateReports: vi.fn(),
+  reassignAndRemapScreenshots: vi.fn(),
+  organizeHierarchically: vi.fn(),
+  formatConsolidatedReport: vi.fn(),
+  consolidateDiscoveryDocs: vi.fn(),
+  writeConsolidatedDiscovery: vi.fn(),
+}));
+
+// Mock file-manager
+vi.mock('../src/file-manager.js', () => ({
+  initWorkspace: vi.fn(),
+  getInstancePaths: vi.fn((n: number) => {
+    const dir = join(resolve('.uxreview-temp-orch-test'), `instance-${n}`);
+    return {
+      dir,
+      discovery: join(dir, 'discovery.md'),
+      checkpoint: join(dir, 'checkpoint.json'),
+      report: join(dir, 'report.md'),
+      screenshots: join(dir, 'screenshots'),
+    };
+  }),
+}));
+
+// Mock progress-display with a spy-able class
+const mockProgressDisplay = {
+  start: vi.fn(),
+  stop: vi.fn(),
+  markRunning: vi.fn(),
+  markCompleted: vi.fn(),
+  markFailed: vi.fn(),
+  markRetrying: vi.fn(),
+  markPermanentlyFailed: vi.fn(),
+  markRoundComplete: vi.fn(),
+  startConsolidation: vi.fn(),
+  completeConsolidation: vi.fn(),
+  renderToTerminal: vi.fn(),
+  updateAllFromFiles: vi.fn(),
+};
+
+vi.mock('../src/progress-display.js', () => ({
+  ProgressDisplay: vi.fn().mockImplementation(() => mockProgressDisplay),
+}));
+
+// Import mocked modules
+import { distributePlan } from '../src/work-distribution.js';
+import { runInstanceRounds, RoundExecutionResult } from '../src/instance-manager.js';
+import {
+  consolidateReports,
+  reassignAndRemapScreenshots,
+  organizeHierarchically,
+  formatConsolidatedReport,
+  consolidateDiscoveryDocs,
+  writeConsolidatedDiscovery,
+} from '../src/consolidation.js';
+import { initWorkspace } from '../src/file-manager.js';
+import { ProgressDisplay } from '../src/progress-display.js';
+import { orchestrate } from '../src/orchestrator.js';
+import { ParsedArgs } from '../src/cli.js';
+
+const mockDistributePlan = vi.mocked(distributePlan);
+const mockRunInstanceRounds = vi.mocked(runInstanceRounds);
+const mockConsolidateReports = vi.mocked(consolidateReports);
+const mockReassignAndRemap = vi.mocked(reassignAndRemapScreenshots);
+const mockOrganizeHierarchically = vi.mocked(organizeHierarchically);
+const mockFormatConsolidatedReport = vi.mocked(formatConsolidatedReport);
+const mockConsolidateDiscoveryDocs = vi.mocked(consolidateDiscoveryDocs);
+const mockWriteConsolidatedDiscovery = vi.mocked(writeConsolidatedDiscovery);
+const mockInitWorkspace = vi.mocked(initWorkspace);
+
+const OUTPUT_DIR = resolve('.uxreview-output-orch-test');
+
+function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
+  return {
+    url: 'https://example.com/app',
+    intro: 'Test application context',
+    plan: '## Navigation\n- Review nav bar\n\n## Dashboard\n- Check widgets\n\n## Settings\n- Check form fields',
+    scope: 'Check layout and consistency',
+    instances: 3,
+    rounds: 2,
+    output: OUTPUT_DIR,
+    ...overrides,
+  };
+}
+
+function makeSuccessResult(instanceNumber: number, totalRounds: number): RoundExecutionResult {
+  return {
+    instanceNumber,
+    status: 'completed',
+    roundResults: Array.from({ length: totalRounds }, () => ({
+      instanceNumber,
+      status: 'completed' as const,
+    })),
+    completedRounds: totalRounds,
+    retries: [],
+  };
+}
+
+function makeFailedResult(instanceNumber: number, error: string): RoundExecutionResult {
+  return {
+    instanceNumber,
+    status: 'failed',
+    roundResults: [{ instanceNumber, status: 'failed' as const, error }],
+    completedRounds: 0,
+    error,
+    retries: [{ round: 1, attempts: 3, succeeded: false, errors: [error] }],
+    permanentlyFailed: true,
+  };
+}
+
+describe('extractAreasFromPlanChunk', () => {
+  it('extracts ## headings', () => {
+    const chunk = '## Navigation\n- Review nav bar\n\n## Dashboard\n- Check widgets';
+    expect(extractAreasFromPlanChunk(chunk)).toEqual(['Navigation', 'Dashboard']);
+  });
+
+  it('extracts # headings when no ## found', () => {
+    const chunk = '# Forms\n- Check validation\n\n# Settings\n- Check toggles';
+    expect(extractAreasFromPlanChunk(chunk)).toEqual(['Forms', 'Settings']);
+  });
+
+  it('extracts list items when no headings found', () => {
+    const chunk = '- Navigation review\n- Dashboard review\n- Settings review';
+    expect(extractAreasFromPlanChunk(chunk)).toEqual([
+      'Navigation review',
+      'Dashboard review',
+      'Settings review',
+    ]);
+  });
+
+  it('returns generic area when nothing found', () => {
+    const chunk = 'Just some plain text about the app review';
+    expect(extractAreasFromPlanChunk(chunk)).toEqual(['Full review']);
+  });
+
+  it('handles * list items', () => {
+    const chunk = '* Navigation\n* Dashboard';
+    expect(extractAreasFromPlanChunk(chunk)).toEqual(['Navigation', 'Dashboard']);
+  });
+});
+
+describe('orchestrate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Create output directory for writeFileSync
+    mkdirSync(OUTPUT_DIR, { recursive: true });
+
+    // Default mock setup
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-orch-test'),
+      instanceDirs: [
+        join(resolve('.uxreview-temp-orch-test'), 'instance-1'),
+        join(resolve('.uxreview-temp-orch-test'), 'instance-2'),
+        join(resolve('.uxreview-temp-orch-test'), 'instance-3'),
+      ],
+      outputDir: OUTPUT_DIR,
+    });
+  });
+
+  afterEach(() => {
+    if (existsSync(OUTPUT_DIR)) {
+      rmSync(OUTPUT_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('runs 3 instances in parallel with 2 rounds each', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: [
+        '## Navigation\n- Review nav bar',
+        '## Dashboard\n- Check widgets',
+        '## Settings\n- Check form fields',
+      ],
+      usedClaude: true,
+    });
+
+    // Track call order to verify parallel execution
+    const callOrder: number[] = [];
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      callOrder.push(config.instanceNumber);
+      // Simulate varying completion times
+      await new Promise((r) => setTimeout(r, 10 * config.instanceNumber));
+      // Invoke progress callbacks to verify they're wired
+      config.progress?.onRoundStart?.(config.instanceNumber, 1);
+      config.progress?.onRoundComplete?.(config.instanceNumber, 1, 1000);
+      config.progress?.onRoundStart?.(config.instanceNumber, 2);
+      config.progress?.onRoundComplete?.(config.instanceNumber, 2, 1500);
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('# UX Analysis Report\n');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '# Discovery\n',
+      instanceCount: 3,
+      usedClaude: true,
+    });
+
+    await orchestrate(args);
+
+    // Verify work distribution was called with 3 instances
+    expect(mockDistributePlan).toHaveBeenCalledWith(args.plan, 3);
+
+    // Verify all 3 instances were spawned
+    expect(mockRunInstanceRounds).toHaveBeenCalledTimes(3);
+
+    // Verify each instance received the correct config
+    for (let i = 0; i < 3; i++) {
+      const call = mockRunInstanceRounds.mock.calls[i][0];
+      expect(call.instanceNumber).toBe(i + 1);
+      expect(call.url).toBe(args.url);
+      expect(call.intro).toBe(args.intro);
+      expect(call.scope).toBe(args.scope);
+      expect(call.totalRounds).toBe(2);
+      expect(call.progress).toBeDefined();
+    }
+
+    // Verify all 3 were launched (all should appear in callOrder)
+    expect(callOrder).toHaveLength(3);
+    expect(callOrder).toContain(1);
+    expect(callOrder).toContain(2);
+    expect(callOrder).toContain(3);
+
+    // Verify progress display was started and stopped
+    expect(mockProgressDisplay.start).toHaveBeenCalledTimes(1);
+    expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(1);
+
+    // Verify progress callbacks were invoked (3 instances x completed)
+    expect(mockProgressDisplay.markCompleted).toHaveBeenCalledTimes(3);
+    expect(mockProgressDisplay.markRoundComplete).toHaveBeenCalledTimes(6); // 3 instances x 2 rounds
+  });
+
+  it('one instance finishing early does not affect others', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: [
+        '## Navigation\n- Review nav bar',
+        '## Dashboard\n- Check widgets',
+        '## Settings\n- Check form fields',
+      ],
+      usedClaude: true,
+    });
+
+    const completionTimes: { instance: number; time: number }[] = [];
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      // Instance 1 finishes very fast, 2 and 3 take longer
+      const delay = config.instanceNumber === 1 ? 5 : 50;
+      await new Promise((r) => setTimeout(r, delay));
+      completionTimes.push({ instance: config.instanceNumber, time: Date.now() });
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('# Report\n');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '',
+      instanceCount: 3,
+      usedClaude: false,
+    });
+
+    await orchestrate(args);
+
+    // All 3 completed
+    expect(completionTimes).toHaveLength(3);
+
+    // Instance 1 should have finished before 2 and 3
+    const i1 = completionTimes.find((c) => c.instance === 1)!;
+    const i2 = completionTimes.find((c) => c.instance === 2)!;
+    const i3 = completionTimes.find((c) => c.instance === 3)!;
+    expect(i1.time).toBeLessThanOrEqual(i2.time);
+    expect(i1.time).toBeLessThanOrEqual(i3.time);
+
+    // Consolidation only happened once — after all completed
+    expect(mockConsolidateReports).toHaveBeenCalledTimes(1);
+    expect(mockProgressDisplay.startConsolidation).toHaveBeenCalledTimes(1);
+  });
+
+  it('consolidation only triggers after all instances are complete', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## A', '## B', '## C'],
+      usedClaude: true,
+    });
+
+    let consolidationCalledAt = 0;
+    let lastInstanceCompletedAt = 0;
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      await new Promise((r) => setTimeout(r, 10));
+      lastInstanceCompletedAt = Date.now();
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockImplementation(async () => {
+      consolidationCalledAt = Date.now();
+      return { findings: [], duplicateGroups: [], usedClaude: false };
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '',
+      instanceCount: 3,
+      usedClaude: false,
+    });
+
+    await orchestrate(args);
+
+    // Consolidation started after all instances completed
+    expect(consolidationCalledAt).toBeGreaterThanOrEqual(lastInstanceCompletedAt);
+    expect(mockProgressDisplay.startConsolidation).toHaveBeenCalledTimes(1);
+  });
+
+  it('consolidation indicator is shown and final paths are displayed', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## A', '## B', '## C'],
+      usedClaude: true,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('# Report\n');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '# Discovery\n',
+      instanceCount: 3,
+      usedClaude: true,
+    });
+
+    await orchestrate(args);
+
+    // Verify consolidation indicator lifecycle
+    expect(mockProgressDisplay.startConsolidation).toHaveBeenCalledTimes(1);
+    expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
+
+    // Verify final paths were passed
+    const completeCall = mockProgressDisplay.completeConsolidation.mock.calls[0];
+    expect(completeCall[0]).toContain('consolidated-report.md');
+    expect(completeCall[1]).toContain('discovery.md');
+  });
+
+  it('handles some instances failing permanently while others succeed', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## A', '## B', '## C'],
+      usedClaude: true,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      if (config.instanceNumber === 2) {
+        // Instance 2 fails permanently
+        config.progress?.onFailure?.(2, 1, 'Claude crashed');
+        config.progress?.onPermanentlyFailed?.(2, 'Claude crashed');
+        return makeFailedResult(2, 'Claude crashed');
+      }
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '',
+      instanceCount: 2,
+      usedClaude: true,
+    });
+
+    await orchestrate(args);
+
+    // Consolidation still happens with whatever output was produced
+    expect(mockConsolidateReports).toHaveBeenCalledWith([1, 2, 3]);
+    expect(mockProgressDisplay.startConsolidation).toHaveBeenCalledTimes(1);
+    expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
+
+    // Progress display registered the failure
+    expect(mockProgressDisplay.markPermanentlyFailed).toHaveBeenCalledWith(2, 'Claude crashed');
+  });
+
+  it('progress display is stopped even when an error occurs during consolidation', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## A', '## B', '## C'],
+      usedClaude: true,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockRejectedValue(new Error('Consolidation failed'));
+
+    await expect(orchestrate(args)).rejects.toThrow('Consolidation failed');
+
+    // Progress display was still stopped (finally block)
+    expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles unexpected promise rejection from runInstanceRounds', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## A', '## B', '## C'],
+      usedClaude: true,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      if (config.instanceNumber === 3) {
+        throw new Error('Unexpected process error');
+      }
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '',
+      instanceCount: 2,
+      usedClaude: false,
+    });
+
+    // Should not throw — the rejected promise is caught by allSettled
+    await orchestrate(args);
+
+    // Instance 3's rejection was handled gracefully
+    expect(mockProgressDisplay.markPermanentlyFailed).toHaveBeenCalledWith(
+      3,
+      'Unexpected process error',
+    );
+
+    // Consolidation still ran
+    expect(mockConsolidateReports).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes assigned areas extracted from plan chunks', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: [
+        '## Navigation\n- Review nav bar\n\n## Header\n- Check logo',
+        '## Dashboard\n- Check widgets',
+        '## Settings\n- Check form fields\n\n## Profile\n- Check avatar',
+      ],
+      usedClaude: true,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '',
+      instanceCount: 3,
+      usedClaude: false,
+    });
+
+    await orchestrate(args);
+
+    // Verify assigned areas were extracted from the chunks
+    expect(mockRunInstanceRounds.mock.calls[0][0].assignedAreas).toEqual([
+      'Navigation',
+      'Header',
+    ]);
+    expect(mockRunInstanceRounds.mock.calls[1][0].assignedAreas).toEqual(['Dashboard']);
+    expect(mockRunInstanceRounds.mock.calls[2][0].assignedAreas).toEqual([
+      'Settings',
+      'Profile',
+    ]);
+  });
+
+  it('writes consolidated report to output directory', async () => {
+    const args = makeArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## A'],
+      usedClaude: false,
+    });
+
+    // Override to 1 instance for simplicity
+    const singleArgs = makeArgs({ instances: 1 });
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-orch-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('# UX Analysis Report\n\nNo findings.\n');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '# Discovery\n',
+      instanceCount: 1,
+      usedClaude: true,
+    });
+
+    await orchestrate(singleArgs);
+
+    // Report was written
+    const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+    expect(existsSync(reportPath)).toBe(true);
+    expect(readFileSync(reportPath, 'utf-8')).toBe('# UX Analysis Report\n\nNo findings.\n');
+
+    // Discovery consolidation was called
+    expect(mockWriteConsolidatedDiscovery).toHaveBeenCalledWith(OUTPUT_DIR, '# Discovery\n');
+  });
+
+  it('retry callbacks flow through to progress display', async () => {
+    const args = makeArgs({ instances: 1 });
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-orch-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## Navigation\n- Review nav bar'],
+      usedClaude: false,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      // Simulate failure → retry → success flow via callbacks
+      config.progress?.onRoundStart?.(1, 1);
+      config.progress?.onFailure?.(1, 1, 'Timeout');
+      config.progress?.onRetry?.(1, 1, 1, 3);
+      config.progress?.onRetrySuccess?.(1, 1);
+      config.progress?.onRoundComplete?.(1, 1, 5000);
+      config.progress?.onCompleted?.(1);
+      return makeSuccessResult(1, 1);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '',
+      instanceCount: 1,
+      usedClaude: false,
+    });
+
+    await orchestrate(args);
+
+    // Verify retry flow reached the progress display
+    expect(mockProgressDisplay.markFailed).toHaveBeenCalledWith(1, 'Timeout');
+    expect(mockProgressDisplay.markRetrying).toHaveBeenCalledWith(1, 1, 3);
+    expect(mockProgressDisplay.markRunning).toHaveBeenCalled(); // onRetrySuccess calls markRunning
+    expect(mockProgressDisplay.markRoundComplete).toHaveBeenCalledWith(1, 5000);
+    expect(mockProgressDisplay.markCompleted).toHaveBeenCalledWith(1);
+  });
+
+  it('ProgressDisplay is constructed with correct instance numbers and rounds', async () => {
+    const args = makeArgs({ instances: 3, rounds: 2 });
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## A', '## B', '## C'],
+      usedClaude: true,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 2);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '',
+      instanceCount: 3,
+      usedClaude: false,
+    });
+
+    await orchestrate(args);
+
+    expect(ProgressDisplay).toHaveBeenCalledWith([1, 2, 3], 2);
+  });
+});

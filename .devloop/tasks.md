@@ -127,7 +127,7 @@
 - **Verification**: Provide discovery docs from 3 instances with overlapping areas. Confirm the consolidated doc is deduplicated, hierarchically structured, and readable as a review plan.
 
 ### TASK-022: Parallel instance orchestration
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007, TASK-012, TASK-013, TASK-014, TASK-015, TASK-016, TASK-017, TASK-018, TASK-019, TASK-020, TASK-021
 - **Description**: Wire together the full orchestration flow for parallel execution: spawn all instances, monitor all progress bars simultaneously, handle failures and retries across instances (respecting max retry limits), wait for all to complete or permanently fail, show the consolidation progress indicator, trigger consolidation (report merging, deduplication, ID reassignment, hierarchical grouping, discovery doc consolidation), and output final file paths. Handle the case where some instances finish earlier than others. See requirements.md "Orchestration Flow" section.
 - **Verification**: Run with 3 instances and 2 rounds. Confirm all 3 run in parallel with independent progress bars. Confirm one finishing early doesn't affect others. Confirm consolidation only triggers after all are complete. Confirm consolidation indicator is shown. Confirm final output paths are displayed.
