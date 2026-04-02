@@ -13,7 +13,7 @@
 - **Verification**: Run the CLI with valid args and confirm they are parsed correctly. Run with missing required args and confirm a helpful error message is shown. Run with file paths and inline text for `--intro`/`--plan`/`--scope` and confirm all resolve correctly. Run `--show-default-scope` and confirm it prints the default scope and exits.
 
 ### TASK-003: Default evaluation scope definition
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: Define the built-in default evaluation scope as a string constant in the source code. This covers common UX criteria: layout consistency, navigation flow, form usability, error messaging, loading states, accessibility basics, responsiveness, interactive element consistency, content hierarchy, and terminology consistency. This constant is used when `--scope` is not provided and is printed by `--show-default-scope`. See requirements.md "Evaluation Scope" section for the full list.
 - **Verification**: Import the default scope constant and confirm it contains all the criteria listed in requirements.md.
