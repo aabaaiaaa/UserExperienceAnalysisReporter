@@ -43,7 +43,7 @@
 - **Verification**: Spawn a single Claude Code instance with a mock plan chunk. Confirm the subprocess starts, receives the correct inputs (including scope), and the orchestrator can detect when it completes or fails.
 
 ### TASK-008: Checkpoint file implementation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007
 - **Description**: Define the checkpoint file schema (`checkpoint.json`) and implement read/write functions. The checkpoint tracks: instance ID, assigned areas, current round number, area completion status (complete/in-progress/not-started), last completed action, and timestamp. Implement resume logic — on retry, read the checkpoint and construct a prompt that tells Claude where to resume. See requirements.md "Checkpoint File" section.
 - **Verification**: Write a checkpoint, read it back, confirm all fields are correct. Simulate a mid-area failure, write checkpoint, then confirm the resume prompt correctly instructs Claude to continue from the last completed step.
