@@ -121,7 +121,7 @@
 - **Verification**: Confirm findings are grouped by UI area. Confirm dependent findings are indented under their parent. Confirm all top-level findings are independent of each other.
 
 ### TASK-021: Discovery document consolidation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005, TASK-009
 - **Description**: Merge all per-instance discovery docs into a single consolidated discovery doc using the shared Claude CLI utility (TASK-005) for the merging Claude call. Deduplicate overlapping areas explored by multiple instances. Structure as an indented hierarchy of UI areas and specific UI features/elements. Format it so it can be reused as a review plan for a future run. Write to the output directory. See requirements.md "Consolidated Discovery Doc" section.
 - **Verification**: Provide discovery docs from 3 instances with overlapping areas. Confirm the consolidated doc is deduplicated, hierarchically structured, and readable as a review plan.
