@@ -31,7 +31,7 @@
 - **Verification**: Call the utility with a simple prompt and confirm it spawns a Claude Code subprocess, captures the output, and returns it. Confirm failure detection works when the subprocess exits with an error.
 
 ### TASK-006: Work distribution — plan splitting
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002, TASK-004, TASK-005
 - **Description**: Implement the work distribution step. Use the Claude CLI utility (TASK-005) to analyze the review plan and divide it into N logical chunks (one per requested instance). Each chunk should be self-contained. Store the distribution result in `.uxreview-temp/work-distribution.md`. When only one instance is requested, skip the Claude call and pass the full plan through directly. See requirements.md "Work Distribution" under Architecture.
 - **Verification**: Provide a multi-section review plan and request 3 instances. Confirm the plan is split into 3 logical chunks with minimal overlap and full coverage. Request 1 instance and confirm no Claude call is made — the full plan is passed through.
