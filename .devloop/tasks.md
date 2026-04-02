@@ -145,7 +145,7 @@
 - **Verification**: `npx vitest run` passes. The test covers: arg parsing (including scope), plan splitting (skipped with 1 instance), instance execution, discovery doc, report writing, and consolidation.
 
 ### TASK-025: Integration tests — multi-instance multi-round
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-024, TASK-022
 - **Description**: Write integration tests for multiple instances with multiple rounds. Mock Claude Code CLI responses for each instance across rounds. Verify work distribution, parallel execution, round progression with discovery doc feedback, and final consolidation. See requirements.md "Testing Strategy" section.
 - **Verification**: `npx vitest run` passes. The test covers: plan splitting across instances, parallel mock execution, round 2 receiving discovery doc from round 1, and correct consolidation.
