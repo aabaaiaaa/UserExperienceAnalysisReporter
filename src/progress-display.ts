@@ -11,10 +11,18 @@ export interface InstanceProgress {
   findingsCount: number;
   startTime: number;
   roundStartTime: number;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'retrying';
   error?: string;
+  retryAttempt?: number;
+  maxRetries?: number;
+  permanentlyFailed?: boolean;
   priorRoundDurations: number[];
 }
+
+// ANSI color codes for terminal output
+export const ANSI_RESET = '\x1B[0m';
+export const ANSI_RED = '\x1B[31m';
+export const ANSI_GREEN = '\x1B[32m';
 
 const BAR_WIDTH = 20;
 const BAR_FILLED = '#';
@@ -98,6 +106,35 @@ export function formatProgressLine(progress: InstanceProgress, now?: number): st
   const elapsed = currentTime - progress.roundStartTime;
   const elapsedStr = formatDuration(elapsed);
 
+  const roundStr = `R${progress.currentRound}/${progress.totalRounds}`;
+  const prefix = `I${progress.instanceNumber} ${roundStr} ${bar} ${pct}%`;
+
+  // Permanently failed: red with final error message
+  if (progress.permanentlyFailed) {
+    const errorMsg = progress.error || 'Unknown error';
+    return `${ANSI_RED}${prefix} | FAILED: ${errorMsg} (retries exhausted)${ANSI_RESET}`;
+  }
+
+  // Failed (not permanently): red with error description
+  if (progress.status === 'failed') {
+    const errorMsg = progress.error || 'Unknown error';
+    return `${ANSI_RED}${prefix} | ERROR: ${errorMsg}${ANSI_RESET}`;
+  }
+
+  // Retrying: red with retry attempt info
+  if (progress.status === 'retrying') {
+    const attempt = progress.retryAttempt ?? 1;
+    const max = progress.maxRetries ?? 3;
+    return `${ANSI_RED}${prefix} | Retrying (attempt ${attempt}/${max})...${ANSI_RESET}`;
+  }
+
+  // Completed: green with stats
+  if (progress.status === 'completed') {
+    const statsStr = `${progress.completedItems}/${progress.totalItems} areas, ${progress.findingsCount} findings`;
+    return `${ANSI_GREEN}${prefix} | ${statsStr} | ${elapsedStr}${ANSI_RESET}`;
+  }
+
+  // Running: default color (white/no color) with stats and ETA
   let etaStr = '';
   const eta = calculateEta(
     elapsed,
@@ -111,10 +148,8 @@ export function formatProgressLine(progress: InstanceProgress, now?: number): st
     etaStr = ` | ETA ~${eta}`;
   }
 
-  const roundStr = `R${progress.currentRound}/${progress.totalRounds}`;
   const statsStr = `${progress.completedItems}/${progress.totalItems} areas, ${progress.findingsCount} findings`;
-
-  return `I${progress.instanceNumber} ${roundStr} ${bar} ${pct}% | ${statsStr} | ${elapsedStr}${etaStr}`;
+  return `${prefix} | ${statsStr} | ${elapsedStr}${etaStr}`;
 }
 
 export class ProgressDisplay {
@@ -178,9 +213,34 @@ export class ProgressDisplay {
     progress.error = error;
   }
 
+  markRetrying(instanceNumber: number, attempt: number, maxRetries: number): void {
+    const progress = this.instances.get(instanceNumber);
+    if (!progress) return;
+    progress.status = 'retrying';
+    progress.retryAttempt = attempt;
+    progress.maxRetries = maxRetries;
+  }
+
+  markRunning(instanceNumber: number): void {
+    const progress = this.instances.get(instanceNumber);
+    if (!progress) return;
+    progress.status = 'running';
+    progress.error = undefined;
+    progress.retryAttempt = undefined;
+    progress.maxRetries = undefined;
+  }
+
+  markPermanentlyFailed(instanceNumber: number, error: string): void {
+    const progress = this.instances.get(instanceNumber);
+    if (!progress) return;
+    progress.status = 'failed';
+    progress.error = error;
+    progress.permanentlyFailed = true;
+  }
+
   updateFromFiles(instanceNumber: number): void {
     const progress = this.instances.get(instanceNumber);
-    if (!progress || progress.status === 'completed' || progress.status === 'failed') return;
+    if (!progress || progress.status === 'completed' || progress.status === 'failed' || progress.status === 'retrying' || progress.permanentlyFailed) return;
 
     const checkpoint = readCheckpoint(instanceNumber);
     if (checkpoint) {

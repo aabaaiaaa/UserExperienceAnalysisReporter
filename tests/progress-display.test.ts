@@ -29,6 +29,9 @@ import {
   formatProgressLine,
   ProgressDisplay,
   InstanceProgress,
+  ANSI_RESET,
+  ANSI_RED,
+  ANSI_GREEN,
 } from '../src/progress-display.js';
 import { Checkpoint } from '../src/checkpoint.js';
 
@@ -874,6 +877,369 @@ describe('ProgressDisplay', () => {
       expect(lines[1]).toContain('1 findings');
       expect(lines[1]).toContain('40s'); // elapsed
       expect(lines[1]).toContain('ETA ~40s'); // remaining
+    });
+  });
+
+  describe('color states', () => {
+    describe('formatProgressLine color output', () => {
+      const baseProgress: InstanceProgress = {
+        instanceNumber: 1,
+        currentRound: 1,
+        totalRounds: 2,
+        totalItems: 6,
+        completedItems: 3,
+        inProgressItems: 1,
+        findingsCount: 2,
+        startTime: 900000,
+        roundStartTime: 900000,
+        status: 'running',
+        priorRoundDurations: [],
+      };
+
+      it('renders running state without color codes (white/default)', () => {
+        const line = formatProgressLine(baseProgress, 960000);
+        expect(line).not.toContain(ANSI_RED);
+        expect(line).not.toContain(ANSI_GREEN);
+        expect(line).not.toContain(ANSI_RESET);
+        expect(line).toContain('I1');
+        expect(line).toContain('50%');
+        expect(line).toContain('3/6 areas');
+      });
+
+      it('renders failed state in red with error description', () => {
+        const failed: InstanceProgress = {
+          ...baseProgress,
+          status: 'failed',
+          error: 'Process crashed unexpectedly',
+        };
+        const line = formatProgressLine(failed, 960000);
+        expect(line).toContain(ANSI_RED);
+        expect(line).toContain(ANSI_RESET);
+        expect(line).toContain('ERROR: Process crashed unexpectedly');
+        expect(line).not.toContain(ANSI_GREEN);
+      });
+
+      it('renders failed state with default error when error is missing', () => {
+        const failed: InstanceProgress = {
+          ...baseProgress,
+          status: 'failed',
+        };
+        const line = formatProgressLine(failed, 960000);
+        expect(line).toContain(ANSI_RED);
+        expect(line).toContain('ERROR: Unknown error');
+      });
+
+      it('renders retrying state in red with attempt info', () => {
+        const retrying: InstanceProgress = {
+          ...baseProgress,
+          status: 'retrying',
+          retryAttempt: 2,
+          maxRetries: 3,
+        };
+        const line = formatProgressLine(retrying, 960000);
+        expect(line).toContain(ANSI_RED);
+        expect(line).toContain(ANSI_RESET);
+        expect(line).toContain('Retrying (attempt 2/3)...');
+        expect(line).not.toContain(ANSI_GREEN);
+      });
+
+      it('renders retrying state with defaults when attempt/max missing', () => {
+        const retrying: InstanceProgress = {
+          ...baseProgress,
+          status: 'retrying',
+        };
+        const line = formatProgressLine(retrying, 960000);
+        expect(line).toContain(ANSI_RED);
+        expect(line).toContain('Retrying (attempt 1/3)...');
+      });
+
+      it('renders completed state in green with stats', () => {
+        const completed: InstanceProgress = {
+          ...baseProgress,
+          status: 'completed',
+          completedItems: 6,
+          totalItems: 6,
+        };
+        const line = formatProgressLine(completed, 960000);
+        expect(line).toContain(ANSI_GREEN);
+        expect(line).toContain(ANSI_RESET);
+        expect(line).toContain('6/6 areas');
+        expect(line).toContain('2 findings');
+        expect(line).not.toContain(ANSI_RED);
+        // Completed state should not have ETA
+        expect(line).not.toContain('ETA');
+      });
+
+      it('renders permanently failed state in red with retries exhausted message', () => {
+        const permFailed: InstanceProgress = {
+          ...baseProgress,
+          status: 'failed',
+          error: 'Timeout after 30 minutes',
+          permanentlyFailed: true,
+        };
+        const line = formatProgressLine(permFailed, 960000);
+        expect(line).toContain(ANSI_RED);
+        expect(line).toContain(ANSI_RESET);
+        expect(line).toContain('FAILED: Timeout after 30 minutes (retries exhausted)');
+        expect(line).not.toContain(ANSI_GREEN);
+      });
+
+      it('permanently failed takes precedence over regular failed', () => {
+        const permFailed: InstanceProgress = {
+          ...baseProgress,
+          status: 'failed',
+          error: 'Some error',
+          permanentlyFailed: true,
+        };
+        const line = formatProgressLine(permFailed, 960000);
+        // Should show "FAILED:" not "ERROR:"
+        expect(line).toContain('FAILED:');
+        expect(line).toContain('(retries exhausted)');
+        expect(line).not.toContain('ERROR:');
+      });
+    });
+
+    describe('ProgressDisplay state transition methods', () => {
+      it('markRetrying sets retrying state with attempt info', () => {
+        const display = new ProgressDisplay([1], 2);
+        display.markRetrying(1, 1, 3);
+
+        const p = display.getProgress(1)!;
+        expect(p.status).toBe('retrying');
+        expect(p.retryAttempt).toBe(1);
+        expect(p.maxRetries).toBe(3);
+      });
+
+      it('markRunning clears error and retry state', () => {
+        const display = new ProgressDisplay([1], 2);
+        display.markFailed(1, 'Crash');
+        display.markRunning(1);
+
+        const p = display.getProgress(1)!;
+        expect(p.status).toBe('running');
+        expect(p.error).toBeUndefined();
+        expect(p.retryAttempt).toBeUndefined();
+        expect(p.maxRetries).toBeUndefined();
+      });
+
+      it('markPermanentlyFailed sets failed status with permanentlyFailed flag', () => {
+        const display = new ProgressDisplay([1], 2);
+        display.markPermanentlyFailed(1, 'Max retries exceeded');
+
+        const p = display.getProgress(1)!;
+        expect(p.status).toBe('failed');
+        expect(p.error).toBe('Max retries exceeded');
+        expect(p.permanentlyFailed).toBe(true);
+      });
+
+      it('markRetrying on non-existent instance is a no-op', () => {
+        const display = new ProgressDisplay([1], 1);
+        display.markRetrying(99, 1, 3);
+        expect(display.getProgress(99)).toBeUndefined();
+      });
+
+      it('markRunning on non-existent instance is a no-op', () => {
+        const display = new ProgressDisplay([1], 1);
+        display.markRunning(99);
+        expect(display.getProgress(99)).toBeUndefined();
+      });
+
+      it('markPermanentlyFailed on non-existent instance is a no-op', () => {
+        const display = new ProgressDisplay([1], 1);
+        display.markPermanentlyFailed(99, 'error');
+        expect(display.getProgress(99)).toBeUndefined();
+      });
+    });
+
+    describe('updateFromFiles skips non-running states', () => {
+      it('skips retrying instances', () => {
+        const display = new ProgressDisplay([1], 1);
+        display.setProgress(1, { completedItems: 2 });
+        display.markRetrying(1, 1, 3);
+
+        writeCheckpointFile(1, {
+          instanceId: 1,
+          assignedAreas: ['Nav'],
+          currentRound: 1,
+          areas: [{ name: 'Nav', status: 'complete' }],
+          lastAction: 'Done',
+          timestamp: '2026-04-02T10:00:00Z',
+        });
+
+        display.updateFromFiles(1);
+        // Should not have updated from files
+        expect(display.getProgress(1)!.completedItems).toBe(2);
+      });
+
+      it('skips permanently failed instances', () => {
+        const display = new ProgressDisplay([1], 1);
+        display.setProgress(1, { completedItems: 2 });
+        display.markPermanentlyFailed(1, 'Max retries');
+
+        writeCheckpointFile(1, {
+          instanceId: 1,
+          assignedAreas: ['Nav'],
+          currentRound: 1,
+          areas: [{ name: 'Nav', status: 'complete' }],
+          lastAction: 'Done',
+          timestamp: '2026-04-02T10:00:00Z',
+        });
+
+        display.updateFromFiles(1);
+        expect(display.getProgress(1)!.completedItems).toBe(2);
+      });
+    });
+
+    describe('full color state lifecycle simulation', () => {
+      it('simulates: running (white) → failure (red) → retry (red) → running (white) → completed (green)', () => {
+        const display = new ProgressDisplay([1], 2);
+        const baseTime = 5000000;
+
+        // Step 1: Running state — white (no color codes)
+        display.setProgress(1, {
+          totalItems: 4,
+          completedItems: 2,
+          findingsCount: 1,
+          roundStartTime: baseTime - 30000,
+        });
+
+        let lines = display.renderLines(baseTime);
+        expect(lines[0]).not.toContain(ANSI_RED);
+        expect(lines[0]).not.toContain(ANSI_GREEN);
+        expect(lines[0]).toContain('50%');
+        expect(lines[0]).toContain('2/4 areas');
+
+        // Step 2: Failure detected — red with error
+        display.markFailed(1, 'Claude process timed out');
+
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain(ANSI_RED);
+        expect(lines[0]).toContain('ERROR: Claude process timed out');
+        expect(lines[0]).toContain(ANSI_RESET);
+
+        // Step 3: Retry begins — red with retry info
+        display.markRetrying(1, 1, 3);
+
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain(ANSI_RED);
+        expect(lines[0]).toContain('Retrying (attempt 1/3)...');
+        expect(lines[0]).toContain(ANSI_RESET);
+
+        // Step 4: Retry succeeds, back to running — white
+        display.markRunning(1);
+
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).not.toContain(ANSI_RED);
+        expect(lines[0]).not.toContain(ANSI_GREEN);
+        expect(lines[0]).toContain('2/4 areas');
+
+        // Step 5: Instance completes all rounds — green
+        display.setProgress(1, {
+          completedItems: 4,
+          totalItems: 4,
+          findingsCount: 3,
+        });
+        display.markCompleted(1);
+
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain(ANSI_GREEN);
+        expect(lines[0]).toContain('4/4 areas');
+        expect(lines[0]).toContain('3 findings');
+        expect(lines[0]).toContain(ANSI_RESET);
+        expect(lines[0]).not.toContain(ANSI_RED);
+      });
+
+      it('simulates: running → failure → retry exhausted → permanently failed (stays red)', () => {
+        const display = new ProgressDisplay([1], 1);
+        const baseTime = 5000000;
+
+        // Step 1: Running
+        display.setProgress(1, {
+          totalItems: 4,
+          completedItems: 1,
+          roundStartTime: baseTime - 20000,
+        });
+
+        let lines = display.renderLines(baseTime);
+        expect(lines[0]).not.toContain(ANSI_RED);
+        expect(lines[0]).not.toContain(ANSI_GREEN);
+
+        // Step 2: First failure
+        display.markFailed(1, 'Connection reset');
+
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain(ANSI_RED);
+        expect(lines[0]).toContain('ERROR: Connection reset');
+
+        // Step 3: Retry attempt 1
+        display.markRetrying(1, 1, 3);
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain('Retrying (attempt 1/3)...');
+
+        // Step 4: Retry 1 fails
+        display.markFailed(1, 'Connection reset again');
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain('ERROR: Connection reset again');
+
+        // Step 5: Retry attempt 2
+        display.markRetrying(1, 2, 3);
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain('Retrying (attempt 2/3)...');
+
+        // Step 6: Retry 2 fails
+        display.markFailed(1, 'Still failing');
+
+        // Step 7: Retry attempt 3
+        display.markRetrying(1, 3, 3);
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain('Retrying (attempt 3/3)...');
+
+        // Step 8: Retry 3 fails — permanently failed
+        display.markPermanentlyFailed(1, 'Connection reset after 3 retries');
+
+        lines = display.renderLines(baseTime);
+        expect(lines[0]).toContain(ANSI_RED);
+        expect(lines[0]).toContain('FAILED: Connection reset after 3 retries (retries exhausted)');
+        expect(lines[0]).toContain(ANSI_RESET);
+        expect(lines[0]).not.toContain(ANSI_GREEN);
+
+        // Step 9: Verify it stays red — rendering again produces same result
+        lines = display.renderLines(baseTime + 60000);
+        expect(lines[0]).toContain(ANSI_RED);
+        expect(lines[0]).toContain('FAILED:');
+        expect(lines[0]).toContain('(retries exhausted)');
+      });
+
+      it('multiple instances show independent color states', () => {
+        const display = new ProgressDisplay([1, 2, 3], 1);
+        const baseTime = 5000000;
+
+        display.setProgress(1, { totalItems: 4, completedItems: 2, roundStartTime: baseTime - 30000 });
+        display.setProgress(2, { totalItems: 3, completedItems: 3, roundStartTime: baseTime - 60000 });
+        display.setProgress(3, { totalItems: 5, completedItems: 1, roundStartTime: baseTime - 10000 });
+
+        // Instance 1: running (white), Instance 2: completed (green), Instance 3: failed (red)
+        display.markCompleted(2);
+        display.markFailed(3, 'Playwright timeout');
+
+        const lines = display.renderLines(baseTime);
+
+        // Instance 1: running — no color
+        expect(lines[0]).not.toContain(ANSI_RED);
+        expect(lines[0]).not.toContain(ANSI_GREEN);
+        expect(lines[0]).toContain('I1');
+
+        // Instance 2: completed — green
+        expect(lines[1]).toContain(ANSI_GREEN);
+        expect(lines[1]).not.toContain(ANSI_RED);
+        expect(lines[1]).toContain('I2');
+
+        // Instance 3: failed — red
+        expect(lines[2]).toContain(ANSI_RED);
+        expect(lines[2]).not.toContain(ANSI_GREEN);
+        expect(lines[2]).toContain('I3');
+        expect(lines[2]).toContain('ERROR: Playwright timeout');
+      });
     });
   });
 });

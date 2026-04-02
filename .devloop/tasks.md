@@ -91,7 +91,7 @@
 - **Verification**: Confirm round 1 progress is based on plan items. Start round 2 and confirm the progress bar recalibrates to use the discovery doc's more detailed item list. Confirm the bar doesn't jump or regress unexpectedly during recalibration.
 
 ### TASK-016: Progress bar color states
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-014, TASK-013
 - **Description**: Implement color states for progress bars: white while running, red on failure (with error description shown), white again on successful retry, green when all rounds for that instance are complete. If an instance exceeds the retry limit, the bar stays red permanently with a final error message. See requirements.md "Color States" section.
 - **Verification**: Simulate a running instance (white), then a failure (red with error message), then a successful retry (back to white), then completion (green). Simulate exceeding retry limit and confirm bar stays red. Confirm each state renders correctly.
