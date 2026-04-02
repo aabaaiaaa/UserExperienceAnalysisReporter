@@ -1,0 +1,80 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "TaskFlow" [ref=e3] [cursor=pointer]:
+      - /url: index.html
+    - navigation [ref=e4]:
+      - list [ref=e5]:
+        - listitem [ref=e6]:
+          - link "Dashboard" [ref=e7] [cursor=pointer]:
+            - /url: index.html
+        - listitem [ref=e8]:
+          - link "Projects" [ref=e9] [cursor=pointer]:
+            - /url: listings.html
+        - listitem [ref=e10]:
+          - link "Settings" [ref=e11] [cursor=pointer]:
+            - /url: settings.html
+        - listitem [ref=e12]:
+          - link "Reports" [ref=e13] [cursor=pointer]:
+            - /url: detail.html
+  - main [ref=e14]:
+    - heading "Settings" [level=1] [ref=e15]
+    - generic [ref=e16]:
+      - heading "Profile Information" [level=2] [ref=e17]
+      - generic [ref=e18]:
+        - generic [ref=e19]: Full Name
+        - textbox "Full Name" [ref=e20]:
+          - /placeholder: Enter your name
+      - generic [ref=e21]:
+        - generic [ref=e22]: Email Address
+        - textbox "Email Address" [ref=e23]:
+          - /placeholder: your@email.com
+      - generic [ref=e24]:
+        - generic [ref=e25]: Phone Number (optional)
+        - textbox "Phone Number (optional)" [ref=e26]:
+          - /placeholder: +1 555-0100
+      - generic [ref=e27]:
+        - button "Save" [ref=e28] [cursor=pointer]
+        - button "Cancel" [ref=e29] [cursor=pointer]
+    - generic [ref=e30]:
+      - heading "Notification Preferences" [level=2] [ref=e31]
+      - generic [ref=e32]:
+        - generic [ref=e33]: Email Frequency
+        - combobox "Email Frequency" [ref=e34]:
+          - option "Immediately" [selected]
+          - option "Daily Digest"
+          - option "Weekly Summary"
+          - option "Never"
+      - generic [ref=e35]:
+        - generic [ref=e36]: SMS Alerts
+        - combobox "SMS Alerts" [ref=e37]:
+          - option "Enabled" [selected]
+          - option "Disabled"
+      - generic [ref=e38]:
+        - generic [ref=e39]: Slack Webhook URL
+        - textbox "Slack Webhook URL" [ref=e40]:
+          - /placeholder: https://hooks.slack.com/...
+      - generic [ref=e41]:
+        - button "Submit" [ref=e42] [cursor=pointer]
+        - button "Cancel" [ref=e43] [cursor=pointer]
+    - generic [ref=e44]:
+      - heading "Security" [level=2] [ref=e45]
+      - generic [ref=e46]:
+        - generic [ref=e47]: Current Password
+        - textbox "Current Password" [ref=e48]:
+          - /placeholder: Enter current password
+      - generic [ref=e49]:
+        - generic [ref=e50]: New Password
+        - textbox "New Password" [ref=e51]:
+          - /placeholder: Enter new password
+      - generic [ref=e52]:
+        - generic [ref=e53]: Confirm New Password
+        - textbox "Confirm New Password" [ref=e54]:
+          - /placeholder: Confirm new password
+      - generic [ref=e55]:
+        - button "Confirm" [ref=e56] [cursor=pointer]
+        - button "Cancel" [ref=e57] [cursor=pointer]
+    - generic [ref=e58]:
+      - heading "Danger Zone" [level=2] [ref=e59]
+      - paragraph [ref=e60]: Permanently delete your account and all associated data.
+      - button "Delete Account" [ref=e61] [cursor=pointer]
+  - contentinfo [ref=e62]: © 2026 TaskFlow Inc. All rights reserved.

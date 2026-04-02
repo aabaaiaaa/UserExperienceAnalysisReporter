@@ -1,0 +1,21 @@
+- main [ref=e2]:
+  - heading "Weekly Performance Report" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "Summary" [level=2] [ref=e5]
+    - generic [ref=e6]:
+      - generic [ref=e7]: "Generated: Apr 1, 2026"
+      - generic [ref=e8]: "Period: Mar 25 - Mar 31"
+      - generic [ref=e9]: "Author: System"
+    - generic [ref=e10]:
+      - paragraph [ref=e11]: Overall team productivity increased by 12% compared to the previous week. The Website Redesign project saw the most progress with 8 tasks completed. Mobile App v2 remains on track with steady daily commits.
+      - paragraph [ref=e12]: "Key highlights:"
+      - list [ref=e13]:
+        - listitem [ref=e14]: "Website Redesign: 8 tasks completed, 4 in review"
+        - listitem [ref=e15]: "Mobile App v2: 5 tasks completed, 2 blocked"
+        - listitem [ref=e16]: "API Integration: Project kickoff scheduled for next week"
+        - listitem [ref=e17]: "Security Audit: 3 critical findings addressed"
+      - paragraph [ref=e18]: "Note: This report excludes data from archived projects. To include archived project data, update your reporting preferences in the admin panel. Contact support@taskflow.com if you need assistance with custom report configuration."
+  - generic [ref=e19]:
+    - button "Download" [ref=e20] [cursor=pointer]
+    - button "Export" [ref=e21] [cursor=pointer]
+    - button "Share" [ref=e22] [cursor=pointer]

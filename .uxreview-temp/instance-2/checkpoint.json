@@ -1,0 +1,20 @@
+{
+  "instanceId": 2,
+  "assignedAreas": [
+    "Projects Listing",
+    "Report Detail"
+  ],
+  "currentRound": 1,
+  "areas": [
+    {
+      "name": "Projects Listing",
+      "status": "not-started"
+    },
+    {
+      "name": "Report Detail",
+      "status": "not-started"
+    }
+  ],
+  "lastAction": "Starting review",
+  "timestamp": "2026-04-02T17:53:53.276Z"
+}
