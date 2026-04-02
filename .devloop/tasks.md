@@ -55,7 +55,7 @@
 - **Verification**: After a mock instance run, confirm the discovery doc contains structured entries for visited areas and elements. After a second round, confirm the doc has accumulated new entries alongside round 1 entries.
 
 ### TASK-010: Per-instance report writing with instance-scoped IDs
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007
 - **Description**: Implement the per-instance report format. Each finding includes an instance-scoped ID (e.g., `I1-UXR-001`), UI area, title, description, suggestion, screenshot reference, and severity. Instruct Claude instances to write findings in this format continuously. See requirements.md "Per-Instance Reports" section.
 - **Verification**: After a mock instance run, confirm the report contains properly formatted findings with instance-scoped IDs, and that screenshot references use the correct ID format.

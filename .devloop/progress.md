@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 32
-- **Completed**: 9
-- **Remaining**: 23
-- **Last Updated**: 2026-04-02T11:32:40.031Z
+- **Completed**: 10
+- **Remaining**: 22
+- **Last Updated**: 2026-04-02T11:40:50.607Z
 
 ## Iteration Log
 
@@ -88,4 +88,13 @@
 - **Exit Status**: success
 - **Tokens**: 1,202,130 total (1,326 in, 16,452 out, 59,039 cache-create, 1,125,313 cache-read)
 - **Cost**: $1.4792
+
+### Iteration 10 - 2026-04-02T11:32:45.094Z
+- **Task Attempted**: TASK-010
+- **Task Completed**: TASK-010
+- **Summary**: Completed Per-instance report writing with instance-scoped IDs
+- **Duration**: 8m 5s
+- **Exit Status**: success
+- **Tokens**: 1,443,376 total (27 in, 16,134 out, 65,758 cache-create, 1,361,457 cache-read)
+- **Cost**: $1.6707
 

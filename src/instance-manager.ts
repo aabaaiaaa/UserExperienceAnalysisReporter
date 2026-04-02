@@ -1,6 +1,7 @@
 import { runClaude, ClaudeCliResult } from './claude-cli.js';
 import { getInstancePaths } from './file-manager.js';
 import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent } from './discovery.js';
+import { buildReportInstructions } from './report.js';
 
 export type InstanceStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -93,23 +94,7 @@ After each significant step, write a JSON checkpoint with this structure:
 }
 \`\`\`
 
-### 3. Report Document: ${paths.report}
-Write each UX finding as you discover it, using this format:
-
-\`\`\`markdown
-## I${config.instanceNumber}-UXR-NNN: Finding Title
-
-- **UI Area**: Which part of the app
-- **Severity**: critical | major | minor | suggestion
-- **Description**: Detailed observation of the UX issue
-- **Suggestion**: Recommended improvement
-- **Screenshot**: I${config.instanceNumber}-UXR-NNN.png
-\`\`\`
-
-Number findings sequentially starting from I${config.instanceNumber}-UXR-001.
-
-### 4. Screenshots: ${paths.screenshots}/
-Capture a screenshot for each finding. Name it using the finding ID (e.g., I${config.instanceNumber}-UXR-001.png).
+${buildReportInstructions(config.instanceNumber, paths.report, paths.screenshots)}
 
 ## Process
 
