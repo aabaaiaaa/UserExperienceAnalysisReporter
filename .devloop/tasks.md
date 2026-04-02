@@ -163,7 +163,7 @@
 - **Verification**: `npx vitest run` passes. Tests cover: duplicate merged, similar-but-distinct kept separate, IDs are sequential, screenshots renamed, hierarchy is correct, discovery doc is deduplicated and reusable.
 
 ### TASK-028: Integration tests — edge cases and input handling
-- **Status**: pending
+- **Status**: in-progress
 - **Dependencies**: TASK-024
 - **Description**: Write integration tests for edge cases: inline text vs file paths for intro/plan/scope, default scope when --scope omitted, --show-default-scope output, single-area plan, single instance skips work distribution, all instances fail, missing optional params use defaults, invalid URL, invalid instance/round counts. See requirements.md "Testing Strategy" section.
 - **Verification**: `npx vitest run` passes. All edge cases have test coverage.
