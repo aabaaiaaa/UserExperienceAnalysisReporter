@@ -61,7 +61,7 @@
 - **Verification**: After a mock instance run, confirm the report contains properly formatted findings with instance-scoped IDs, and that screenshot references use the correct ID format.
 
 ### TASK-011: Screenshot capture integration
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-010
 - **Description**: Instruct Claude instances to capture screenshots via Playwright MCP for each finding. Screenshots are named using the finding's instance-scoped ID (e.g., `I1-UXR-001.png`) and stored in the instance's `screenshots/` directory. Support multiple screenshots per finding (e.g., `I1-UXR-001-a.png`). See requirements.md "Screenshots" section.
 - **Verification**: After a mock instance run, confirm screenshots exist in the instance's screenshots directory with correct naming conventions. Confirm multiple screenshots per finding are handled.

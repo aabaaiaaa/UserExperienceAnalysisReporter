@@ -218,9 +218,12 @@ export function appendFinding(instanceNumber: number, finding: Finding): void {
 /**
  * Build the report format instructions for a Claude instance prompt.
  * This tells Claude exactly how to structure findings in the report.
+ *
+ * Screenshot capture instructions are provided separately via the screenshots module.
  */
-export function buildReportInstructions(instanceNumber: number, reportPath: string, screenshotsPath: string): string {
-  return `### Report Document: ${reportPath}
+export function buildReportInstructions(instanceNumber: number, reportPath: string): string {
+  return `### 2. Report Document: ${reportPath}
+
 Write each UX finding as you discover it, using this exact markdown format:
 
 \`\`\`markdown
@@ -235,14 +238,16 @@ Write each UX finding as you discover it, using this exact markdown format:
 
 Number findings sequentially starting from I${instanceNumber}-UXR-001. Each finding must have a unique instance-scoped ID.
 
+For findings with multiple screenshots, list all screenshot filenames comma-separated:
+\`\`\`
+- **Screenshot**: I${instanceNumber}-UXR-NNN.png, I${instanceNumber}-UXR-NNN-a.png, I${instanceNumber}-UXR-NNN-b.png
+\`\`\`
+
 Start the file with:
 
 \`\`\`markdown
 # UX Report - Instance ${instanceNumber}
 \`\`\`
 
-Append new findings as you go. Never overwrite previous findings.
-
-### Screenshots: ${screenshotsPath}/
-Capture a screenshot for each finding via Playwright MCP. Name it using the finding ID (e.g., I${instanceNumber}-UXR-001.png). If a finding needs multiple screenshots, use suffixes (e.g., I${instanceNumber}-UXR-001-a.png, I${instanceNumber}-UXR-001-b.png).`;
+Append new findings as you go. Never overwrite previous findings.`;
 }

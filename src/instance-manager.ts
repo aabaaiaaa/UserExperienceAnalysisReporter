@@ -2,6 +2,7 @@ import { runClaude, ClaudeCliResult } from './claude-cli.js';
 import { getInstancePaths } from './file-manager.js';
 import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent } from './discovery.js';
 import { buildReportInstructions } from './report.js';
+import { buildScreenshotInstructions } from './screenshots.js';
 
 export type InstanceStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -94,7 +95,9 @@ After each significant step, write a JSON checkpoint with this structure:
 }
 \`\`\`
 
-${buildReportInstructions(config.instanceNumber, paths.report, paths.screenshots)}
+${buildReportInstructions(config.instanceNumber, paths.report)}
+
+${buildScreenshotInstructions(config.instanceNumber, paths.screenshots)}
 
 ## Process
 

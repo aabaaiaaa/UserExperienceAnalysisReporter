@@ -394,23 +394,18 @@ describe('appendFinding', () => {
 
 describe('buildReportInstructions', () => {
   it('includes the report file path', () => {
-    const instructions = buildReportInstructions(1, '/tmp/instance-1/report.md', '/tmp/instance-1/screenshots');
+    const instructions = buildReportInstructions(1, '/tmp/instance-1/report.md');
     expect(instructions).toContain('/tmp/instance-1/report.md');
   });
 
-  it('includes the screenshots directory path', () => {
-    const instructions = buildReportInstructions(1, '/tmp/report.md', '/tmp/screenshots');
-    expect(instructions).toContain('/tmp/screenshots');
-  });
-
   it('includes the finding format example with correct instance ID', () => {
-    const instructions = buildReportInstructions(3, '/tmp/report.md', '/tmp/screenshots');
+    const instructions = buildReportInstructions(3, '/tmp/report.md');
     expect(instructions).toContain('I3-UXR-NNN');
     expect(instructions).toContain('I3-UXR-001');
   });
 
   it('includes all required finding fields in the format example', () => {
-    const instructions = buildReportInstructions(1, '/tmp/report.md', '/tmp/screenshots');
+    const instructions = buildReportInstructions(1, '/tmp/report.md');
     expect(instructions).toContain('**UI Area**');
     expect(instructions).toContain('**Severity**');
     expect(instructions).toContain('**Description**');
@@ -419,7 +414,7 @@ describe('buildReportInstructions', () => {
   });
 
   it('includes all severity options', () => {
-    const instructions = buildReportInstructions(1, '/tmp/report.md', '/tmp/screenshots');
+    const instructions = buildReportInstructions(1, '/tmp/report.md');
     expect(instructions).toContain('critical');
     expect(instructions).toContain('major');
     expect(instructions).toContain('minor');
@@ -427,30 +422,26 @@ describe('buildReportInstructions', () => {
   });
 
   it('includes report header instruction', () => {
-    const instructions = buildReportInstructions(2, '/tmp/report.md', '/tmp/screenshots');
+    const instructions = buildReportInstructions(2, '/tmp/report.md');
     expect(instructions).toContain('# UX Report - Instance 2');
   });
 
   it('instructs sequential numbering starting from 001', () => {
-    const instructions = buildReportInstructions(1, '/tmp/report.md', '/tmp/screenshots');
+    const instructions = buildReportInstructions(1, '/tmp/report.md');
     expect(instructions).toContain('I1-UXR-001');
     expect(instructions).toContain('sequentially');
   });
 
   it('instructs not to overwrite previous findings', () => {
-    const instructions = buildReportInstructions(1, '/tmp/report.md', '/tmp/screenshots');
+    const instructions = buildReportInstructions(1, '/tmp/report.md');
     expect(instructions).toContain('Never overwrite previous findings');
   });
 
-  it('includes screenshot naming convention', () => {
-    const instructions = buildReportInstructions(2, '/tmp/report.md', '/tmp/screenshots');
-    expect(instructions).toContain('I2-UXR-001.png');
-  });
-
-  it('mentions multiple screenshot support with suffixes', () => {
-    const instructions = buildReportInstructions(1, '/tmp/report.md', '/tmp/screenshots');
+  it('includes multi-screenshot reference format', () => {
+    const instructions = buildReportInstructions(1, '/tmp/report.md');
     expect(instructions).toContain('-a.png');
     expect(instructions).toContain('-b.png');
+    expect(instructions).toContain('comma-separated');
   });
 });
 
