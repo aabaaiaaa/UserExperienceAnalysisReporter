@@ -19,10 +19,21 @@ export interface InstanceProgress {
   priorRoundDurations: number[];
 }
 
+export type ConsolidationStatus = 'idle' | 'running' | 'completed';
+
+export interface ConsolidationState {
+  status: ConsolidationStatus;
+  reportPath?: string;
+  discoveryPath?: string;
+  spinnerFrame: number;
+}
+
 // ANSI color codes for terminal output
 export const ANSI_RESET = '\x1B[0m';
 export const ANSI_RED = '\x1B[31m';
 export const ANSI_GREEN = '\x1B[32m';
+
+const SPINNER_FRAMES = ['|', '/', '-', '\\'];
 
 const BAR_WIDTH = 20;
 const BAR_FILLED = '#';
@@ -152,10 +163,31 @@ export function formatProgressLine(progress: InstanceProgress, now?: number): st
   return `${prefix} | ${statsStr} | ${elapsedStr}${etaStr}`;
 }
 
+export function formatConsolidationLine(state: ConsolidationState): string | null {
+  if (state.status === 'idle') return null;
+
+  if (state.status === 'running') {
+    const frame = SPINNER_FRAMES[state.spinnerFrame % SPINNER_FRAMES.length];
+    return `${frame} Consolidating reports...`;
+  }
+
+  // Completed
+  const lines: string[] = [];
+  lines.push(`${ANSI_GREEN}✓ Consolidation complete${ANSI_RESET}`);
+  if (state.reportPath) {
+    lines.push(`  Report:    ${state.reportPath}`);
+  }
+  if (state.discoveryPath) {
+    lines.push(`  Discovery: ${state.discoveryPath}`);
+  }
+  return lines.join('\n');
+}
+
 export class ProgressDisplay {
   private instances: Map<number, InstanceProgress> = new Map();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private renderedLineCount = 0;
+  private consolidation: ConsolidationState = { status: 'idle', spinnerFrame: 0 };
 
   constructor(
     private instanceNumbers: number[],
@@ -263,6 +295,18 @@ export class ProgressDisplay {
     }
   }
 
+  startConsolidation(): void {
+    this.consolidation = { status: 'running', spinnerFrame: 0 };
+  }
+
+  completeConsolidation(reportPath: string, discoveryPath: string): void {
+    this.consolidation = { status: 'completed', reportPath, discoveryPath, spinnerFrame: 0 };
+  }
+
+  getConsolidationState(): ConsolidationState {
+    return this.consolidation;
+  }
+
   renderLines(now?: number): string[] {
     const lines: string[] = [];
     for (const num of this.instanceNumbers) {
@@ -271,12 +315,24 @@ export class ProgressDisplay {
         lines.push(formatProgressLine(progress, now));
       }
     }
+
+    const consolidationLine = formatConsolidationLine(this.consolidation);
+    if (consolidationLine) {
+      // Consolidation line may contain newlines (for completed state with paths)
+      lines.push(...consolidationLine.split('\n'));
+    }
+
     return lines;
   }
 
   renderToTerminal(): void {
     if (this.renderedLineCount > 0) {
       process.stderr.write(`\x1B[${this.renderedLineCount}A`);
+    }
+
+    // Advance spinner frame for consolidation animation
+    if (this.consolidation.status === 'running') {
+      this.consolidation.spinnerFrame++;
     }
 
     const lines = this.renderLines();

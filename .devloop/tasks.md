@@ -97,7 +97,7 @@
 - **Verification**: Simulate a running instance (white), then a failure (red with error message), then a successful retry (back to white), then completion (green). Simulate exceeding retry limit and confirm bar stays red. Confirm each state renders correctly.
 
 ### TASK-017: Consolidation phase progress indicator
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-014
 - **Description**: Implement a progress indicator for the consolidation phase that appears after all instances complete (or permanently fail). Show a spinner or status line (e.g., "Consolidating reports...") while consolidation is running. On completion, display the paths to the final report and discovery doc. See requirements.md "Completion" section.
 - **Verification**: Simulate all instances completing. Confirm the consolidation indicator appears. Confirm it shows the output file paths on completion.

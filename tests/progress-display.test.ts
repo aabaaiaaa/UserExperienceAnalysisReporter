@@ -27,8 +27,10 @@ import {
   countFindings,
   getProgressFromCheckpoint,
   formatProgressLine,
+  formatConsolidationLine,
   ProgressDisplay,
   InstanceProgress,
+  ConsolidationState,
   ANSI_RESET,
   ANSI_RED,
   ANSI_GREEN,
@@ -335,6 +337,56 @@ describe('formatProgressLine', () => {
 
     const line = formatProgressLine(progress, now);
     expect(line).toContain('[##########----------]');
+  });
+});
+
+describe('formatConsolidationLine', () => {
+  it('returns null for idle state', () => {
+    const state: ConsolidationState = { status: 'idle', spinnerFrame: 0 };
+    expect(formatConsolidationLine(state)).toBeNull();
+  });
+
+  it('shows spinner with message for running state', () => {
+    const state: ConsolidationState = { status: 'running', spinnerFrame: 0 };
+    const line = formatConsolidationLine(state);
+    expect(line).toBe('| Consolidating reports...');
+  });
+
+  it('cycles spinner frames', () => {
+    const frames = ['|', '/', '-', '\\'];
+    for (let i = 0; i < frames.length; i++) {
+      const state: ConsolidationState = { status: 'running', spinnerFrame: i };
+      const line = formatConsolidationLine(state);
+      expect(line).toBe(`${frames[i]} Consolidating reports...`);
+    }
+  });
+
+  it('wraps spinner frames around', () => {
+    const state: ConsolidationState = { status: 'running', spinnerFrame: 4 };
+    const line = formatConsolidationLine(state);
+    // Frame 4 % 4 = 0 → '|'
+    expect(line).toBe('| Consolidating reports...');
+  });
+
+  it('shows green checkmark and paths for completed state', () => {
+    const state: ConsolidationState = {
+      status: 'completed',
+      reportPath: '/output/report.md',
+      discoveryPath: '/output/discovery.md',
+      spinnerFrame: 0,
+    };
+    const line = formatConsolidationLine(state)!;
+    expect(line).toContain(`${ANSI_GREEN}✓ Consolidation complete${ANSI_RESET}`);
+    expect(line).toContain('Report:    /output/report.md');
+    expect(line).toContain('Discovery: /output/discovery.md');
+  });
+
+  it('handles completed state without paths', () => {
+    const state: ConsolidationState = { status: 'completed', spinnerFrame: 0 };
+    const line = formatConsolidationLine(state)!;
+    expect(line).toContain('✓ Consolidation complete');
+    expect(line).not.toContain('Report:');
+    expect(line).not.toContain('Discovery:');
   });
 });
 
@@ -1051,6 +1103,31 @@ describe('ProgressDisplay', () => {
       });
     });
 
+    describe('consolidation state methods', () => {
+      it('startConsolidation sets running state', () => {
+        const display = new ProgressDisplay([1], 1);
+        display.startConsolidation();
+        const state = display.getConsolidationState();
+        expect(state.status).toBe('running');
+        expect(state.spinnerFrame).toBe(0);
+      });
+
+      it('completeConsolidation sets completed state with paths', () => {
+        const display = new ProgressDisplay([1], 1);
+        display.completeConsolidation('/output/report.md', '/output/discovery.md');
+        const state = display.getConsolidationState();
+        expect(state.status).toBe('completed');
+        expect(state.reportPath).toBe('/output/report.md');
+        expect(state.discoveryPath).toBe('/output/discovery.md');
+      });
+
+      it('getConsolidationState returns idle by default', () => {
+        const display = new ProgressDisplay([1], 1);
+        const state = display.getConsolidationState();
+        expect(state.status).toBe('idle');
+      });
+    });
+
     describe('updateFromFiles skips non-running states', () => {
       it('skips retrying instances', () => {
         const display = new ProgressDisplay([1], 1);
@@ -1240,6 +1317,135 @@ describe('ProgressDisplay', () => {
         expect(lines[2]).toContain('I3');
         expect(lines[2]).toContain('ERROR: Playwright timeout');
       });
+    });
+  });
+
+  describe('consolidation phase indicator', () => {
+    it('renderLines does not include consolidation line when idle', () => {
+      const display = new ProgressDisplay([1], 1);
+      const lines = display.renderLines();
+      expect(lines).toHaveLength(1); // just the instance line
+    });
+
+    it('renderLines includes consolidation spinner when running', () => {
+      const display = new ProgressDisplay([1], 1);
+      display.markCompleted(1);
+      display.startConsolidation();
+
+      const lines = display.renderLines();
+      // Instance line + consolidation line
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toContain('Consolidating reports...');
+    });
+
+    it('renderLines includes completion info with paths when done', () => {
+      const display = new ProgressDisplay([1, 2], 1);
+      display.markCompleted(1);
+      display.markCompleted(2);
+      display.completeConsolidation('/out/report.md', '/out/discovery.md');
+
+      const lines = display.renderLines();
+      // 2 instance lines + 3 consolidation lines (checkmark, report path, discovery path)
+      expect(lines).toHaveLength(5);
+      expect(lines[2]).toContain('✓ Consolidation complete');
+      expect(lines[3]).toContain('Report:    /out/report.md');
+      expect(lines[4]).toContain('Discovery: /out/discovery.md');
+    });
+
+    it('renderToTerminal advances the spinner frame', () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+      const display = new ProgressDisplay([1], 1);
+      display.markCompleted(1);
+      display.startConsolidation();
+
+      expect(display.getConsolidationState().spinnerFrame).toBe(0);
+
+      display.renderToTerminal();
+      expect(display.getConsolidationState().spinnerFrame).toBe(1);
+
+      display.renderToTerminal();
+      expect(display.getConsolidationState().spinnerFrame).toBe(2);
+
+      stderrSpy.mockRestore();
+    });
+
+    it('renderToTerminal does not advance spinner after completion', () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+      const display = new ProgressDisplay([1], 1);
+      display.completeConsolidation('/out/report.md', '/out/discovery.md');
+
+      display.renderToTerminal();
+      display.renderToTerminal();
+      expect(display.getConsolidationState().spinnerFrame).toBe(0);
+
+      stderrSpy.mockRestore();
+    });
+
+    it('full lifecycle: instances complete → consolidation running → consolidation done', () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const display = new ProgressDisplay([1, 2], 1);
+      const baseTime = 8000000;
+
+      // Step 1: All instances complete
+      display.setProgress(1, { totalItems: 3, completedItems: 3, findingsCount: 2, roundStartTime: baseTime - 60000 });
+      display.setProgress(2, { totalItems: 4, completedItems: 4, findingsCount: 3, roundStartTime: baseTime - 90000 });
+      display.markCompleted(1);
+      display.markCompleted(2);
+
+      let lines = display.renderLines(baseTime);
+      expect(lines).toHaveLength(2); // no consolidation yet
+      expect(lines[0]).toContain(ANSI_GREEN);
+      expect(lines[1]).toContain(ANSI_GREEN);
+
+      // Step 2: Start consolidation
+      display.startConsolidation();
+
+      lines = display.renderLines(baseTime);
+      expect(lines).toHaveLength(3);
+      expect(lines[2]).toContain('Consolidating reports...');
+
+      // Step 3: Complete consolidation
+      display.completeConsolidation('/output/report.md', '/output/discovery.md');
+
+      lines = display.renderLines(baseTime);
+      expect(lines).toHaveLength(5); // 2 instances + checkmark + report + discovery
+      expect(lines[2]).toContain('✓ Consolidation complete');
+      expect(lines[3]).toContain('Report:    /output/report.md');
+      expect(lines[4]).toContain('Discovery: /output/discovery.md');
+
+      stderrSpy.mockRestore();
+    });
+
+    it('works with mixed completed and permanently failed instances', () => {
+      const display = new ProgressDisplay([1, 2, 3], 1);
+      const baseTime = 8000000;
+
+      display.setProgress(1, { totalItems: 3, completedItems: 3, findingsCount: 2, roundStartTime: baseTime - 60000 });
+      display.setProgress(2, { totalItems: 4, completedItems: 1, roundStartTime: baseTime - 90000 });
+      display.setProgress(3, { totalItems: 5, completedItems: 5, findingsCount: 4, roundStartTime: baseTime - 120000 });
+      display.markCompleted(1);
+      display.markPermanentlyFailed(2, 'API rate limit');
+      display.markCompleted(3);
+
+      display.startConsolidation();
+
+      let lines = display.renderLines(baseTime);
+      expect(lines).toHaveLength(4); // 3 instances + consolidation spinner
+      expect(lines[0]).toContain(ANSI_GREEN); // I1 completed
+      expect(lines[1]).toContain(ANSI_RED); // I2 permanently failed
+      expect(lines[1]).toContain('FAILED:');
+      expect(lines[2]).toContain(ANSI_GREEN); // I3 completed
+      expect(lines[3]).toContain('Consolidating reports...');
+
+      display.completeConsolidation('/out/report.md', '/out/discovery.md');
+
+      lines = display.renderLines(baseTime);
+      expect(lines).toHaveLength(6); // 3 instances + 3 consolidation lines
+      expect(lines[3]).toContain('✓ Consolidation complete');
+      expect(lines[4]).toContain('/out/report.md');
+      expect(lines[5]).toContain('/out/discovery.md');
     });
   });
 });
