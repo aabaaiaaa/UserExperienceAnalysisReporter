@@ -1,6 +1,6 @@
 import { runClaude, ClaudeCliResult } from './claude-cli.js';
 import { getInstancePaths } from './file-manager.js';
-import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent } from './discovery.js';
+import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent, extractDiscoveryItems } from './discovery.js';
 import { buildReportInstructions } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
 import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
@@ -288,8 +288,19 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
   const retries: RetryInfo[] = [];
 
   for (let round = 1; round <= config.totalRounds; round++) {
+    // For round 2+, recalibrate the checkpoint areas to use the more granular
+    // discovery doc items instead of the original plan areas. This gives the
+    // progress bar a finer-grained scale based on what was actually discovered.
+    let roundAreas = areas;
+    if (round > 1) {
+      const discoveryItems = extractDiscoveryItems(config.instanceNumber);
+      if (discoveryItems && discoveryItems.length > 0) {
+        roundAreas = discoveryItems;
+      }
+    }
+
     // Write checkpoint at the start of each round
-    const initialCheckpoint = createInitialCheckpoint(config.instanceNumber, areas, round);
+    const initialCheckpoint = createInitialCheckpoint(config.instanceNumber, roundAreas, round);
     writeCheckpoint(config.instanceNumber, initialCheckpoint);
 
     // Spawn the instance for this round

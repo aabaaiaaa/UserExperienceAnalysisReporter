@@ -85,7 +85,7 @@
 - **Verification**: Run with 2 mock instances. Confirm each has its own progress bar that updates. Confirm the percentage advances as checkpoint areas are marked complete. Confirm stats and ETA are displayed.
 
 ### TASK-015: Progress bar scale recalibration
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-014, TASK-012
 - **Description**: In round 1, the progress scale is based on plan items assigned to the instance. In round 2+, recalibrate the progress scale to use the more granular discovery doc (which has more detailed area/element breakdowns). See requirements.md "Progress Scale" section.
 - **Verification**: Confirm round 1 progress is based on plan items. Start round 2 and confirm the progress bar recalibrates to use the discovery doc's more detailed item list. Confirm the bar doesn't jump or regress unexpectedly during recalibration.

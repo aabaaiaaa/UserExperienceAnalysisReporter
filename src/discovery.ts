@@ -291,6 +291,45 @@ Append new entries as you go. This document accumulates across rounds — never 
 }
 
 /**
+ * Extract a flat list of granular items from the discovery document.
+ * Each item is a specific element within an area (formatted as "Area: Element").
+ * If an area has no observed elements, the area name itself is used.
+ * Deduplicates across rounds so each unique item appears once.
+ * Returns null if no discovery document exists or has no entries.
+ *
+ * Used to recalibrate the progress scale in round 2+, where the discovery doc
+ * provides a more detailed breakdown than the original plan items.
+ */
+export function extractDiscoveryItems(instanceNumber: number): string[] | null {
+  const doc = readDiscoveryDocument(instanceNumber);
+  if (!doc || doc.rounds.length === 0) return null;
+
+  const items: string[] = [];
+  const seen = new Set<string>();
+
+  for (const round of doc.rounds) {
+    for (const entry of round.entries) {
+      if (entry.elementsObserved.length > 0) {
+        for (const element of entry.elementsObserved) {
+          const key = `${entry.area}: ${element}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            items.push(key);
+          }
+        }
+      } else {
+        if (!seen.has(entry.area)) {
+          seen.add(entry.area);
+          items.push(entry.area);
+        }
+      }
+    }
+  }
+
+  return items.length > 0 ? items : null;
+}
+
+/**
  * Build a prompt section that provides existing discovery content for round 2+.
  * Instructs Claude to review what was already covered and focus on gaps.
  */

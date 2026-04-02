@@ -15,6 +15,7 @@ import {
   readDiscoveryContent,
   buildDiscoveryInstructions,
   buildDiscoveryContextPrompt,
+  extractDiscoveryItems,
 } from '../src/discovery.js';
 
 // Use a test-specific temp directory
@@ -469,6 +470,116 @@ describe('buildDiscoveryContextPrompt', () => {
   it('instructs not to re-document covered areas', () => {
     const prompt = buildDiscoveryContextPrompt('some content');
     expect(prompt).toContain('Do NOT re-document areas');
+  });
+});
+
+describe('extractDiscoveryItems', () => {
+  it('returns null when no discovery file exists', () => {
+    ensureInstanceDir(5);
+    expect(extractDiscoveryItems(5)).toBeNull();
+  });
+
+  it('extracts elements as "Area: Element" items', () => {
+    ensureInstanceDir(1);
+    appendDiscoveryRound(1, SAMPLE_ROUND_1);
+
+    const items = extractDiscoveryItems(1);
+    expect(items).not.toBeNull();
+    // SAMPLE_ENTRY has 4 elements, SAMPLE_ENTRY_2 has 3 elements => 7 items
+    expect(items).toHaveLength(7);
+    expect(items).toContain('Navigation Bar: Main navigation links (Home, Dashboard, Settings)');
+    expect(items).toContain('Navigation Bar: Logo/brand image');
+    expect(items).toContain('Navigation Bar: Search bar');
+    expect(items).toContain('Navigation Bar: User avatar dropdown');
+    expect(items).toContain('Dashboard: Card grid (4 cards)');
+    expect(items).toContain('Dashboard: Statistics summary section');
+    expect(items).toContain('Dashboard: Recent activity feed');
+  });
+
+  it('falls back to area name when entry has no elements', () => {
+    ensureInstanceDir(1);
+    const round: DiscoveryRound = {
+      roundNumber: 1,
+      entries: [
+        {
+          area: 'Simple Area',
+          visitedAt: '2026-04-02T10:00:00Z',
+          navigationPath: 'Home',
+          elementsObserved: [],
+          checked: ['Layout consistency'],
+        },
+      ],
+    };
+    appendDiscoveryRound(1, round);
+
+    const items = extractDiscoveryItems(1);
+    expect(items).not.toBeNull();
+    expect(items).toHaveLength(1);
+    expect(items).toContain('Simple Area');
+  });
+
+  it('deduplicates items across rounds', () => {
+    ensureInstanceDir(1);
+
+    const round1: DiscoveryRound = {
+      roundNumber: 1,
+      entries: [
+        {
+          area: 'Navigation',
+          visitedAt: '2026-04-02T10:00:00Z',
+          navigationPath: 'Home',
+          elementsObserved: ['Logo', 'Search bar'],
+          checked: ['Layout'],
+        },
+      ],
+    };
+    appendDiscoveryRound(1, round1);
+
+    const round2: DiscoveryRound = {
+      roundNumber: 2,
+      entries: [
+        {
+          area: 'Navigation',
+          visitedAt: '2026-04-02T11:00:00Z',
+          navigationPath: 'Home',
+          elementsObserved: ['Logo', 'Hamburger menu'], // Logo is duplicate
+          checked: ['Accessibility'],
+        },
+      ],
+    };
+    appendDiscoveryRound(1, round2);
+
+    const items = extractDiscoveryItems(1);
+    expect(items).not.toBeNull();
+    // Logo appears in both rounds but should only appear once
+    expect(items).toHaveLength(3);
+    expect(items).toContain('Navigation: Logo');
+    expect(items).toContain('Navigation: Search bar');
+    expect(items).toContain('Navigation: Hamburger menu');
+  });
+
+  it('combines items from multiple areas and rounds', () => {
+    ensureInstanceDir(1);
+
+    appendDiscoveryRound(1, SAMPLE_ROUND_1);
+    appendDiscoveryRound(1, SAMPLE_ROUND_2);
+
+    const items = extractDiscoveryItems(1);
+    expect(items).not.toBeNull();
+    // Round 1: Nav (4 elements) + Dashboard (3 elements) = 7
+    // Round 2: Settings Page (4 elements) = 4
+    // Total: 11
+    expect(items).toHaveLength(11);
+    expect(items).toContain('Navigation Bar: Search bar');
+    expect(items).toContain('Dashboard: Card grid (4 cards)');
+    expect(items).toContain('Settings Page: Save button');
+  });
+
+  it('returns null for empty discovery document', () => {
+    ensureInstanceDir(1);
+    const paths = join(TEST_TEMP_DIR, 'instance-1', 'discovery.md');
+    writeFileSync(paths, '', 'utf-8');
+    expect(extractDiscoveryItems(1)).toBeNull();
   });
 });
 
