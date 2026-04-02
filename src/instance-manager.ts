@@ -1,5 +1,6 @@
 import { runClaude, ClaudeCliResult } from './claude-cli.js';
 import { getInstancePaths } from './file-manager.js';
+import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent } from './discovery.js';
 
 export type InstanceStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -14,6 +15,8 @@ export interface InstanceConfig {
   planChunk: string;
   /** UX evaluation scope (default or custom) */
   scope: string;
+  /** Current round number (1-based, default: 1) */
+  round?: number;
 }
 
 export interface InstanceState {
@@ -36,6 +39,16 @@ const INSTANCE_TIMEOUT_MS = 30 * 60 * 1000;
  */
 export function buildInstancePrompt(config: InstanceConfig): string {
   const paths = getInstancePaths(config.instanceNumber);
+  const roundNumber = config.round ?? 1;
+
+  // Build discovery context for round 2+
+  let discoveryContext = '';
+  if (roundNumber > 1) {
+    const existingDiscovery = readDiscoveryContent(config.instanceNumber);
+    if (existingDiscovery) {
+      discoveryContext = '\n' + buildDiscoveryContextPrompt(existingDiscovery) + '\n';
+    }
+  }
 
   return `You are a UX analyst reviewing a web application. Your job is to navigate the app, evaluate the user experience, and document your findings.
 
@@ -56,19 +69,14 @@ ${config.planChunk}
 Evaluate the application against the following criteria:
 
 ${config.scope}
-
+${discoveryContext}
 ## Output Instructions
 
 You must continuously write to three files as you work. Do NOT wait until the end — update these files after each significant action.
 
-### 1. Discovery Document: ${paths.discovery}
-Track what you explore. For each area you visit, record:
-- The UI area name and when you visited it
-- Specific UI elements, components, and features you observed
-- What you checked (layout, accessibility, forms, etc.)
-- Navigation paths you took to get there
+Current round: ${roundNumber}
 
-Append new entries as you go. This document accumulates across your work.
+${buildDiscoveryInstructions(config.instanceNumber, paths.discovery)}
 
 ### 2. Checkpoint File: ${paths.checkpoint}
 After each significant step, write a JSON checkpoint with this structure:

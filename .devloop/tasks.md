@@ -49,7 +49,7 @@
 - **Verification**: Write a checkpoint, read it back, confirm all fields are correct. Simulate a mid-area failure, write checkpoint, then confirm the resume prompt correctly instructs Claude to continue from the last completed step.
 
 ### TASK-009: Discovery document per-instance writing
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007
 - **Description**: Implement the per-instance discovery document format and instruct Claude instances to continuously write to it. The discovery doc tracks UI areas visited, specific elements observed, what was checked, and navigation paths. Ensure the discovery doc accumulates across rounds. See requirements.md "Per-Instance Discovery Doc" section.
 - **Verification**: After a mock instance run, confirm the discovery doc contains structured entries for visited areas and elements. After a second round, confirm the doc has accumulated new entries alongside round 1 entries.
