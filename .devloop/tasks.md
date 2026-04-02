@@ -175,7 +175,7 @@
 - **Verification**: Start the local server and confirm the test app loads in a browser. Visually confirm the intentional UX issues are present. Confirm at least 3-4 distinct UI areas exist.
 
 ### TASK-030: E2E test — full tool run with real Claude instances
-- **Status**: in-progress
+- **Status**: done
 - **Dependencies**: TASK-022, TASK-029
 - **Description**: Write an e2e test that runs the full tool against the test web app fixture (TASK-029) with real Claude instances (no mocks). Run with 2-3 Claude instances, each assigned a subset of the test app areas, with 1 round each. Verify: the tool completes without crashing, the final report contains findings with unique `UXR-` IDs and screenshot references, screenshots exist in the output directory, the consolidated discovery doc is present and hierarchically structured, and findings are grouped by UI area. This test should be tagged/configured to run separately from the fast integration tests (e.g., separate Vitest config or `--e2e` flag). See requirements.md "End-to-End Test" section.
 - **Verification**: Run the e2e test with real Claude API access. The tool completes successfully. The final report contains multiple findings with `UXR-` IDs. Screenshots exist in the output. Discovery doc is present. No crashes or unhandled errors.

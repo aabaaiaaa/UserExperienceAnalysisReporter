@@ -148,7 +148,7 @@ export async function spawnInstance(config: InstanceConfig): Promise<InstanceSta
       prompt,
       cwd: paths.dir,
       timeout: INSTANCE_TIMEOUT_MS,
-      extraArgs: ['--allowedTools', 'mcp__playwright,computer,bash,edit,write'],
+      extraArgs: ['--allowedTools', 'Bash,Read,Write,Edit,mcp__playwright'],
     });
 
     state.result = result;
@@ -216,7 +216,7 @@ export async function spawnInstanceWithResume(
       prompt: fullPrompt,
       cwd: paths.dir,
       timeout: INSTANCE_TIMEOUT_MS,
-      extraArgs: ['--allowedTools', 'mcp__playwright,computer,bash,edit,write'],
+      extraArgs: ['--allowedTools', 'Bash,Read,Write,Edit,mcp__playwright'],
     });
 
     state.result = result;
