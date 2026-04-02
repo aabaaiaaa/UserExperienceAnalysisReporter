@@ -103,7 +103,7 @@
 - **Verification**: Simulate all instances completing. Confirm the consolidation indicator appears. Confirm it shows the output file paths on completion.
 
 ### TASK-018: Report consolidation — merging and deduplication
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005, TASK-010
 - **Description**: Implement the report consolidation step using the shared Claude CLI utility (TASK-005) for the deduplication Claude call. Merge all per-instance reports into a single report. Use Claude to detect duplicate findings across instances (same issue spotted independently) and merge them. Err on the side of keeping findings separate rather than over-merging. See requirements.md "Final Consolidated Report" section.
 - **Verification**: Provide reports from 3 instances where 2 instances found the same issue. Confirm the duplicate is merged into one finding. Confirm similar-but-distinct findings are kept separate.
