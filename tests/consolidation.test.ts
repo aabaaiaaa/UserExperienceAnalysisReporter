@@ -18,6 +18,15 @@ import {
   copyScreenshots,
   reassignAndRemapScreenshots,
   ConsolidationResult,
+  groupFindingsByArea,
+  buildHierarchyPrompt,
+  parseHierarchyResponse,
+  buildHierarchy,
+  determineHierarchy,
+  organizeHierarchically,
+  formatConsolidatedReport,
+  HierarchicalFinding,
+  UIAreaGroup,
 } from '../src/consolidation.js';
 import { Finding, InstanceReport } from '../src/report.js';
 
@@ -1192,5 +1201,526 @@ describe('TASK-019 verification: sequential IDs, screenshot renaming, and refere
         expect(existsSync(join(testOutputDir, 'screenshots', ref))).toBe(true);
       }
     }
+  });
+});
+
+// ---- TASK-020: Hierarchical Grouping Tests ----
+
+describe('groupFindingsByArea', () => {
+  it('groups findings by their uiArea field', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', uiArea: 'Navigation' }),
+      makeFinding({ id: 'UXR-002', uiArea: 'Dashboard' }),
+      makeFinding({ id: 'UXR-003', uiArea: 'Navigation' }),
+      makeFinding({ id: 'UXR-004', uiArea: 'Dashboard' }),
+    ];
+
+    const groups = groupFindingsByArea(findings);
+
+    expect(groups.size).toBe(2);
+    expect(groups.get('Navigation')!.map((f) => f.id)).toEqual(['UXR-001', 'UXR-003']);
+    expect(groups.get('Dashboard')!.map((f) => f.id)).toEqual(['UXR-002', 'UXR-004']);
+  });
+
+  it('preserves order of first appearance', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', uiArea: 'Settings' }),
+      makeFinding({ id: 'UXR-002', uiArea: 'Dashboard' }),
+      makeFinding({ id: 'UXR-003', uiArea: 'Navigation' }),
+    ];
+
+    const groups = groupFindingsByArea(findings);
+    const areas = Array.from(groups.keys());
+
+    expect(areas).toEqual(['Settings', 'Dashboard', 'Navigation']);
+  });
+
+  it('uses "Other" for findings with empty uiArea', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', uiArea: '' }),
+      makeFinding({ id: 'UXR-002', uiArea: 'Dashboard' }),
+    ];
+
+    const groups = groupFindingsByArea(findings);
+
+    expect(groups.has('Other')).toBe(true);
+    expect(groups.get('Other')!.length).toBe(1);
+  });
+
+  it('returns empty map for empty input', () => {
+    const groups = groupFindingsByArea([]);
+    expect(groups.size).toBe(0);
+  });
+});
+
+describe('buildHierarchyPrompt', () => {
+  it('includes all finding details and instruction format', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', title: 'Grid spacing', description: 'Inconsistent spacing' }),
+      makeFinding({ id: 'UXR-002', title: 'Skeleton layout', description: 'Skeleton mismatch' }),
+    ];
+
+    const prompt = buildHierarchyPrompt(findings);
+
+    expect(prompt).toContain('UXR-001');
+    expect(prompt).toContain('UXR-002');
+    expect(prompt).toContain('Grid spacing');
+    expect(prompt).toContain('Skeleton layout');
+    expect(prompt).toContain('Inconsistent spacing');
+    expect(prompt).toContain('CHILD_OF');
+    expect(prompt).toContain('NO_DEPENDENCIES');
+    expect(prompt).toContain('independent');
+  });
+});
+
+describe('parseHierarchyResponse', () => {
+  it('returns empty map for NO_DEPENDENCIES', () => {
+    const result = parseHierarchyResponse('NO_DEPENDENCIES');
+    expect(result.size).toBe(0);
+  });
+
+  it('returns empty map for empty string', () => {
+    const result = parseHierarchyResponse('');
+    expect(result.size).toBe(0);
+  });
+
+  it('parses single CHILD_OF line', () => {
+    const result = parseHierarchyResponse('CHILD_OF: UXR-002, UXR-001');
+    expect(result.size).toBe(1);
+    expect(result.get('UXR-002')).toBe('UXR-001');
+  });
+
+  it('parses multiple CHILD_OF lines', () => {
+    const result = parseHierarchyResponse(
+      'CHILD_OF: UXR-002, UXR-001\nCHILD_OF: UXR-003, UXR-001',
+    );
+    expect(result.size).toBe(2);
+    expect(result.get('UXR-002')).toBe('UXR-001');
+    expect(result.get('UXR-003')).toBe('UXR-001');
+  });
+
+  it('ignores lines that do not match the expected format', () => {
+    const result = parseHierarchyResponse('Some commentary\nCHILD_OF: UXR-002, UXR-001\nMore text');
+    expect(result.size).toBe(1);
+    expect(result.get('UXR-002')).toBe('UXR-001');
+  });
+
+  it('ignores self-referencing entries', () => {
+    const result = parseHierarchyResponse('CHILD_OF: UXR-001, UXR-001');
+    expect(result.size).toBe(0);
+  });
+});
+
+describe('buildHierarchy', () => {
+  it('returns all findings as top-level when no dependencies', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001' }),
+      makeFinding({ id: 'UXR-002' }),
+    ];
+    const childToParent = new Map<string, string>();
+
+    const result = buildHierarchy(findings, childToParent);
+
+    expect(result.length).toBe(2);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[0].children).toEqual([]);
+    expect(result[1].finding.id).toBe('UXR-002');
+    expect(result[1].children).toEqual([]);
+  });
+
+  it('nests child findings under their parent', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', title: 'Parent' }),
+      makeFinding({ id: 'UXR-002', title: 'Child 1' }),
+      makeFinding({ id: 'UXR-003', title: 'Child 2' }),
+    ];
+    const childToParent = new Map([
+      ['UXR-002', 'UXR-001'],
+      ['UXR-003', 'UXR-001'],
+    ]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    expect(result.length).toBe(1);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[0].children.length).toBe(2);
+    expect(result[0].children[0].id).toBe('UXR-002');
+    expect(result[0].children[1].id).toBe('UXR-003');
+  });
+
+  it('keeps child as top-level if parent ID does not exist in findings', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001' }),
+      makeFinding({ id: 'UXR-002' }),
+    ];
+    const childToParent = new Map([['UXR-002', 'UXR-999']]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    expect(result.length).toBe(2);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[1].finding.id).toBe('UXR-002');
+  });
+
+  it('handles mix of parents, children, and independent findings', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', title: 'Parent A' }),
+      makeFinding({ id: 'UXR-002', title: 'Child of A' }),
+      makeFinding({ id: 'UXR-003', title: 'Independent' }),
+      makeFinding({ id: 'UXR-004', title: 'Parent B' }),
+      makeFinding({ id: 'UXR-005', title: 'Child of B' }),
+    ];
+    const childToParent = new Map([
+      ['UXR-002', 'UXR-001'],
+      ['UXR-005', 'UXR-004'],
+    ]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    expect(result.length).toBe(3);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[0].children.length).toBe(1);
+    expect(result[0].children[0].id).toBe('UXR-002');
+    expect(result[1].finding.id).toBe('UXR-003');
+    expect(result[1].children).toEqual([]);
+    expect(result[2].finding.id).toBe('UXR-004');
+    expect(result[2].children.length).toBe(1);
+    expect(result[2].children[0].id).toBe('UXR-005');
+  });
+
+  it('ignores child references to IDs not in findings list', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001' }),
+    ];
+    const childToParent = new Map([['UXR-999', 'UXR-001']]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    expect(result.length).toBe(1);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[0].children).toEqual([]);
+  });
+});
+
+describe('determineHierarchy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns flat structure for single finding without calling Claude', () => {
+    const findings: Finding[] = [makeFinding({ id: 'UXR-001' })];
+
+    return determineHierarchy(findings).then((result) => {
+      expect(mockedRunClaude).not.toHaveBeenCalled();
+      expect(result.length).toBe(1);
+      expect(result[0].finding.id).toBe('UXR-001');
+      expect(result[0].children).toEqual([]);
+    });
+  });
+
+  it('returns flat structure for empty findings without calling Claude', () => {
+    return determineHierarchy([]).then((result) => {
+      expect(mockedRunClaude).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+  });
+
+  it('calls Claude and parses hierarchy for multiple findings', async () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', title: 'Grid spacing' }),
+      makeFinding({ id: 'UXR-002', title: 'Skeleton mismatch' }),
+    ];
+
+    mockedRunClaude.mockResolvedValueOnce({
+      success: true,
+      exitCode: 0,
+      stdout: 'CHILD_OF: UXR-002, UXR-001',
+      stderr: '',
+    });
+
+    const result = await determineHierarchy(findings);
+
+    expect(mockedRunClaude).toHaveBeenCalledTimes(1);
+    expect(result.length).toBe(1);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[0].children.length).toBe(1);
+    expect(result[0].children[0].id).toBe('UXR-002');
+  });
+
+  it('falls back to flat structure when Claude fails', async () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001' }),
+      makeFinding({ id: 'UXR-002' }),
+    ];
+
+    mockedRunClaude.mockResolvedValueOnce({
+      success: false,
+      exitCode: 1,
+      stdout: '',
+      stderr: 'Claude failed',
+    });
+
+    const result = await determineHierarchy(findings);
+
+    expect(result.length).toBe(2);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[0].children).toEqual([]);
+    expect(result[1].finding.id).toBe('UXR-002');
+    expect(result[1].children).toEqual([]);
+  });
+
+  it('handles NO_DEPENDENCIES response from Claude', async () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001' }),
+      makeFinding({ id: 'UXR-002' }),
+    ];
+
+    mockedRunClaude.mockResolvedValueOnce({
+      success: true,
+      exitCode: 0,
+      stdout: 'NO_DEPENDENCIES',
+      stderr: '',
+    });
+
+    const result = await determineHierarchy(findings);
+
+    expect(result.length).toBe(2);
+    expect(result[0].children).toEqual([]);
+    expect(result[1].children).toEqual([]);
+  });
+});
+
+describe('organizeHierarchically', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('groups findings by area and determines hierarchy per area', async () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', uiArea: 'Navigation', title: 'Nav hover states' }),
+      makeFinding({ id: 'UXR-002', uiArea: 'Navigation', title: 'Breadcrumbs missing' }),
+      makeFinding({ id: 'UXR-003', uiArea: 'Dashboard', title: 'Card spacing' }),
+    ];
+
+    // First Claude call: Navigation area — UXR-002 is child of UXR-001
+    mockedRunClaude.mockResolvedValueOnce({
+      success: true,
+      exitCode: 0,
+      stdout: 'CHILD_OF: UXR-002, UXR-001',
+      stderr: '',
+    });
+
+    // Second Claude call: Dashboard area — only 1 finding, won't be called
+    // (determineHierarchy skips for <=1 findings)
+
+    const groups = await organizeHierarchically(findings);
+
+    expect(groups.length).toBe(2);
+
+    // Navigation group
+    expect(groups[0].area).toBe('Navigation');
+    expect(groups[0].findings.length).toBe(1); // UXR-001 is the only top-level
+    expect(groups[0].findings[0].finding.id).toBe('UXR-001');
+    expect(groups[0].findings[0].children.length).toBe(1);
+    expect(groups[0].findings[0].children[0].id).toBe('UXR-002');
+
+    // Dashboard group
+    expect(groups[1].area).toBe('Dashboard');
+    expect(groups[1].findings.length).toBe(1);
+    expect(groups[1].findings[0].finding.id).toBe('UXR-003');
+    expect(groups[1].findings[0].children).toEqual([]);
+  });
+
+  it('returns empty array for empty findings', async () => {
+    const groups = await organizeHierarchically([]);
+    expect(groups).toEqual([]);
+  });
+});
+
+describe('formatConsolidatedReport', () => {
+  it('formats grouped findings as hierarchical markdown', () => {
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [
+          {
+            finding: makeFinding({
+              id: 'UXR-001',
+              title: 'Inconsistent hover states',
+              severity: 'major',
+              description: 'Hover states vary across nav items',
+              suggestion: 'Standardize hover behavior',
+              screenshot: 'UXR-001.png',
+            }),
+            children: [
+              makeFinding({
+                id: 'UXR-002',
+                title: 'Hamburger menu janky',
+                severity: 'minor',
+                description: 'Animation stutters',
+                suggestion: 'Use CSS transition',
+                screenshot: 'UXR-002.png',
+              }),
+            ],
+          },
+        ],
+      },
+      {
+        area: 'Dashboard',
+        findings: [
+          {
+            finding: makeFinding({
+              id: 'UXR-003',
+              title: 'Card spacing inconsistent',
+              severity: 'minor',
+              description: 'Gaps vary at breakpoints',
+              suggestion: 'Use uniform gap',
+              screenshot: 'UXR-003.png',
+            }),
+            children: [],
+          },
+        ],
+      },
+    ];
+
+    const report = formatConsolidatedReport(groups);
+
+    // Check structure
+    expect(report).toContain('# UX Analysis Report');
+    expect(report).toContain('## Navigation');
+    expect(report).toContain('### UXR-001: Inconsistent hover states');
+    expect(report).toContain('  #### UXR-002: Hamburger menu janky');
+    expect(report).toContain('## Dashboard');
+    expect(report).toContain('### UXR-003: Card spacing inconsistent');
+
+    // Check metadata is present
+    expect(report).toContain('**Severity**: major');
+    expect(report).toContain('**Description**: Hover states vary across nav items');
+    expect(report).toContain('**Screenshot**: UXR-001.png');
+  });
+
+  it('formats findings with no children correctly', () => {
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Settings',
+        findings: [
+          {
+            finding: makeFinding({ id: 'UXR-001', title: 'Save button unclear' }),
+            children: [],
+          },
+          {
+            finding: makeFinding({ id: 'UXR-002', title: 'Toggle misaligned' }),
+            children: [],
+          },
+        ],
+      },
+    ];
+
+    const report = formatConsolidatedReport(groups);
+
+    expect(report).toContain('## Settings');
+    expect(report).toContain('### UXR-001: Save button unclear');
+    expect(report).toContain('### UXR-002: Toggle misaligned');
+    // No #### headings since no children
+    expect(report).not.toContain('####');
+  });
+
+  it('returns header for empty groups', () => {
+    const report = formatConsolidatedReport([]);
+    expect(report).toContain('# UX Analysis Report');
+  });
+});
+
+describe('TASK-020 verification: hierarchical grouping end-to-end', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('groups by UI area, nests dependents, keeps top-level items independent', async () => {
+    // Simulate findings that span 3 UI areas with dependencies
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', uiArea: 'Navigation', title: 'Inconsistent hover states on main nav items' }),
+      makeFinding({ id: 'UXR-002', uiArea: 'Navigation', title: 'Mobile hamburger menu animation is janky' }),
+      makeFinding({ id: 'UXR-003', uiArea: 'Navigation', title: 'Breadcrumb trail missing on sub-pages' }),
+      makeFinding({ id: 'UXR-004', uiArea: 'Dashboard', title: 'Card grid spacing inconsistent at medium breakpoints' }),
+      makeFinding({ id: 'UXR-005', uiArea: 'Dashboard', title: 'Loading skeleton does not match final card layout' }),
+      makeFinding({ id: 'UXR-006', uiArea: 'Dashboard', title: 'Empty state message is generic and unhelpful' }),
+      makeFinding({ id: 'UXR-007', uiArea: 'Settings', title: 'Form validation feedback missing' }),
+    ];
+
+    // Claude call for Navigation area: UXR-002 and UXR-003 are children of UXR-001
+    mockedRunClaude.mockResolvedValueOnce({
+      success: true,
+      exitCode: 0,
+      stdout: 'CHILD_OF: UXR-002, UXR-001\nCHILD_OF: UXR-003, UXR-001',
+      stderr: '',
+    });
+
+    // Claude call for Dashboard area: UXR-005 is child of UXR-004, UXR-006 is independent
+    mockedRunClaude.mockResolvedValueOnce({
+      success: true,
+      exitCode: 0,
+      stdout: 'CHILD_OF: UXR-005, UXR-004',
+      stderr: '',
+    });
+
+    // Settings area has only 1 finding — no Claude call
+
+    const groups = await organizeHierarchically(findings);
+
+    // VERIFICATION 1: Findings are grouped by UI area
+    expect(groups.length).toBe(3);
+    expect(groups[0].area).toBe('Navigation');
+    expect(groups[1].area).toBe('Dashboard');
+    expect(groups[2].area).toBe('Settings');
+
+    // VERIFICATION 2: Dependent findings are indented under their parent
+
+    // Navigation: UXR-001 is parent, UXR-002 and UXR-003 are children
+    expect(groups[0].findings.length).toBe(1);
+    expect(groups[0].findings[0].finding.id).toBe('UXR-001');
+    expect(groups[0].findings[0].children.length).toBe(2);
+    expect(groups[0].findings[0].children[0].id).toBe('UXR-002');
+    expect(groups[0].findings[0].children[1].id).toBe('UXR-003');
+
+    // Dashboard: UXR-004 is parent of UXR-005, UXR-006 is independent
+    expect(groups[1].findings.length).toBe(2);
+    expect(groups[1].findings[0].finding.id).toBe('UXR-004');
+    expect(groups[1].findings[0].children.length).toBe(1);
+    expect(groups[1].findings[0].children[0].id).toBe('UXR-005');
+    expect(groups[1].findings[1].finding.id).toBe('UXR-006');
+    expect(groups[1].findings[1].children).toEqual([]);
+
+    // Settings: single finding, no children
+    expect(groups[2].findings.length).toBe(1);
+    expect(groups[2].findings[0].finding.id).toBe('UXR-007');
+    expect(groups[2].findings[0].children).toEqual([]);
+
+    // VERIFICATION 3: All top-level findings are independent of each other
+    // (i.e., no top-level finding appears as a child anywhere)
+    const allTopLevelIds = groups.flatMap((g) => g.findings.map((hf) => hf.finding.id));
+    const allChildIds = groups.flatMap((g) =>
+      g.findings.flatMap((hf) => hf.children.map((c) => c.id)),
+    );
+    for (const topId of allTopLevelIds) {
+      expect(allChildIds).not.toContain(topId);
+    }
+    for (const childId of allChildIds) {
+      expect(allTopLevelIds).not.toContain(childId);
+    }
+
+    // Verify the formatted report matches the expected structure
+    const report = formatConsolidatedReport(groups);
+
+    expect(report).toContain('## Navigation');
+    expect(report).toContain('### UXR-001:');
+    expect(report).toContain('  #### UXR-002:');
+    expect(report).toContain('  #### UXR-003:');
+    expect(report).toContain('## Dashboard');
+    expect(report).toContain('### UXR-004:');
+    expect(report).toContain('  #### UXR-005:');
+    expect(report).toContain('### UXR-006:');
+    expect(report).toContain('## Settings');
+    expect(report).toContain('### UXR-007:');
   });
 });

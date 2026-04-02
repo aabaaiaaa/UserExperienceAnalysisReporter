@@ -460,3 +460,247 @@ export function reassignAndRemapScreenshots(
 
   return { findings, idMapping, screenshotOps };
 }
+
+// ---- Hierarchical Grouping (TASK-020) ----
+
+/**
+ * A top-level finding with optional dependent (child) findings nested under it.
+ */
+export interface HierarchicalFinding {
+  finding: Finding;
+  children: Finding[];
+}
+
+/**
+ * A group of findings for a single UI area, structured hierarchically.
+ */
+export interface UIAreaGroup {
+  area: string;
+  findings: HierarchicalFinding[];
+}
+
+/**
+ * Group a flat list of findings by their uiArea field.
+ * Returns a Map from area name to the findings in that area,
+ * preserving the order of first appearance.
+ */
+export function groupFindingsByArea(findings: Finding[]): Map<string, Finding[]> {
+  const groups = new Map<string, Finding[]>();
+  for (const finding of findings) {
+    const area = finding.uiArea || 'Other';
+    const existing = groups.get(area);
+    if (existing) {
+      existing.push(finding);
+    } else {
+      groups.set(area, [finding]);
+    }
+  }
+  return groups;
+}
+
+/**
+ * Build the prompt that asks Claude to determine parent-child dependency
+ * relationships among findings within a single UI area.
+ *
+ * A child finding is one whose fix depends on or is a sub-part of its parent.
+ * Top-level findings must be independent and parallelizable.
+ */
+export function buildHierarchyPrompt(findings: Finding[]): string {
+  const findingsList = findings
+    .map(
+      (f) =>
+        `ID: ${f.id}\nTitle: ${f.title}\nSeverity: ${f.severity}\nDescription: ${f.description}`,
+    )
+    .join('\n\n');
+
+  return `You are a UX report organizer. Below is a list of UX findings that all belong to the same UI area. Your job is to determine which findings are dependent on (or sub-parts of) other findings.
+
+A finding is a CHILD of another finding if:
+- Fixing the child requires or strongly depends on fixing the parent first
+- The child is a sub-issue or more specific aspect of the parent issue
+- The child would naturally be addressed as part of the parent fix
+
+RULES:
+- A finding can have at most ONE parent.
+- A finding can have zero or more children.
+- Top-level findings (no parent) must be INDEPENDENT of each other — they can be worked on in parallel.
+- Only create parent-child relationships when there is a clear dependency. When in doubt, keep findings at the top level.
+- A finding cannot be both a parent and a child (only one level of nesting).
+
+OUTPUT FORMAT:
+For each child finding, output one line:
+CHILD_OF: child_id, parent_id
+
+If ALL findings are independent (no dependencies), output exactly:
+NO_DEPENDENCIES
+
+Do NOT add any other text, commentary, or explanation.
+
+FINDINGS:
+
+${findingsList}`;
+}
+
+/**
+ * Parse Claude's hierarchy response into a map of child ID -> parent ID.
+ */
+export function parseHierarchyResponse(response: string): Map<string, string> {
+  const trimmed = response.trim();
+  const childToParent = new Map<string, string>();
+
+  if (trimmed === 'NO_DEPENDENCIES' || trimmed === '') {
+    return childToParent;
+  }
+
+  const lines = trimmed.split('\n');
+
+  for (const line of lines) {
+    const match = line.match(/^CHILD_OF:\s*(.+),\s*(.+)$/);
+    if (match) {
+      const childId = match[1].trim();
+      const parentId = match[2].trim();
+      if (childId && parentId && childId !== parentId) {
+        childToParent.set(childId, parentId);
+      }
+    }
+  }
+
+  return childToParent;
+}
+
+/**
+ * Build a hierarchical structure from a flat list of findings and a
+ * child-to-parent mapping.
+ *
+ * Findings that are parents get their children nested under them.
+ * Findings with no parent and no children are also top-level.
+ * If a child references a parent ID that doesn't exist, the child
+ * becomes top-level.
+ */
+export function buildHierarchy(
+  findings: Finding[],
+  childToParent: Map<string, string>,
+): HierarchicalFinding[] {
+  const findingMap = new Map<string, Finding>();
+  for (const f of findings) {
+    findingMap.set(f.id, f);
+  }
+
+  // Collect children grouped by parent ID
+  const parentToChildren = new Map<string, Finding[]>();
+  const childIds = new Set<string>();
+
+  for (const [childId, parentId] of childToParent) {
+    // Only apply the relationship if both IDs exist in the findings list
+    if (findingMap.has(childId) && findingMap.has(parentId)) {
+      childIds.add(childId);
+      const children = parentToChildren.get(parentId) || [];
+      children.push(findingMap.get(childId)!);
+      parentToChildren.set(parentId, children);
+    }
+  }
+
+  // Build top-level findings (those not marked as children)
+  const result: HierarchicalFinding[] = [];
+  for (const finding of findings) {
+    if (!childIds.has(finding.id)) {
+      result.push({
+        finding,
+        children: parentToChildren.get(finding.id) || [],
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Determine the hierarchy for findings within a single UI area using Claude.
+ *
+ * Skips the Claude call when there are 0 or 1 findings (no dependencies possible).
+ */
+export async function determineHierarchy(findings: Finding[]): Promise<HierarchicalFinding[]> {
+  if (findings.length <= 1) {
+    return findings.map((f) => ({ finding: f, children: [] }));
+  }
+
+  const prompt = buildHierarchyPrompt(findings);
+  const result = await runClaude({ prompt });
+
+  if (!result.success) {
+    // On failure, fall back to flat structure (all top-level)
+    return findings.map((f) => ({ finding: f, children: [] }));
+  }
+
+  const childToParent = parseHierarchyResponse(result.stdout);
+  return buildHierarchy(findings, childToParent);
+}
+
+/**
+ * Organize findings into UI area groups with hierarchical structure.
+ *
+ * This is the main entry point for TASK-020.
+ *
+ * Steps:
+ * 1. Group findings by UI area
+ * 2. For each area, use Claude to determine parent-child relationships
+ * 3. Return structured UIAreaGroup[] suitable for report formatting
+ */
+export async function organizeHierarchically(findings: Finding[]): Promise<UIAreaGroup[]> {
+  const areaMap = groupFindingsByArea(findings);
+  const groups: UIAreaGroup[] = [];
+
+  for (const [area, areaFindings] of areaMap) {
+    const hierarchical = await determineHierarchy(areaFindings);
+    groups.push({ area, findings: hierarchical });
+  }
+
+  return groups;
+}
+
+/**
+ * Format a single finding's metadata as markdown lines.
+ */
+function formatFindingMetadata(finding: Finding): string {
+  return [
+    '',
+    `- **Severity**: ${finding.severity}`,
+    `- **Description**: ${finding.description}`,
+    `- **Suggestion**: ${finding.suggestion}`,
+    `- **Screenshot**: ${finding.screenshot}`,
+  ].join('\n');
+}
+
+/**
+ * Format the consolidated report as hierarchical markdown.
+ *
+ * Structure:
+ * - ## UI Area heading
+ * - ### UXR-xxx: Title for top-level findings
+ * -   #### UXR-xxx: Title for child (dependent) findings, indented
+ */
+export function formatConsolidatedReport(groups: UIAreaGroup[]): string {
+  const lines: string[] = ['# UX Analysis Report', ''];
+
+  for (const group of groups) {
+    lines.push(`## ${group.area}`);
+    lines.push('');
+
+    for (const hf of group.findings) {
+      // Top-level finding
+      lines.push(`### ${hf.finding.id}: ${hf.finding.title}`);
+      lines.push(formatFindingMetadata(hf.finding));
+
+      // Child findings
+      for (const child of hf.children) {
+        lines.push('');
+        lines.push(`  #### ${child.id}: ${child.title}`);
+        lines.push(formatFindingMetadata(child).split('\n').map(l => l ? `  ${l}` : l).join('\n'));
+      }
+
+      lines.push('');
+    }
+  }
+
+  return lines.join('\n');
+}

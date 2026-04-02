@@ -115,7 +115,7 @@
 - **Verification**: Confirm all findings in the final report have sequential `UXR-` IDs with no gaps. Confirm screenshots in the output directory are renamed correctly. Confirm report references match the new file names.
 
 ### TASK-020: Report consolidation — hierarchical grouping
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-018
 - **Description**: Group findings in the final report by logical UI area. Within each area, structure findings as a hierarchy — dependent changes indented under parent findings. Top-level items must be independent and parallelizable. See requirements.md "Final Consolidated Report" example structure.
 - **Verification**: Confirm findings are grouped by UI area. Confirm dependent findings are indented under their parent. Confirm all top-level findings are independent of each other.
