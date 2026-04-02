@@ -187,7 +187,7 @@
 - **Verification**: `npx vitest run --coverage` reports at least 90% coverage across all metrics (statements, branches, functions, lines). Build does not fail on coverage check.
 
 ### TASK-032: README documentation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002, TASK-003, TASK-022
 - **Description**: Write the project README with: brief description, prerequisites (Node.js, Claude Code CLI, Playwright MCP), npm installation instructions (global and local), CLI usage with all parameters documented (including --scope and --show-default-scope), usage examples (basic single-instance, multi-instance with files, custom output with multiple rounds, exporting and customizing the default scope), explanation of output files, how to customize evaluation scope, how to reuse the discovery doc as a plan, and how to run the e2e test separately. See requirements.md "README" section.
 - **Verification**: README is clear, examples are copy-pasteable, all CLI parameters are documented, scope customization workflow is explained, discovery doc reuse workflow is explained, and e2e test instructions are included.
