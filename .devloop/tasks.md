@@ -181,7 +181,7 @@
 - **Verification**: Run the e2e test with real Claude API access. The tool completes successfully. The final report contains multiple findings with `UXR-` IDs. Screenshots exist in the output. Discovery doc is present. No crashes or unhandled errors.
 
 ### TASK-031: Code coverage enforcement
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-024, TASK-025, TASK-026, TASK-027, TASK-028
 - **Description**: Verify that all integration tests together meet the coverage threshold. Review coverage report and add any missing tests to reach 90% coverage (80% hard minimum enforced by Vitest config from TASK-001). Fill gaps identified in the coverage report. Note: the e2e test (TASK-030) is excluded from coverage metrics as it runs separately with real Claude instances.
 - **Verification**: `npx vitest run --coverage` reports at least 90% coverage across all metrics (statements, branches, functions, lines). Build does not fail on coverage check.
