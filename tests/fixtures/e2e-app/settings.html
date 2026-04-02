@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow - Settings</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- NAVIGATION / HEADER AREA -->
+  <header class="header">
+    <a href="index.html" class="logo">TaskFlow</a>
+    <nav>
+      <ul class="nav-links">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="listings.html" class="nav-odd">Projects</a></li>
+        <li><a href="settings.html" class="active">Settings</a></li>
+        <li><a href="detail.html">Reports</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- SETTINGS / FORM PAGE AREA -->
+  <main class="page-content">
+    <h1 class="page-title">Settings</h1>
+
+    <!-- Profile Settings Section -->
+    <div class="form-section">
+      <h2>Profile Information</h2>
+      <div class="form-group">
+        <label for="fullname">Full Name</label>
+        <!-- UX ISSUE: No validation feedback — required field with no indication -->
+        <input type="text" id="fullname" placeholder="Enter your name">
+      </div>
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <!-- UX ISSUE: No validation — accepts any text, no format hint -->
+        <input type="text" id="email" placeholder="your@email.com">
+      </div>
+      <!-- UX ISSUE: Low contrast label — nearly invisible on white background -->
+      <div class="form-group low-contrast">
+        <label for="phone">Phone Number (optional)</label>
+        <input type="text" id="phone" placeholder="+1 555-0100">
+      </div>
+      <div class="form-actions">
+        <!-- UX ISSUE: Terminology — "Save" here -->
+        <button class="btn-primary">Save</button>
+        <button class="btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Notification Preferences Section -->
+    <div class="form-section">
+      <h2>Notification Preferences</h2>
+      <div class="form-group">
+        <label for="email-freq">Email Frequency</label>
+        <select id="email-freq">
+          <option>Immediately</option>
+          <option>Daily Digest</option>
+          <option>Weekly Summary</option>
+          <option>Never</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="sms-alerts">SMS Alerts</label>
+        <select id="sms-alerts">
+          <option>Enabled</option>
+          <option>Disabled</option>
+        </select>
+      </div>
+      <!-- UX ISSUE: Low contrast label again -->
+      <div class="form-group low-contrast">
+        <label for="slack-webhook">Slack Webhook URL</label>
+        <!-- UX ISSUE: No validation for URL format, no hint -->
+        <input type="text" id="slack-webhook" placeholder="https://hooks.slack.com/...">
+      </div>
+      <div class="form-actions">
+        <!-- UX ISSUE: Terminology — "Submit" here instead of "Save" like above -->
+        <button class="btn-submit">Submit</button>
+        <button class="btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Security Section -->
+    <div class="form-section">
+      <h2>Security</h2>
+      <div class="form-group">
+        <label for="current-pw">Current Password</label>
+        <input type="password" id="current-pw" placeholder="Enter current password">
+      </div>
+      <div class="form-group">
+        <label for="new-pw">New Password</label>
+        <!-- UX ISSUE: No password requirements displayed, no strength indicator -->
+        <input type="password" id="new-pw" placeholder="Enter new password">
+      </div>
+      <div class="form-group">
+        <label for="confirm-pw">Confirm New Password</label>
+        <!-- UX ISSUE: No validation that passwords match -->
+        <input type="password" id="confirm-pw" placeholder="Confirm new password">
+      </div>
+      <div class="form-actions">
+        <!-- UX ISSUE: Terminology — "Confirm" here, third different word for same action -->
+        <button class="btn-action">Confirm</button>
+        <button class="btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- UX ISSUE: Danger zone with no confirmation flow, inconsistent button -->
+    <div class="form-section" style="border: 1px solid #e74c3c;">
+      <h2 style="color: #e74c3c;">Danger Zone</h2>
+      <p style="font-size: 14px; color: #666; margin-bottom: 15px;">
+        Permanently delete your account and all associated data.
+      </p>
+      <!-- UX ISSUE: Delete button uses same style as benign "Confirm" action above -->
+      <button class="btn-action">Delete Account</button>
+    </div>
+  </main>
+
+  <footer class="footer">
+    &copy; 2026 TaskFlow Inc. All rights reserved.
+  </footer>
+</body>
+</html>

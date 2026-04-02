@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow - Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- NAVIGATION / HEADER AREA -->
+  <header class="header">
+    <a href="index.html" class="logo">TaskFlow</a>
+    <nav>
+      <ul class="nav-links">
+        <li><a href="index.html" class="active">Dashboard</a></li>
+        <!-- UX ISSUE: This nav link is styled completely differently (nav-odd class) -->
+        <li><a href="listings.html" class="nav-odd">Projects</a></li>
+        <li><a href="settings.html">Settings</a></li>
+        <li><a href="detail.html">Reports</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- DASHBOARD PAGE AREA -->
+  <main class="page-content">
+    <h1 class="page-title">Dashboard</h1>
+
+    <!-- Stat cards with intentional issues -->
+    <div class="card-grid">
+      <div class="card">
+        <h3>Active Tasks</h3>
+        <p>You have 12 tasks in progress across 3 projects.</p>
+        <!-- UX ISSUE: Button says "View" here -->
+        <button class="btn-primary">View</button>
+      </div>
+
+      <div class="card">
+        <h3>Completed This Week</h3>
+        <p>8 tasks were completed since Monday.</p>
+        <!-- UX ISSUE: Same-level action button is styled completely differently (green, square) -->
+        <button class="btn-action">See Details</button>
+      </div>
+
+      <!-- UX ISSUE: This card has extra left padding (via CSS :nth-child(3)) breaking alignment -->
+      <div class="card">
+        <h3>Pending Reviews</h3>
+        <p>5 items are waiting for your review.</p>
+        <!-- UX ISSUE: Yet another button style for same-level action (orange, bordered) -->
+        <button class="btn-submit">Open</button>
+      </div>
+
+      <div class="card">
+        <h3>Team Activity</h3>
+        <p>Your team logged 142 hours this week.</p>
+        <button class="btn-primary">View Report</button>
+      </div>
+
+      <div class="card">
+        <h3>Upcoming Deadlines</h3>
+        <p>3 deadlines approaching in the next 7 days.</p>
+        <!-- UX ISSUE: Different terminology — "Check" vs "View" for same action type -->
+        <button class="btn-action">Check</button>
+      </div>
+
+      <div class="card">
+        <h3>Notifications</h3>
+        <!-- UX ISSUE: Empty state — no content, no helpful message, no action -->
+        <p></p>
+      </div>
+    </div>
+
+    <!-- UX ISSUE: Section with no loading state — just empty div where data should be -->
+    <section class="mt-20">
+      <h2 class="page-title" style="font-size: 18px;">Recent Activity</h2>
+      <div id="activity-feed">
+        <!-- No loading indicator, no empty state message, just blank -->
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    &copy; 2026 TaskFlow Inc. All rights reserved.
+  </footer>
+</body>
+</html>

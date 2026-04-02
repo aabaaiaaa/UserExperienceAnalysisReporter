@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow - Projects</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- NAVIGATION / HEADER AREA -->
+  <header class="header">
+    <a href="index.html" class="logo">TaskFlow</a>
+    <nav>
+      <ul class="nav-links">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="listings.html" class="nav-odd active">Projects</a></li>
+        <li><a href="settings.html">Settings</a></li>
+        <li><a href="detail.html">Reports</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- LISTING PAGE AREA -->
+  <main class="page-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h1 class="page-title" style="margin-bottom: 0;">Projects</h1>
+      <!-- UX ISSUE: "Add New" button style inconsistent with rest of page actions -->
+      <button class="btn-submit">Add New</button>
+    </div>
+
+    <table class="listing-table">
+      <thead>
+        <tr>
+          <th>Project Name</th>
+          <th>Owner</th>
+          <th>Status</th>
+          <th>Tasks</th>
+          <th>Last Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Website Redesign</td>
+          <td>Alice Johnson</td>
+          <td><span class="badge badge-active">Active</span></td>
+          <td>24 / 36</td>
+          <td>Mar 28, 2026</td>
+          <!-- UX ISSUE: Actions cell has different padding/alignment -->
+          <td class="actions-cell">
+            <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;">Edit</button>
+          </td>
+        </tr>
+        <tr>
+          <td>Mobile App v2</td>
+          <td>Bob Smith</td>
+          <td><span class="badge badge-active">Active</span></td>
+          <td>18 / 45</td>
+          <td>Mar 30, 2026</td>
+          <td class="actions-cell">
+            <!-- UX ISSUE: Action button styled differently from the row above -->
+            <button class="btn-action" style="padding: 5px 12px; font-size: 12px;">Modify</button>
+          </td>
+        </tr>
+        <!-- UX ISSUE: This row is visually misaligned (different vertical alignment) -->
+        <tr class="misaligned">
+          <td>API Integration</td>
+          <td>Carol Davis</td>
+          <td><span class="badge badge-pending">Pending</span></td>
+          <td>0 / 12</td>
+          <td>Mar 15, 2026</td>
+          <td class="actions-cell">
+            <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;">Edit</button>
+          </td>
+        </tr>
+        <tr>
+          <td>Data Migration</td>
+          <td>David Lee</td>
+          <!-- UX ISSUE: Inactive badge has very poor contrast -->
+          <td><span class="badge badge-inactive">Inactive</span></td>
+          <td>8 / 8</td>
+          <td>Feb 20, 2026</td>
+          <td class="actions-cell">
+            <!-- UX ISSUE: "View" here but "Edit" / "Modify" above — inconsistent action labels -->
+            <button class="btn-cancel" style="padding: 5px 12px; font-size: 12px;">View</button>
+          </td>
+        </tr>
+        <tr>
+          <td>Security Audit</td>
+          <td>Eve Martinez</td>
+          <td><span class="badge badge-active">Active</span></td>
+          <td>7 / 15</td>
+          <td>Apr 1, 2026</td>
+          <td class="actions-cell">
+            <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;">Edit</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- UX ISSUE: No pagination, no "load more", no indication of total items -->
+
+    <!-- UX ISSUE: Empty section below with no loading state or empty message -->
+    <section class="mt-20">
+      <h2 style="font-size: 18px; color: #2c3e50; margin-bottom: 15px;">Archived Projects</h2>
+      <div id="archived-list">
+        <!-- No loading indicator, no empty state, just blank -->
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    &copy; 2026 TaskFlow Inc. All rights reserved.
+  </footer>
+</body>
+</html>

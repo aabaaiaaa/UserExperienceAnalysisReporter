@@ -169,7 +169,7 @@
 - **Verification**: `npx vitest run` passes. All edge cases have test coverage.
 
 ### TASK-029: E2E test web app fixture
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: Build a simple static HTML test web app to be used as the e2e test fixture. The app should have 3-4 distinct UI areas (e.g., a navigation/header, a dashboard page, a form/settings page, a listing page) with intentional UX issues spread across them: inconsistent button styling, missing form validation feedback, broken navigation flow (dead-end page), poor contrast text, inconsistent terminology ("Save" vs "Submit" vs "Confirm"), missing loading/empty states, and misaligned elements. Serve it locally via a lightweight HTTP server (e.g., `http-server` or a simple Node `http` server) during test runs. See requirements.md "End-to-End Test" section.
 - **Verification**: Start the local server and confirm the test app loads in a browser. Visually confirm the intentional UX issues are present. Confirm at least 3-4 distinct UI areas exist.

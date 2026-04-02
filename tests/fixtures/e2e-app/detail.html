@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow - Report Detail</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- NAVIGATION / HEADER AREA -->
+  <!-- UX ISSUE: No header/nav on this page — it's a dead-end with no navigation back -->
+
+  <!-- DETAIL / REPORT PAGE AREA -->
+  <main class="page-content">
+    <!-- UX ISSUE: No breadcrumbs, no back link, no way to navigate away except browser back -->
+    <h1 class="page-title">Weekly Performance Report</h1>
+
+    <div class="detail-card">
+      <h2>Summary</h2>
+      <div class="detail-meta">
+        <span>Generated: Apr 1, 2026</span>
+        <span>Period: Mar 25 - Mar 31</span>
+        <span>Author: System</span>
+      </div>
+      <div class="detail-body">
+        <p>
+          Overall team productivity increased by 12% compared to the previous week.
+          The Website Redesign project saw the most progress with 8 tasks completed.
+          Mobile App v2 remains on track with steady daily commits.
+        </p>
+        <p class="mt-10">
+          Key highlights:
+        </p>
+        <ul style="margin: 10px 0 10px 20px; font-size: 14px; line-height: 1.8;">
+          <li>Website Redesign: 8 tasks completed, 4 in review</li>
+          <li>Mobile App v2: 5 tasks completed, 2 blocked</li>
+          <li>API Integration: Project kickoff scheduled for next week</li>
+          <li>Security Audit: 3 critical findings addressed</li>
+        </ul>
+
+        <!-- UX ISSUE: Poor contrast text — important note that's nearly invisible -->
+        <p class="detail-note">
+          Note: This report excludes data from archived projects. To include archived
+          project data, update your reporting preferences in the admin panel. Contact
+          support@taskflow.com if you need assistance with custom report configuration.
+        </p>
+      </div>
+    </div>
+
+    <!-- UX ISSUE: Action buttons with inconsistent styling and terminology -->
+    <div class="mt-20" style="display: flex; gap: 10px;">
+      <!-- UX ISSUE: "Download" uses one style -->
+      <button class="btn-primary">Download</button>
+      <!-- UX ISSUE: "Export" uses a completely different style for a similar action -->
+      <button class="btn-submit">Export</button>
+      <!-- UX ISSUE: "Share" yet another style -->
+      <button class="btn-action">Share</button>
+    </div>
+
+    <!-- UX ISSUE: Dead-end — no navigation links, no "Back to Reports" link, no breadcrumb trail.
+         The only way to leave this page is using the browser back button. -->
+  </main>
+
+  <!-- UX ISSUE: No footer on this page either, inconsistent with other pages -->
+</body>
+</html>
