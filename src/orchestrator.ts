@@ -80,6 +80,12 @@ function buildProgressCallback(display: ProgressDisplay): ProgressCallback {
     onRetrySuccess(instanceNumber: number, _round: number) {
       display.markRunning(instanceNumber);
     },
+    onRateLimited(instanceNumber: number, _round: number, backoffMs: number) {
+      display.markRateLimited(instanceNumber, backoffMs);
+    },
+    onRateLimitResolved(instanceNumber: number, _round: number) {
+      display.markRunning(instanceNumber);
+    },
     onCompleted(instanceNumber: number) {
       display.markCompleted(instanceNumber);
     },

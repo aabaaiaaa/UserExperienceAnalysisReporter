@@ -11,11 +11,12 @@ export interface InstanceProgress {
   findingsCount: number;
   startTime: number;
   roundStartTime: number;
-  status: 'running' | 'completed' | 'failed' | 'retrying';
+  status: 'running' | 'completed' | 'failed' | 'retrying' | 'rate-limited';
   error?: string;
   retryAttempt?: number;
   maxRetries?: number;
   permanentlyFailed?: boolean;
+  rateLimitBackoffMs?: number;
   priorRoundDurations: number[];
 }
 
@@ -32,6 +33,7 @@ export interface ConsolidationState {
 export const ANSI_RESET = '\x1B[0m';
 export const ANSI_RED = '\x1B[31m';
 export const ANSI_GREEN = '\x1B[32m';
+export const ANSI_YELLOW = '\x1B[33m';
 
 const SPINNER_FRAMES = ['|', '/', '-', '\\'];
 
@@ -137,6 +139,14 @@ export function formatProgressLine(progress: InstanceProgress, now?: number): st
     const attempt = progress.retryAttempt ?? 1;
     const max = progress.maxRetries ?? 3;
     return `${ANSI_RED}${prefix} | Retrying (attempt ${attempt}/${max})...${ANSI_RESET}`;
+  }
+
+  // Rate-limited: yellow with backoff duration
+  if (progress.status === 'rate-limited') {
+    const backoffSec = progress.rateLimitBackoffMs
+      ? Math.ceil(progress.rateLimitBackoffMs / 1000)
+      : 0;
+    return `${ANSI_YELLOW}${prefix} | Rate limited — pausing ${backoffSec}s before retry...${ANSI_RESET}`;
   }
 
   // Completed: green with stats
@@ -253,6 +263,13 @@ export class ProgressDisplay {
     progress.maxRetries = maxRetries;
   }
 
+  markRateLimited(instanceNumber: number, backoffMs: number): void {
+    const progress = this.instances.get(instanceNumber);
+    if (!progress) return;
+    progress.status = 'rate-limited';
+    progress.rateLimitBackoffMs = backoffMs;
+  }
+
   markRunning(instanceNumber: number): void {
     const progress = this.instances.get(instanceNumber);
     if (!progress) return;
@@ -260,6 +277,7 @@ export class ProgressDisplay {
     progress.error = undefined;
     progress.retryAttempt = undefined;
     progress.maxRetries = undefined;
+    progress.rateLimitBackoffMs = undefined;
   }
 
   markPermanentlyFailed(instanceNumber: number, error: string): void {
@@ -272,7 +290,7 @@ export class ProgressDisplay {
 
   updateFromFiles(instanceNumber: number): void {
     const progress = this.instances.get(instanceNumber);
-    if (!progress || progress.status === 'completed' || progress.status === 'failed' || progress.status === 'retrying' || progress.permanentlyFailed) return;
+    if (!progress || progress.status === 'completed' || progress.status === 'failed' || progress.status === 'retrying' || progress.status === 'rate-limited' || progress.permanentlyFailed) return;
 
     const checkpoint = readCheckpoint(instanceNumber);
     if (checkpoint) {

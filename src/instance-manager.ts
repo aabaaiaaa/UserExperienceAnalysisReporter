@@ -4,6 +4,7 @@ import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryC
 import { buildReportInstructions } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
 import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
+import { isRateLimitError, getBackoffDelay, sleep, MAX_RATE_LIMIT_RETRIES } from './rate-limit.js';
 
 export type InstanceStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -246,6 +247,8 @@ export interface ProgressCallback {
   onRetrySuccess?: (instanceNumber: number, round: number) => void;
   onCompleted?: (instanceNumber: number) => void;
   onPermanentlyFailed?: (instanceNumber: number, error: string) => void;
+  onRateLimited?: (instanceNumber: number, round: number, backoffMs: number) => void;
+  onRateLimitResolved?: (instanceNumber: number, round: number) => void;
 }
 
 export interface RoundExecutionConfig {
@@ -336,7 +339,32 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
 
     let state = await spawnInstance(instanceConfig);
 
-    // If the round failed, enter the retry loop
+    // If the round failed due to rate limiting, backoff and retry
+    // without counting against the normal retry limit
+    let rateLimitAttempts = 0;
+    while (
+      state.status === 'failed' &&
+      state.result &&
+      isRateLimitError(state.result) &&
+      rateLimitAttempts < MAX_RATE_LIMIT_RETRIES
+    ) {
+      rateLimitAttempts++;
+      const backoffMs = getBackoffDelay(rateLimitAttempts - 1);
+      cb?.onRateLimited?.(config.instanceNumber, round, backoffMs);
+      await sleep(backoffMs);
+      cb?.onRateLimitResolved?.(config.instanceNumber, round);
+
+      // Re-attempt: use checkpoint if available, otherwise fresh start
+      const savedCheckpoint = readCheckpoint(config.instanceNumber);
+      if (savedCheckpoint) {
+        state = await spawnInstanceWithResume(instanceConfig, savedCheckpoint);
+      } else {
+        state = await spawnInstance(instanceConfig);
+      }
+    }
+
+    // If the round failed (non-rate-limit or rate limit retries exhausted),
+    // enter the normal retry loop
     if (state.status === 'failed') {
       cb?.onFailure?.(config.instanceNumber, round, state.error || 'Unknown error');
 
@@ -362,6 +390,28 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
           const freshCheckpoint = createInitialCheckpoint(config.instanceNumber, areas, round);
           writeCheckpoint(config.instanceNumber, freshCheckpoint);
           state = await spawnInstance(instanceConfig);
+        }
+
+        // If the retry itself hits a rate limit, backoff before continuing
+        let retryRateLimitAttempts = 0;
+        while (
+          state.status === 'failed' &&
+          state.result &&
+          isRateLimitError(state.result) &&
+          retryRateLimitAttempts < MAX_RATE_LIMIT_RETRIES
+        ) {
+          retryRateLimitAttempts++;
+          const backoffMs = getBackoffDelay(retryRateLimitAttempts - 1);
+          cb?.onRateLimited?.(config.instanceNumber, round, backoffMs);
+          await sleep(backoffMs);
+          cb?.onRateLimitResolved?.(config.instanceNumber, round);
+
+          const cp = readCheckpoint(config.instanceNumber);
+          if (cp) {
+            state = await spawnInstanceWithResume(instanceConfig, cp);
+          } else {
+            state = await spawnInstance(instanceConfig);
+          }
         }
 
         if (state.status === 'completed') {

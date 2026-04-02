@@ -133,7 +133,7 @@
 - **Verification**: Run with 3 instances and 2 rounds. Confirm all 3 run in parallel with independent progress bars. Confirm one finishing early doesn't affect others. Confirm consolidation only triggers after all are complete. Confirm consolidation indicator is shown. Confirm final output paths are displayed.
 
 ### TASK-023: Rate limit and backoff handling
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-022
 - **Description**: Handle API rate limiting when multiple Claude Code instances run simultaneously. Detect rate limit errors from Claude Code subprocess output and implement graceful backoff — pause and retry rather than fail. See requirements.md "Constraints and Edge Cases" section.
 - **Verification**: Simulate rate limit errors from 2 concurrent instances. Confirm the orchestrator backs off and retries without crashing. Confirm progress bars reflect the pause.
