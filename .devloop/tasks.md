@@ -79,7 +79,7 @@
 - **Verification**: Simulate an instance crash at a known checkpoint. Confirm the orchestrator detects the failure, reads the checkpoint, and retries with a resume prompt. Confirm the retried instance resumes from the correct point. Simulate a corrupted checkpoint and confirm the round restarts cleanly. Simulate exceeding the retry limit and confirm the instance is marked as permanently failed.
 
 ### TASK-014: CLI progress display — progress bars
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007, TASK-008
 - **Description**: Implement the real-time CLI progress display with one progress bar per instance. Each bar shows: instance ID, current round, visual bar, percentage, stats (items checked, findings, duration), and estimated time remaining. Read checkpoint and discovery files to determine progress. See requirements.md "CLI Progress Display" section.
 - **Verification**: Run with 2 mock instances. Confirm each has its own progress bar that updates. Confirm the percentage advances as checkpoint areas are marked complete. Confirm stats and ETA are displayed.
