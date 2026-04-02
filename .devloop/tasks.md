@@ -109,7 +109,7 @@
 - **Verification**: Provide reports from 3 instances where 2 instances found the same issue. Confirm the duplicate is merged into one finding. Confirm similar-but-distinct findings are kept separate.
 
 ### TASK-019: Report consolidation — ID reassignment and screenshot remapping
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-018, TASK-011
 - **Description**: After deduplication, assign clean sequential IDs (`UXR-001`, `UXR-002`, ...) to all findings in the consolidated report. Copy screenshots from instance working directories to the output directory, renaming them to match the new IDs. Update all screenshot references in the report. See requirements.md "Final Consolidated Report" and "Screenshots" sections.
 - **Verification**: Confirm all findings in the final report have sequential `UXR-` IDs with no gaps. Confirm screenshots in the output directory are renamed correctly. Confirm report references match the new file names.

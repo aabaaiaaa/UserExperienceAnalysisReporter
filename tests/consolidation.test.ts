@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   buildDeduplicationPrompt,
   parseDeduplicationResponse,
@@ -8,6 +10,14 @@ import {
   detectDuplicates,
   consolidateReports,
   DuplicateGroup,
+  buildFinalId,
+  parseScreenshotRefs,
+  extractInstanceFromScreenshot,
+  buildNewScreenshotFilenames,
+  reassignIds,
+  copyScreenshots,
+  reassignAndRemapScreenshots,
+  ConsolidationResult,
 } from '../src/consolidation.js';
 import { Finding, InstanceReport } from '../src/report.js';
 
@@ -24,6 +34,20 @@ vi.mock('../src/report.js', async () => {
     readInstanceReport: vi.fn(),
   };
 });
+
+// Mock the file-manager module for getInstancePaths
+vi.mock('../src/file-manager.js', () => ({
+  getInstancePaths: vi.fn((instanceNumber: number) => {
+    const dir = join(process.cwd(), '.uxreview-temp-test', `instance-${instanceNumber}`);
+    return {
+      dir,
+      discovery: join(dir, 'discovery.md'),
+      checkpoint: join(dir, 'checkpoint.json'),
+      report: join(dir, 'report.md'),
+      screenshots: join(dir, 'screenshots'),
+    };
+  }),
+}));
 
 import { runClaude } from '../src/claude-cli.js';
 import { readInstanceReport } from '../src/report.js';
@@ -693,5 +717,480 @@ describe('TASK-018 verification: 3-instance deduplication scenario', () => {
     // Confirm Claude was called for deduplication
     expect(result.usedClaude).toBe(true);
     expect(mockedRunClaude).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- TASK-019: ID Reassignment and Screenshot Remapping Tests ----
+
+describe('buildFinalId', () => {
+  it('builds zero-padded UXR IDs', () => {
+    expect(buildFinalId(1)).toBe('UXR-001');
+    expect(buildFinalId(9)).toBe('UXR-009');
+    expect(buildFinalId(10)).toBe('UXR-010');
+    expect(buildFinalId(99)).toBe('UXR-099');
+    expect(buildFinalId(100)).toBe('UXR-100');
+    expect(buildFinalId(999)).toBe('UXR-999');
+  });
+});
+
+describe('parseScreenshotRefs', () => {
+  it('parses a single screenshot reference', () => {
+    expect(parseScreenshotRefs('I1-UXR-001.png')).toEqual(['I1-UXR-001.png']);
+  });
+
+  it('parses comma-separated screenshot references', () => {
+    expect(parseScreenshotRefs('I1-UXR-001.png, I2-UXR-003.png')).toEqual([
+      'I1-UXR-001.png',
+      'I2-UXR-003.png',
+    ]);
+  });
+
+  it('handles extra whitespace', () => {
+    expect(parseScreenshotRefs('  I1-UXR-001.png ,  I2-UXR-003.png  ')).toEqual([
+      'I1-UXR-001.png',
+      'I2-UXR-003.png',
+    ]);
+  });
+
+  it('returns empty array for empty string', () => {
+    expect(parseScreenshotRefs('')).toEqual([]);
+  });
+
+  it('returns empty array for whitespace-only string', () => {
+    expect(parseScreenshotRefs('   ')).toEqual([]);
+  });
+
+  it('filters out empty entries from trailing commas', () => {
+    expect(parseScreenshotRefs('I1-UXR-001.png, ')).toEqual(['I1-UXR-001.png']);
+  });
+});
+
+describe('extractInstanceFromScreenshot', () => {
+  it('extracts instance number from standard screenshot filenames', () => {
+    expect(extractInstanceFromScreenshot('I1-UXR-001.png')).toBe(1);
+    expect(extractInstanceFromScreenshot('I3-UXR-012.png')).toBe(3);
+    expect(extractInstanceFromScreenshot('I10-UXR-005.png')).toBe(10);
+  });
+
+  it('extracts instance number from suffixed screenshot filenames', () => {
+    expect(extractInstanceFromScreenshot('I2-UXR-001-a.png')).toBe(2);
+    expect(extractInstanceFromScreenshot('I1-UXR-003-b.png')).toBe(1);
+  });
+
+  it('returns null for non-matching filenames', () => {
+    expect(extractInstanceFromScreenshot('random.png')).toBeNull();
+    expect(extractInstanceFromScreenshot('UXR-001.png')).toBeNull();
+    expect(extractInstanceFromScreenshot('')).toBeNull();
+  });
+});
+
+describe('buildNewScreenshotFilenames', () => {
+  it('returns empty array for count 0', () => {
+    expect(buildNewScreenshotFilenames('UXR-001', 0)).toEqual([]);
+  });
+
+  it('returns single filename without suffix for count 1', () => {
+    expect(buildNewScreenshotFilenames('UXR-001', 1)).toEqual(['UXR-001.png']);
+  });
+
+  it('returns primary + suffixed filenames for count 2', () => {
+    expect(buildNewScreenshotFilenames('UXR-001', 2)).toEqual([
+      'UXR-001.png',
+      'UXR-001-a.png',
+    ]);
+  });
+
+  it('returns primary + sequential suffixes for count 3', () => {
+    expect(buildNewScreenshotFilenames('UXR-005', 3)).toEqual([
+      'UXR-005.png',
+      'UXR-005-a.png',
+      'UXR-005-b.png',
+    ]);
+  });
+});
+
+describe('reassignIds', () => {
+  it('assigns sequential UXR IDs starting from 001', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+      makeFinding({ id: 'I2-UXR-001', screenshot: 'I2-UXR-001.png' }),
+      makeFinding({ id: 'I1-UXR-002', screenshot: 'I1-UXR-002.png' }),
+    ];
+
+    const result = reassignIds(findings);
+
+    expect(result.findings).toHaveLength(3);
+    expect(result.findings[0].id).toBe('UXR-001');
+    expect(result.findings[1].id).toBe('UXR-002');
+    expect(result.findings[2].id).toBe('UXR-003');
+  });
+
+  it('builds correct ID mapping', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+      makeFinding({ id: 'I2-UXR-003', screenshot: 'I2-UXR-003.png' }),
+    ];
+
+    const result = reassignIds(findings);
+
+    expect(result.idMapping.get('I1-UXR-001')).toBe('UXR-001');
+    expect(result.idMapping.get('I2-UXR-003')).toBe('UXR-002');
+  });
+
+  it('remaps single screenshot references correctly', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+    ];
+
+    const result = reassignIds(findings);
+
+    expect(result.findings[0].screenshot).toBe('UXR-001.png');
+  });
+
+  it('remaps merged multi-screenshot references correctly', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I2-UXR-002', screenshot: 'I1-UXR-001.png, I2-UXR-002.png' }),
+    ];
+
+    const result = reassignIds(findings);
+
+    expect(result.findings[0].screenshot).toBe('UXR-001.png, UXR-001-a.png');
+  });
+
+  it('generates screenshot copy operations', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+      makeFinding({ id: 'I2-UXR-002', screenshot: 'I1-UXR-003.png, I2-UXR-002.png' }),
+    ];
+
+    const result = reassignIds(findings);
+
+    expect(result.screenshotOps).toHaveLength(3);
+    expect(result.screenshotOps[0]).toEqual({
+      instanceNumber: 1,
+      sourceFilename: 'I1-UXR-001.png',
+      destFilename: 'UXR-001.png',
+    });
+    expect(result.screenshotOps[1]).toEqual({
+      instanceNumber: 1,
+      sourceFilename: 'I1-UXR-003.png',
+      destFilename: 'UXR-002.png',
+    });
+    expect(result.screenshotOps[2]).toEqual({
+      instanceNumber: 2,
+      sourceFilename: 'I2-UXR-002.png',
+      destFilename: 'UXR-002-a.png',
+    });
+  });
+
+  it('handles findings with empty screenshot fields', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: '' }),
+    ];
+
+    const result = reassignIds(findings);
+
+    expect(result.findings[0].id).toBe('UXR-001');
+    expect(result.findings[0].screenshot).toBe('');
+    expect(result.screenshotOps).toHaveLength(0);
+  });
+
+  it('returns empty results for empty findings array', () => {
+    const result = reassignIds([]);
+
+    expect(result.findings).toEqual([]);
+    expect(result.idMapping.size).toBe(0);
+    expect(result.screenshotOps).toHaveLength(0);
+  });
+
+  it('produces sequential IDs with no gaps', () => {
+    const findings: Finding[] = Array.from({ length: 5 }, (_, i) =>
+      makeFinding({ id: `I1-UXR-${String(i + 1).padStart(3, '0')}`, screenshot: `I1-UXR-${String(i + 1).padStart(3, '0')}.png` }),
+    );
+
+    const result = reassignIds(findings);
+
+    const ids = result.findings.map((f) => f.id);
+    expect(ids).toEqual(['UXR-001', 'UXR-002', 'UXR-003', 'UXR-004', 'UXR-005']);
+  });
+});
+
+describe('copyScreenshots', () => {
+  const testTempDir = join(process.cwd(), '.uxreview-temp-test');
+  const testOutputDir = join(process.cwd(), '.uxreview-output-test');
+
+  beforeEach(() => {
+    // Create test directory structure
+    mkdirSync(join(testTempDir, 'instance-1', 'screenshots'), { recursive: true });
+    mkdirSync(join(testTempDir, 'instance-2', 'screenshots'), { recursive: true });
+    mkdirSync(join(testOutputDir, 'screenshots'), { recursive: true });
+
+    // Create fake screenshot files
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-001.png'), 'screenshot-1');
+    writeFileSync(join(testTempDir, 'instance-2', 'screenshots', 'I2-UXR-001.png'), 'screenshot-2');
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-002.png'), 'screenshot-3');
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-002-a.png'), 'screenshot-3a');
+  });
+
+  afterEach(() => {
+    if (existsSync(testTempDir)) {
+      rmSync(testTempDir, { recursive: true, force: true });
+    }
+    if (existsSync(testOutputDir)) {
+      rmSync(testOutputDir, { recursive: true, force: true });
+    }
+  });
+
+  it('copies and renames screenshots to the output directory', () => {
+    const ops = [
+      { instanceNumber: 1, sourceFilename: 'I1-UXR-001.png', destFilename: 'UXR-001.png' },
+      { instanceNumber: 2, sourceFilename: 'I2-UXR-001.png', destFilename: 'UXR-002.png' },
+    ];
+
+    copyScreenshots(ops, testOutputDir);
+
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-002.png'))).toBe(true);
+
+    // Verify content was copied correctly
+    expect(readFileSync(join(testOutputDir, 'screenshots', 'UXR-001.png'), 'utf-8')).toBe('screenshot-1');
+    expect(readFileSync(join(testOutputDir, 'screenshots', 'UXR-002.png'), 'utf-8')).toBe('screenshot-2');
+  });
+
+  it('handles multiple screenshots per finding', () => {
+    const ops = [
+      { instanceNumber: 1, sourceFilename: 'I1-UXR-002.png', destFilename: 'UXR-001.png' },
+      { instanceNumber: 1, sourceFilename: 'I1-UXR-002-a.png', destFilename: 'UXR-001-a.png' },
+    ];
+
+    copyScreenshots(ops, testOutputDir);
+
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001-a.png'))).toBe(true);
+    expect(readFileSync(join(testOutputDir, 'screenshots', 'UXR-001.png'), 'utf-8')).toBe('screenshot-3');
+    expect(readFileSync(join(testOutputDir, 'screenshots', 'UXR-001-a.png'), 'utf-8')).toBe('screenshot-3a');
+  });
+
+  it('silently skips missing source screenshots', () => {
+    const ops = [
+      { instanceNumber: 1, sourceFilename: 'I1-UXR-001.png', destFilename: 'UXR-001.png' },
+      { instanceNumber: 1, sourceFilename: 'I1-UXR-NONEXISTENT.png', destFilename: 'UXR-002.png' },
+    ];
+
+    // Should not throw
+    copyScreenshots(ops, testOutputDir);
+
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-002.png'))).toBe(false);
+  });
+
+  it('handles empty operations list', () => {
+    copyScreenshots([], testOutputDir);
+    // No errors, nothing copied
+  });
+});
+
+describe('reassignAndRemapScreenshots', () => {
+  const testTempDir = join(process.cwd(), '.uxreview-temp-test');
+  const testOutputDir = join(process.cwd(), '.uxreview-output-test');
+
+  beforeEach(() => {
+    mkdirSync(join(testTempDir, 'instance-1', 'screenshots'), { recursive: true });
+    mkdirSync(join(testTempDir, 'instance-2', 'screenshots'), { recursive: true });
+    mkdirSync(join(testOutputDir, 'screenshots'), { recursive: true });
+
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-001.png'), 'img-1');
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-002.png'), 'img-2');
+    writeFileSync(join(testTempDir, 'instance-2', 'screenshots', 'I2-UXR-001.png'), 'img-3');
+  });
+
+  afterEach(() => {
+    if (existsSync(testTempDir)) {
+      rmSync(testTempDir, { recursive: true, force: true });
+    }
+    if (existsSync(testOutputDir)) {
+      rmSync(testOutputDir, { recursive: true, force: true });
+    }
+  });
+
+  it('reassigns IDs and copies screenshots end-to-end', () => {
+    const consolidationResult: ConsolidationResult = {
+      findings: [
+        makeFinding({ id: 'I1-UXR-001', title: 'Issue A', screenshot: 'I1-UXR-001.png' }),
+        makeFinding({ id: 'I1-UXR-002', title: 'Issue B', screenshot: 'I1-UXR-002.png' }),
+        makeFinding({ id: 'I2-UXR-001', title: 'Issue C', screenshot: 'I2-UXR-001.png' }),
+      ],
+      duplicateGroups: [],
+      usedClaude: false,
+    };
+
+    const result = reassignAndRemapScreenshots(consolidationResult, testOutputDir);
+
+    // IDs are sequential
+    expect(result.findings[0].id).toBe('UXR-001');
+    expect(result.findings[1].id).toBe('UXR-002');
+    expect(result.findings[2].id).toBe('UXR-003');
+
+    // Screenshot references updated
+    expect(result.findings[0].screenshot).toBe('UXR-001.png');
+    expect(result.findings[1].screenshot).toBe('UXR-002.png');
+    expect(result.findings[2].screenshot).toBe('UXR-003.png');
+
+    // Files copied and renamed in output
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-002.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-003.png'))).toBe(true);
+
+    // Content preserved
+    expect(readFileSync(join(testOutputDir, 'screenshots', 'UXR-001.png'), 'utf-8')).toBe('img-1');
+    expect(readFileSync(join(testOutputDir, 'screenshots', 'UXR-002.png'), 'utf-8')).toBe('img-2');
+    expect(readFileSync(join(testOutputDir, 'screenshots', 'UXR-003.png'), 'utf-8')).toBe('img-3');
+  });
+
+  it('handles merged findings with combined screenshot references', () => {
+    const consolidationResult: ConsolidationResult = {
+      findings: [
+        makeFinding({
+          id: 'I2-UXR-001',
+          title: 'Merged issue',
+          screenshot: 'I1-UXR-001.png, I2-UXR-001.png',
+        }),
+        makeFinding({ id: 'I1-UXR-002', title: 'Standalone', screenshot: 'I1-UXR-002.png' }),
+      ],
+      duplicateGroups: [{ findingIds: ['I1-UXR-001', 'I2-UXR-001'] }],
+      usedClaude: true,
+    };
+
+    const result = reassignAndRemapScreenshots(consolidationResult, testOutputDir);
+
+    expect(result.findings[0].id).toBe('UXR-001');
+    expect(result.findings[0].screenshot).toBe('UXR-001.png, UXR-001-a.png');
+    expect(result.findings[1].id).toBe('UXR-002');
+    expect(result.findings[1].screenshot).toBe('UXR-002.png');
+
+    // Both screenshots for the merged finding copied
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001-a.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-002.png'))).toBe(true);
+  });
+
+  it('handles empty consolidation result', () => {
+    const consolidationResult: ConsolidationResult = {
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    };
+
+    const result = reassignAndRemapScreenshots(consolidationResult, testOutputDir);
+
+    expect(result.findings).toEqual([]);
+    expect(result.screenshotOps).toHaveLength(0);
+  });
+});
+
+describe('TASK-019 verification: sequential IDs, screenshot renaming, and reference matching', () => {
+  const testTempDir = join(process.cwd(), '.uxreview-temp-test');
+  const testOutputDir = join(process.cwd(), '.uxreview-output-test');
+
+  beforeEach(() => {
+    mkdirSync(join(testTempDir, 'instance-1', 'screenshots'), { recursive: true });
+    mkdirSync(join(testTempDir, 'instance-2', 'screenshots'), { recursive: true });
+    mkdirSync(join(testTempDir, 'instance-3', 'screenshots'), { recursive: true });
+    mkdirSync(join(testOutputDir, 'screenshots'), { recursive: true });
+
+    // Instance 1 screenshots
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-001.png'), 'i1-s1');
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-002.png'), 'i1-s2');
+    // Instance 2 screenshots
+    writeFileSync(join(testTempDir, 'instance-2', 'screenshots', 'I2-UXR-001.png'), 'i2-s1');
+    writeFileSync(join(testTempDir, 'instance-2', 'screenshots', 'I2-UXR-002.png'), 'i2-s2');
+    // Instance 3 screenshots
+    writeFileSync(join(testTempDir, 'instance-3', 'screenshots', 'I3-UXR-001.png'), 'i3-s1');
+  });
+
+  afterEach(() => {
+    if (existsSync(testTempDir)) {
+      rmSync(testTempDir, { recursive: true, force: true });
+    }
+    if (existsSync(testOutputDir)) {
+      rmSync(testOutputDir, { recursive: true, force: true });
+    }
+  });
+
+  it('full pipeline: deduplication → ID reassignment → screenshot remapping', () => {
+    // Simulate the output of consolidateReports (TASK-018):
+    // 5 findings from 3 instances, one duplicate merged
+    const consolidationResult: ConsolidationResult = {
+      findings: [
+        // Merged finding (I1-UXR-001 + I2-UXR-002 were duplicates)
+        makeFinding({
+          id: 'I2-UXR-002',
+          title: 'Nav button inconsistency',
+          uiArea: 'Navigation',
+          severity: 'major',
+          screenshot: 'I1-UXR-001.png, I2-UXR-002.png',
+        }),
+        makeFinding({
+          id: 'I1-UXR-002',
+          title: 'Form validation missing',
+          uiArea: 'Settings',
+          severity: 'major',
+          screenshot: 'I1-UXR-002.png',
+        }),
+        makeFinding({
+          id: 'I2-UXR-001',
+          title: 'Dashboard misalignment',
+          uiArea: 'Dashboard',
+          severity: 'minor',
+          screenshot: 'I2-UXR-001.png',
+        }),
+        makeFinding({
+          id: 'I3-UXR-001',
+          title: 'Poor footer contrast',
+          uiArea: 'Footer',
+          severity: 'critical',
+          screenshot: 'I3-UXR-001.png',
+        }),
+      ],
+      duplicateGroups: [{ findingIds: ['I1-UXR-001', 'I2-UXR-002'] }],
+      usedClaude: true,
+    };
+
+    const result = reassignAndRemapScreenshots(consolidationResult, testOutputDir);
+
+    // VERIFICATION 1: All findings have sequential UXR- IDs with no gaps
+    const ids = result.findings.map((f) => f.id);
+    expect(ids).toEqual(['UXR-001', 'UXR-002', 'UXR-003', 'UXR-004']);
+
+    // Verify no gaps by checking the numeric sequence
+    const idNumbers = ids.map((id) => parseInt(id.replace('UXR-', ''), 10));
+    for (let i = 0; i < idNumbers.length; i++) {
+      expect(idNumbers[i]).toBe(i + 1);
+    }
+
+    // VERIFICATION 2: Screenshots in output directory renamed correctly
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-001-a.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-002.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-003.png'))).toBe(true);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-004.png'))).toBe(true);
+
+    // No stale instance-scoped filenames in output
+    expect(existsSync(join(testOutputDir, 'screenshots', 'I1-UXR-001.png'))).toBe(false);
+    expect(existsSync(join(testOutputDir, 'screenshots', 'I2-UXR-002.png'))).toBe(false);
+
+    // VERIFICATION 3: Report references match the new filenames
+    expect(result.findings[0].screenshot).toBe('UXR-001.png, UXR-001-a.png');
+    expect(result.findings[1].screenshot).toBe('UXR-002.png');
+    expect(result.findings[2].screenshot).toBe('UXR-003.png');
+    expect(result.findings[3].screenshot).toBe('UXR-004.png');
+
+    // Cross-check: each screenshot referenced in findings exists on disk
+    for (const finding of result.findings) {
+      const refs = parseScreenshotRefs(finding.screenshot);
+      for (const ref of refs) {
+        expect(existsSync(join(testOutputDir, 'screenshots', ref))).toBe(true);
+      }
+    }
   });
 });
