@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 32
-- **Completed**: 26
-- **Remaining**: 6
-- **Last Updated**: 2026-04-02T15:34:23.032Z
+- **Completed**: 27
+- **Remaining**: 5
+- **Last Updated**: 2026-04-02T15:48:34.806Z
 
 ## Iteration Log
 
@@ -241,4 +241,13 @@
 - **Exit Status**: success
 - **Tokens**: 831,595 total (780 in, 19,765 out, 83,979 cache-create, 727,071 cache-read)
 - **Cost**: $1.3864
+
+### Iteration 27 - 2026-04-02T15:34:25.935Z
+- **Task Attempted**: TASK-027
+- **Task Completed**: TASK-027
+- **Summary**: Completed Integration tests — deduplication and consolidation
+- **Duration**: 14m 9s
+- **Exit Status**: success
+- **Tokens**: 1,799,126 total (4,020 in, 49,701 out, 105,663 cache-create, 1,639,742 cache-read)
+- **Cost**: $2.9398
 

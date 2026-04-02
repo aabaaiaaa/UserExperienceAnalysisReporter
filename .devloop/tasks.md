@@ -157,7 +157,7 @@
 - **Verification**: `npx vitest run` passes. Tests cover: mid-area crash with checkpoint resume, missing checkpoint restart, corrupted checkpoint restart, max retry exceeded, and progress display during failure/retry/permanent failure.
 
 ### TASK-027: Integration tests — deduplication and consolidation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-024, TASK-018, TASK-019, TASK-020, TASK-021
 - **Description**: Write integration tests for the consolidation step. Provide mock reports from multiple instances with overlapping findings. Verify duplicate detection, merging, ID reassignment, screenshot remapping, hierarchical grouping, and discovery doc consolidation. See requirements.md "Testing Strategy" section.
 - **Verification**: `npx vitest run` passes. Tests cover: duplicate merged, similar-but-distinct kept separate, IDs are sequential, screenshots renamed, hierarchy is correct, discovery doc is deduplicated and reusable.
