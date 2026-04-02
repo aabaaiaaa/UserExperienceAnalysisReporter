@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:C:\\Users\\jeastaugh\\source\\repos\\Experiments\\UserExperienceAnalysisReporter)",
+      "Bash(cd:C:\\Users\\jeastaugh\\source\\repos\\Experiments\\UserExperienceAnalysisReporter/**)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(git:*)",
+      "Bash(tsc:*)",
+      "Bash(mkdir:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf ..)",
+      "Bash(sudo:*)",
+      "Bash(chmod:*)",
+      "Bash(chown:*)",
+      "Edit(C:/Users/jeastaugh/source/repos/Experiments/UserExperienceAnalysisReporter/.devloop/**)",
+      "Write(C:/Users/jeastaugh/source/repos/Experiments/UserExperienceAnalysisReporter/.devloop/**)",
+      "Edit(C:/Users/jeastaugh/source/repos/Experiments/UserExperienceAnalysisReporter/.claude/**)",
+      "Write(C:/Users/jeastaugh/source/repos/Experiments/UserExperienceAnalysisReporter/.claude/**)"
+    ]
+  },
+  "restrictToWorkspace": true,
+  "workspacePath": "C:\\Users\\jeastaugh\\source\\repos\\Experiments\\UserExperienceAnalysisReporter"
+}

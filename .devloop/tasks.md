@@ -1,7 +1,7 @@
 # UX Analysis Reporter — Tasks
 
 ### TASK-001: Project scaffolding and configuration
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Initialize the TypeScript project with npm. Set up `package.json`, `tsconfig.json`, Vitest config with coverage thresholds (90% target, 80% minimum), and the basic directory structure (`src/`, `tests/`). Configure the project as a CLI tool with a `bin` entry point. See requirements.md for the full tech stack.
 - **Verification**: `npm install` completes without errors, `npx tsc --noEmit` passes, `npx vitest run` executes (even with no tests yet).
