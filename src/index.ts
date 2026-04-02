@@ -1,3 +1,8 @@
 #!/usr/bin/env node
 
-console.log('uxreview CLI - not yet implemented');
+import { parseArgs } from './cli.js';
+
+const args = parseArgs(process.argv.slice(2));
+
+console.log('Parsed arguments:');
+console.log(JSON.stringify(args, null, 2));

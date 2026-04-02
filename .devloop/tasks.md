@@ -7,7 +7,7 @@
 - **Verification**: `npm install` completes without errors, `npx tsc --noEmit` passes, `npx vitest run` executes (even with no tests yet).
 
 ### TASK-002: CLI argument parsing and validation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001, TASK-003
 - **Description**: Implement CLI argument parsing for `--url`, `--intro`, `--plan`, `--scope`, `--show-default-scope`, `--instances`, `--rounds`, and `--output`. For `--intro`, `--plan`, and `--scope`, detect whether the value is a file path (check if file exists) or inline text. Validate required params are present, URL is valid, numeric params are positive integers. `--show-default-scope` prints the default scope to stdout and exits (no other params required). Print help/usage on invalid input. See requirements.md "User Inputs" and "Evaluation Scope" sections.
 - **Verification**: Run the CLI with valid args and confirm they are parsed correctly. Run with missing required args and confirm a helpful error message is shown. Run with file paths and inline text for `--intro`/`--plan`/`--scope` and confirm all resolve correctly. Run `--show-default-scope` and confirm it prints the default scope and exits.

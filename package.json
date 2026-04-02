@@ -14,9 +14,16 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["ux", "review", "claude", "playwright", "cli"],
+  "keywords": [
+    "ux",
+    "review",
+    "claude",
+    "playwright",
+    "cli"
+  ],
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^25.5.0",
     "@vitest/coverage-v8": "^3.1.1",
     "typescript": "^5.8.3",
     "vitest": "^3.1.1"
