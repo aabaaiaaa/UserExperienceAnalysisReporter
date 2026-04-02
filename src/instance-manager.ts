@@ -3,6 +3,7 @@ import { getInstancePaths } from './file-manager.js';
 import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent } from './discovery.js';
 import { buildReportInstructions } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
+import { readCheckpoint, writeCheckpoint, createInitialCheckpoint } from './checkpoint.js';
 
 export type InstanceStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -172,4 +173,84 @@ export async function spawnInstances(configs: InstanceConfig[]): Promise<Instanc
       error: result.reason instanceof Error ? result.reason.message : String(result.reason),
     };
   });
+}
+
+export interface RoundExecutionConfig {
+  /** Instance number (1-based) */
+  instanceNumber: number;
+  /** The target URL of the web app to review */
+  url: string;
+  /** Full introduction/context document */
+  intro: string;
+  /** This instance's assigned chunk of the review plan */
+  planChunk: string;
+  /** UX evaluation scope (default or custom) */
+  scope: string;
+  /** Total number of rounds to execute */
+  totalRounds: number;
+  /** Assigned area names for checkpoint tracking */
+  assignedAreas?: string[];
+}
+
+export interface RoundExecutionResult {
+  instanceNumber: number;
+  /** Final status after all rounds */
+  status: InstanceStatus;
+  /** Per-round results */
+  roundResults: InstanceState[];
+  /** The round number that was last completed (0 if none) */
+  completedRounds: number;
+  /** Error message if a round failed */
+  error?: string;
+}
+
+/**
+ * Run multiple sequential rounds for a single instance.
+ *
+ * Round 1 uses the plan chunk and scope.
+ * Round 2+ includes the accumulated discovery doc from previous rounds
+ * so Claude can focus on gaps and go deeper.
+ *
+ * The checkpoint is updated to advance the round number after each
+ * successful round.
+ */
+export async function runInstanceRounds(config: RoundExecutionConfig): Promise<RoundExecutionResult> {
+  const roundResults: InstanceState[] = [];
+  const areas = config.assignedAreas ?? [];
+
+  for (let round = 1; round <= config.totalRounds; round++) {
+    // Write checkpoint at the start of each round
+    const checkpoint = createInitialCheckpoint(config.instanceNumber, areas, round);
+    writeCheckpoint(config.instanceNumber, checkpoint);
+
+    // Spawn the instance for this round
+    const instanceConfig: InstanceConfig = {
+      instanceNumber: config.instanceNumber,
+      url: config.url,
+      intro: config.intro,
+      planChunk: config.planChunk,
+      scope: config.scope,
+      round,
+    };
+
+    const state = await spawnInstance(instanceConfig);
+    roundResults.push(state);
+
+    if (state.status === 'failed') {
+      return {
+        instanceNumber: config.instanceNumber,
+        status: 'failed',
+        roundResults,
+        completedRounds: round - 1,
+        error: state.error,
+      };
+    }
+  }
+
+  return {
+    instanceNumber: config.instanceNumber,
+    status: 'completed',
+    roundResults,
+    completedRounds: config.totalRounds,
+  };
 }

@@ -67,7 +67,7 @@
 - **Verification**: After a mock instance run, confirm screenshots exist in the instance's screenshots directory with correct naming conventions. Confirm multiple screenshots per finding are handled.
 
 ### TASK-012: Multi-round execution logic
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-008, TASK-009, TASK-010
 - **Description**: Implement the sequential round execution per instance. Round 1 uses the assigned plan chunk and the evaluation scope. Round 2+ uses the plan chunk, the evaluation scope, AND the accumulated discovery doc from previous rounds. The Claude prompt for subsequent rounds should instruct Claude to review the discovery doc and focus on gaps. The scope is always included in every round's prompt. See requirements.md "Round execution" under Architecture.
 - **Verification**: Run a mock 2-round execution. Confirm round 1 prompt includes the plan chunk and scope. Confirm round 2 prompt includes the plan chunk, scope, and the discovery doc from round 1. Confirm the checkpoint correctly advances the round number.
