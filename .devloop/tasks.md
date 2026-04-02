@@ -37,7 +37,7 @@
 - **Verification**: Provide a multi-section review plan and request 3 instances. Confirm the plan is split into 3 logical chunks with minimal overlap and full coverage. Request 1 instance and confirm no Claude call is made — the full plan is passed through.
 
 ### TASK-007: Claude Code instance spawning and management
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005, TASK-006
 - **Description**: Implement the logic to spawn Claude Code CLI subprocesses for analysis using the shared Claude CLI utility (TASK-005). Each instance receives the full intro doc, its assigned plan chunk, the evaluation scope (custom or default), and instructions for writing to its discovery doc, checkpoint file, and report doc. Manage the subprocess lifecycle — start, monitor, detect completion or failure. See requirements.md "Claude Code Instances" section.
 - **Verification**: Spawn a single Claude Code instance with a mock plan chunk. Confirm the subprocess starts, receives the correct inputs (including scope), and the orchestrator can detect when it completes or fails.
