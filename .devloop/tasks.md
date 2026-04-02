@@ -139,7 +139,7 @@
 - **Verification**: Simulate rate limit errors from 2 concurrent instances. Confirm the orchestrator backs off and retries without crashing. Confirm progress bars reflect the pause.
 
 ### TASK-024: Integration tests — happy path single instance
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002, TASK-007, TASK-009, TASK-010, TASK-018
 - **Description**: Write integration tests for the happy path: single instance, single round. Mock the Claude Code CLI to return expected responses for work distribution, discovery, and report writing. Verify the full flow from CLI args to final consolidated report. Include testing with default scope and custom scope. See requirements.md "Testing Strategy" section.
 - **Verification**: `npx vitest run` passes. The test covers: arg parsing (including scope), plan splitting (skipped with 1 instance), instance execution, discovery doc, report writing, and consolidation.
