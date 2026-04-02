@@ -19,7 +19,7 @@
 - **Verification**: Import the default scope constant and confirm it contains all the criteria listed in requirements.md.
 
 ### TASK-004: File organization and working directory management
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: Implement the working directory structure (`.uxreview-temp/`) and output directory structure. Create functions to initialize the temp directory with per-instance subdirectories, and to clean up the temp directory between runs. Create functions to set up the output directory. See requirements.md "File Organization" section for the exact structure.
 - **Verification**: Run the init function and confirm the directory structure is created correctly. Run cleanup and confirm the temp directory is removed. Confirm output directory is created at the specified or default path.
