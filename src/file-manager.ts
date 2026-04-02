@@ -48,11 +48,31 @@ export function getWorkDistributionPath(): string {
 /**
  * Clean up the temp directory from a previous run.
  * Safe to call even if the directory doesn't exist.
+ *
+ * On Windows, directories may be briefly locked by processes that
+ * haven't fully released handles (e.g., Playwright browser instances).
+ * Retries a few times with short delays to handle this.
  */
 export function cleanupTempDir(): void {
   const tempDir = getTempDir();
-  if (existsSync(tempDir)) {
-    rmSync(tempDir, { recursive: true, force: true });
+  if (!existsSync(tempDir)) return;
+
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+      return;
+    } catch (err: unknown) {
+      const isLockError = err instanceof Error && 'code' in err &&
+        ((err as NodeJS.ErrnoException).code === 'EBUSY' ||
+         (err as NodeJS.ErrnoException).code === 'EPERM');
+      if (!isLockError || attempt === maxAttempts) {
+        throw err;
+      }
+      // Brief synchronous delay before retry (100ms * attempt)
+      const start = Date.now();
+      while (Date.now() - start < 100 * attempt) { /* spin */ }
+    }
   }
 }
 
