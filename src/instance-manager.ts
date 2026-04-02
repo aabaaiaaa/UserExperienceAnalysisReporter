@@ -3,7 +3,7 @@ import { getInstancePaths } from './file-manager.js';
 import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent } from './discovery.js';
 import { buildReportInstructions } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
-import { readCheckpoint, writeCheckpoint, createInitialCheckpoint } from './checkpoint.js';
+import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
 
 export type InstanceStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -33,6 +33,20 @@ export interface InstanceState {
 
 /** Default timeout for analysis instances: 30 minutes */
 const INSTANCE_TIMEOUT_MS = 30 * 60 * 1000;
+
+/** Default maximum retry attempts per instance on failure */
+export const DEFAULT_MAX_RETRIES = 3;
+
+export interface RetryInfo {
+  /** Round number where failure occurred */
+  round: number;
+  /** Number of retry attempts made */
+  attempts: number;
+  /** Whether a retry eventually succeeded */
+  succeeded: boolean;
+  /** Error messages from the initial failure and each retry attempt */
+  errors: string[];
+}
 
 /**
  * Build the prompt sent to a Claude Code instance for UX analysis.
@@ -175,6 +189,51 @@ export async function spawnInstances(configs: InstanceConfig[]): Promise<Instanc
   });
 }
 
+/**
+ * Spawn a Claude Code instance with a resume prompt derived from a checkpoint.
+ *
+ * The resume prompt is appended to the base instance prompt, instructing
+ * Claude to skip completed areas and continue from where it left off.
+ */
+export async function spawnInstanceWithResume(
+  config: InstanceConfig,
+  checkpoint: Checkpoint,
+): Promise<InstanceState> {
+  const state: InstanceState = {
+    instanceNumber: config.instanceNumber,
+    status: 'running',
+  };
+
+  const basePrompt = buildInstancePrompt(config);
+  const resumePrompt = buildResumePrompt(checkpoint);
+  const fullPrompt = basePrompt + '\n\n' + resumePrompt;
+
+  const paths = getInstancePaths(config.instanceNumber);
+
+  try {
+    const result = await runClaude({
+      prompt: fullPrompt,
+      cwd: paths.dir,
+      timeout: INSTANCE_TIMEOUT_MS,
+      extraArgs: ['--allowedTools', 'mcp__playwright,computer,bash,edit,write'],
+    });
+
+    state.result = result;
+
+    if (result.success) {
+      state.status = 'completed';
+    } else {
+      state.status = 'failed';
+      state.error = result.stderr || `Instance exited with code ${result.exitCode}`;
+    }
+  } catch (err) {
+    state.status = 'failed';
+    state.error = err instanceof Error ? err.message : String(err);
+  }
+
+  return state;
+}
+
 export interface RoundExecutionConfig {
   /** Instance number (1-based) */
   instanceNumber: number;
@@ -190,6 +249,8 @@ export interface RoundExecutionConfig {
   totalRounds: number;
   /** Assigned area names for checkpoint tracking */
   assignedAreas?: string[];
+  /** Maximum retry attempts per round on failure (default: 3) */
+  maxRetries?: number;
 }
 
 export interface RoundExecutionResult {
@@ -202,6 +263,10 @@ export interface RoundExecutionResult {
   completedRounds: number;
   /** Error message if a round failed */
   error?: string;
+  /** Retry information for any rounds that required retries */
+  retries: RetryInfo[];
+  /** Whether the instance exceeded the retry limit and was permanently failed */
+  permanentlyFailed?: boolean;
 }
 
 /**
@@ -211,17 +276,21 @@ export interface RoundExecutionResult {
  * Round 2+ includes the accumulated discovery doc from previous rounds
  * so Claude can focus on gaps and go deeper.
  *
- * The checkpoint is updated to advance the round number after each
- * successful round.
+ * On failure, the orchestrator reads the checkpoint file and retries
+ * with a resume prompt. If the checkpoint is missing or corrupted,
+ * the round restarts from scratch. If the maximum retry count is
+ * exceeded, the instance is marked as permanently failed.
  */
 export async function runInstanceRounds(config: RoundExecutionConfig): Promise<RoundExecutionResult> {
   const roundResults: InstanceState[] = [];
   const areas = config.assignedAreas ?? [];
+  const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
+  const retries: RetryInfo[] = [];
 
   for (let round = 1; round <= config.totalRounds; round++) {
     // Write checkpoint at the start of each round
-    const checkpoint = createInitialCheckpoint(config.instanceNumber, areas, round);
-    writeCheckpoint(config.instanceNumber, checkpoint);
+    const initialCheckpoint = createInitialCheckpoint(config.instanceNumber, areas, round);
+    writeCheckpoint(config.instanceNumber, initialCheckpoint);
 
     // Spawn the instance for this round
     const instanceConfig: InstanceConfig = {
@@ -233,18 +302,59 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
       round,
     };
 
-    const state = await spawnInstance(instanceConfig);
-    roundResults.push(state);
+    let state = await spawnInstance(instanceConfig);
 
+    // If the round failed, enter the retry loop
     if (state.status === 'failed') {
-      return {
-        instanceNumber: config.instanceNumber,
-        status: 'failed',
-        roundResults,
-        completedRounds: round - 1,
-        error: state.error,
+      const retryInfo: RetryInfo = {
+        round,
+        attempts: 0,
+        succeeded: false,
+        errors: [state.error || 'Unknown error'],
       };
+
+      while (retryInfo.attempts < maxRetries) {
+        retryInfo.attempts++;
+
+        // Read the checkpoint to determine resume state
+        const savedCheckpoint = readCheckpoint(config.instanceNumber);
+
+        if (savedCheckpoint) {
+          // Valid checkpoint exists: resume from where we left off
+          state = await spawnInstanceWithResume(instanceConfig, savedCheckpoint);
+        } else {
+          // Checkpoint missing or corrupted: restart the round from scratch
+          const freshCheckpoint = createInitialCheckpoint(config.instanceNumber, areas, round);
+          writeCheckpoint(config.instanceNumber, freshCheckpoint);
+          state = await spawnInstance(instanceConfig);
+        }
+
+        if (state.status === 'completed') {
+          retryInfo.succeeded = true;
+          break;
+        }
+
+        retryInfo.errors.push(state.error || 'Unknown error');
+      }
+
+      retries.push(retryInfo);
+
+      if (!retryInfo.succeeded) {
+        // Retry limit exceeded — permanently failed
+        roundResults.push(state);
+        return {
+          instanceNumber: config.instanceNumber,
+          status: 'failed',
+          roundResults,
+          completedRounds: round - 1,
+          error: state.error,
+          retries,
+          permanentlyFailed: true,
+        };
+      }
     }
+
+    roundResults.push(state);
   }
 
   return {
@@ -252,5 +362,6 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
     status: 'completed',
     roundResults,
     completedRounds: config.totalRounds,
+    retries,
   };
 }

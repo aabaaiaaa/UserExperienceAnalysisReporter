@@ -187,6 +187,8 @@ describe('runInstanceRounds', () => {
     expect(result.roundResults[0].status).toBe('completed');
     expect(result.roundResults[1].status).toBe('completed');
     expect(result.error).toBeUndefined();
+    expect(result.retries).toHaveLength(0);
+    expect(result.permanentlyFailed).toBeUndefined();
   });
 
   it('calls runClaude once per round', async () => {
@@ -298,8 +300,8 @@ describe('runInstanceRounds', () => {
     expect(cp.instanceId).toBe(1);
   });
 
-  it('stops on first failed round and reports error', async () => {
-    // Round 1 fails
+  it('stops on first failed round and reports error (no retries)', async () => {
+    // Round 1 fails, retries disabled
     mockRunClaude.mockResolvedValue({
       stdout: '',
       stderr: 'MCP connection error',
@@ -307,18 +309,23 @@ describe('runInstanceRounds', () => {
       success: false,
     });
 
-    const result = await runInstanceRounds(BASE_ROUND_CONFIG);
+    const result = await runInstanceRounds({ ...BASE_ROUND_CONFIG, maxRetries: 0 });
 
     expect(result.status).toBe('failed');
     expect(result.completedRounds).toBe(0);
     expect(result.roundResults).toHaveLength(1);
     expect(result.roundResults[0].status).toBe('failed');
     expect(result.error).toBe('MCP connection error');
-    // Should not have attempted round 2
+    expect(result.permanentlyFailed).toBe(true);
+    expect(result.retries).toHaveLength(1);
+    expect(result.retries[0].round).toBe(1);
+    expect(result.retries[0].attempts).toBe(0);
+    expect(result.retries[0].succeeded).toBe(false);
+    // Should not have attempted round 2 or retries
     expect(mockRunClaude).toHaveBeenCalledTimes(1);
   });
 
-  it('stops if round 2 fails after round 1 succeeds', async () => {
+  it('stops if round 2 fails after round 1 succeeds (no retries)', async () => {
     mockRunClaude
       .mockResolvedValueOnce({ stdout: 'ok', stderr: '', exitCode: 0, success: true })
       .mockResolvedValueOnce({ stdout: '', stderr: 'Timeout', exitCode: 1, success: false });
@@ -326,6 +333,7 @@ describe('runInstanceRounds', () => {
     const config: RoundExecutionConfig = {
       ...BASE_ROUND_CONFIG,
       totalRounds: 3,
+      maxRetries: 0,
     };
 
     const result = await runInstanceRounds(config);
@@ -336,7 +344,10 @@ describe('runInstanceRounds', () => {
     expect(result.roundResults[0].status).toBe('completed');
     expect(result.roundResults[1].status).toBe('failed');
     expect(result.error).toBe('Timeout');
-    // Should not have attempted round 3
+    expect(result.permanentlyFailed).toBe(true);
+    expect(result.retries).toHaveLength(1);
+    expect(result.retries[0].round).toBe(2);
+    // Should not have attempted round 3 or retries
     expect(mockRunClaude).toHaveBeenCalledTimes(2);
   });
 

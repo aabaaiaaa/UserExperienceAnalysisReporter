@@ -73,7 +73,7 @@
 - **Verification**: Run a mock 2-round execution. Confirm round 1 prompt includes the plan chunk and scope. Confirm round 2 prompt includes the plan chunk, scope, and the discovery doc from round 1. Confirm the checkpoint correctly advances the round number.
 
 ### TASK-013: Failure detection, retry, and resume
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-008, TASK-012
 - **Description**: Implement failure detection for Claude Code subprocesses (crash, timeout, error output). On failure, read the instance's checkpoint file and retry the instance with a resume prompt that continues from the last checkpoint state. Handle the case where the checkpoint file itself is missing or corrupted (restart the round from scratch). Enforce a maximum retry count per instance (default: 3). If the retry limit is exceeded, mark the instance as permanently failed and continue with remaining instances. See requirements.md "Failure handling" under Architecture.
 - **Verification**: Simulate an instance crash at a known checkpoint. Confirm the orchestrator detects the failure, reads the checkpoint, and retries with a resume prompt. Confirm the retried instance resumes from the correct point. Simulate a corrupted checkpoint and confirm the round restarts cleanly. Simulate exceeding the retry limit and confirm the instance is marked as permanently failed.
