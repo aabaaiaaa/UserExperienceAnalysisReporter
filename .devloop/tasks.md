@@ -151,7 +151,7 @@
 - **Verification**: `npx vitest run` passes. The test covers: plan splitting across instances, parallel mock execution, round 2 receiving discovery doc from round 1, and correct consolidation.
 
 ### TASK-026: Integration tests — failure, retry, and resume
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-024, TASK-013
 - **Description**: Write integration tests for failure scenarios. Mock an instance crash at various points, verify checkpoint-based resume, verify corrupted/missing checkpoint fallback (restart round), verify max retry limit exceeded. Verify progress bar color changes during failure, retry, and permanent failure. See requirements.md "Testing Strategy" section.
 - **Verification**: `npx vitest run` passes. Tests cover: mid-area crash with checkpoint resume, missing checkpoint restart, corrupted checkpoint restart, max retry exceeded, and progress display during failure/retry/permanent failure.

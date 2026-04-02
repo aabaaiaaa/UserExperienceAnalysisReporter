@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 32
-- **Completed**: 25
-- **Remaining**: 7
-- **Last Updated**: 2026-04-02T15:26:39.561Z
+- **Completed**: 26
+- **Remaining**: 6
+- **Last Updated**: 2026-04-02T15:34:23.032Z
 
 ## Iteration Log
 
@@ -232,4 +232,13 @@
 - **Exit Status**: success
 - **Tokens**: 115,547 total (3 in, 16 out, 283 cache-create, 115,245 cache-read)
 - **Cost**: $3.3872
+
+### Iteration 26 - 2026-04-02T15:26:41.814Z
+- **Task Attempted**: TASK-026
+- **Task Completed**: TASK-026
+- **Summary**: Completed Integration tests — failure, retry, and resume
+- **Duration**: 7m 41s
+- **Exit Status**: success
+- **Tokens**: 831,595 total (780 in, 19,765 out, 83,979 cache-create, 727,071 cache-read)
+- **Cost**: $1.3864
 
