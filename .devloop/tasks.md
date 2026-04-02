@@ -25,7 +25,7 @@
 - **Verification**: Run the init function and confirm the directory structure is created correctly. Run cleanup and confirm the temp directory is removed. Confirm output directory is created at the specified or default path.
 
 ### TASK-005: Claude Code CLI calling utility
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: Implement a shared utility module for invoking Claude Code CLI as a subprocess. This utility is used by multiple parts of the tool: work distribution (one-off call to split the plan), analysis instances (long-running subprocesses), and consolidation (one-off calls for deduplication and merging). The utility should handle spawning the subprocess, passing prompts/context, capturing output, detecting success/failure, and returning results. See requirements.md "Claude Code Instances" section for context.
 - **Verification**: Call the utility with a simple prompt and confirm it spawns a Claude Code subprocess, captures the output, and returns it. Confirm failure detection works when the subprocess exits with an error.
