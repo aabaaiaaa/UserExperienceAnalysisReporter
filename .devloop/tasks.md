@@ -1,7 +1,7 @@
 # Iteration 5 — Tasks
 
 ### TASK-001: Fix flaky cross-run resume test timeouts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `tests/consolidation-resume.test.ts`, increase the timeout on the four cross-run resume tests (lines 788, 823, 847, 870) from `{ timeout: 15000 }` to `{ timeout: 30000 }`. These tests use `vi.importActual()` for real filesystem I/O and intermittently time out on Windows at the current 15-second limit. See requirements.md section 1 for full context.
 - **Verification**: `npx vitest run tests/consolidation-resume.test.ts` — all tests pass. Confirm the four tests at lines 788, 823, 847, 870 now have `{ timeout: 30000 }`.

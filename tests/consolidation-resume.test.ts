@@ -785,7 +785,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       }
     });
 
-    it('preserves consolidation checkpoint when initTempDir is called on existing temp dir', { timeout: 15000 }, async () => {
+    it('preserves consolidation checkpoint when initTempDir is called on existing temp dir', { timeout: 30000 }, async () => {
       const real = await getRealFileManager();
       const tempDir = real.getTempDir();
 
@@ -820,7 +820,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       expect(preserved.dedupOutput).not.toBeNull();
     });
 
-    it('preserves instance checkpoint files when initTempDir is called on existing temp dir', { timeout: 15000 }, async () => {
+    it('preserves instance checkpoint files when initTempDir is called on existing temp dir', { timeout: 30000 }, async () => {
       const real = await getRealFileManager();
       const tempDir = real.getTempDir();
 
@@ -844,7 +844,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       expect(preserved.completed).toBe(true);
     });
 
-    it('cleans temp dir normally when no checkpoint data exists', { timeout: 15000 }, async () => {
+    it('cleans temp dir normally when no checkpoint data exists', { timeout: 30000 }, async () => {
       const real = await getRealFileManager();
       const tempDir = real.getTempDir();
 
@@ -867,7 +867,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       expect(existsSync(join(tempDir, 'instance-1'))).toBe(true);
     });
 
-    it('checkpoint survives initWorkspace and orchestrator resumes from correct step', { timeout: 15000 }, async () => {
+    it('checkpoint survives initWorkspace and orchestrator resumes from correct step', { timeout: 30000 }, async () => {
       const real = await getRealFileManager();
       const tempDir = real.getTempDir();
 
