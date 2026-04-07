@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "CLI tool that orchestrates Claude Code instances to autonomously review web application UX via Playwright MCP",
   "type": "module",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "main": "dist/index.js",
   "bin": {
     "uxreview": "dist/index.js"

@@ -7,7 +7,7 @@
 - **Verification**: `npx vitest run tests/orchestrator --reporter=verbose` passes, and grep confirms no remaining references to `consolidated-report.md` in src/ or tests/.
 
 ### TASK-002: Add files field to package.json
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a `"files"` array to `package.json` restricting published contents to `["dist/", "README.md", "LICENSE"]`. This prevents test fixtures, `.devloop/`, and internal files from being included in npm publish. See requirements.md change #2.
 - **Verification**: Run `npm pack --dry-run` and confirm only dist/, README.md, LICENSE, and package.json are listed.
