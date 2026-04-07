@@ -13,7 +13,7 @@
 - **Verification**: `npx vitest run tests/integration-dedup-consolidation.test.ts`
 
 ### TASK-002a: Modify initTempDir to preserve checkpoint data on re-run
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001a, TASK-001b
 - **Description**: In `src/file-manager.ts`, modify `initTempDir()` so it does not unconditionally wipe `.uxreview-temp/`. Before calling `cleanupTempDir()`, check for `consolidation-checkpoint.json` and instance checkpoint files. If checkpoint data exists, preserve checkpoint files and completed instance output directories — only clean instance directories that will be re-initialized. If no checkpoint data exists, clean as before (fresh run). See requirements.md change #2 for full context.
 - **Verification**: `npx vitest run tests/file-manager.test.ts`

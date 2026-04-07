@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 1,
+  "lastIteration": 2,
   "startedAt": "2026-04-07T11:36:36.233Z",
   "iteration": 2,
   "devloopVersion": "3.4.0",
   "activeTask": {
-    "taskId": "TASK-001b",
-    "taskTitle": "Fix failing tests in integration-dedup-consolidation.test.ts",
-    "iterationNumber": 2,
-    "startedAt": "2026-04-07T11:38:24.261Z"
+    "taskId": "TASK-002a",
+    "taskTitle": "Modify initTempDir to preserve checkpoint data on re-run",
+    "iterationNumber": 3,
+    "startedAt": "2026-04-07T11:39:07.207Z"
   }
 }

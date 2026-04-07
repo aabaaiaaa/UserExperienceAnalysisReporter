@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { debug } from './logger.js';
 
@@ -78,17 +78,57 @@ export async function cleanupTempDir(): Promise<void> {
 }
 
 /**
+ * Check whether the temp directory contains checkpoint data from a previous
+ * interrupted run. Returns true if a consolidation checkpoint or any instance
+ * checkpoint file exists.
+ */
+export function hasExistingCheckpointData(): boolean {
+  const tempDir = getTempDir();
+  if (!existsSync(tempDir)) return false;
+
+  // Check for consolidation checkpoint
+  if (existsSync(join(tempDir, 'consolidation-checkpoint.json'))) {
+    return true;
+  }
+
+  // Check for instance checkpoint files
+  try {
+    const entries = readdirSync(tempDir);
+    for (const entry of entries) {
+      if (entry.startsWith('instance-')) {
+        if (existsSync(join(tempDir, entry, 'checkpoint.json'))) {
+          return true;
+        }
+      }
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+/**
  * Initialize the temp working directory with per-instance subdirectories.
- * Cleans up any existing temp directory first to avoid stale state.
+ *
+ * If checkpoint data exists from a previous interrupted run, the temp
+ * directory is preserved so consolidation can resume. Otherwise, any
+ * existing temp directory is cleaned first to avoid stale state.
  */
 export async function initTempDir(instanceCount: number): Promise<string> {
   const tempDir = getTempDir();
   debug(`Initializing temp directory for ${instanceCount} instance(s): ${tempDir}`);
 
-  // Clean up stale state from previous runs
-  await cleanupTempDir();
+  const resuming = hasExistingCheckpointData();
 
-  // Create temp root
+  if (resuming) {
+    debug('Checkpoint data found — preserving temp directory for resume');
+  } else {
+    // Fresh run — clean up stale state from previous runs
+    await cleanupTempDir();
+  }
+
+  // Create temp root (no-op if already exists)
   mkdirSync(tempDir, { recursive: true });
 
   // Create per-instance directories with screenshots subdirectory
