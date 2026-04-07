@@ -5,10 +5,6 @@ import {
   MAX_RATE_LIMIT_RETRIES,
 } from './config.js';
 
-// Re-export so existing consumers (tests, instance-manager) can still
-// import these from './rate-limit.js' without breaking.
-export { DEFAULT_BASE_DELAY_MS, MAX_BACKOFF_DELAY_MS, MAX_RATE_LIMIT_RETRIES };
-
 /**
  * Patterns that indicate a rate limit error from the Claude Code CLI.
  * Checked against both stdout and stderr.

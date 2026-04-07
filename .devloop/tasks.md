@@ -37,7 +37,7 @@
 - **Verification**: `npx vitest run tests/orchestrator.test.ts`
 
 ### TASK-004a: Clean up backward-compat re-exports in rate-limit.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001a, TASK-001b
 - **Description**: Update all test file imports that reference `DEFAULT_BASE_DELAY_MS`, `MAX_BACKOFF_DELAY_MS`, or `MAX_RATE_LIMIT_RETRIES` from `rate-limit.ts` (or `../rate-limit.js`) to import from `config.ts` (or `../config.js`) instead. Then remove the re-export line from `src/rate-limit.ts:10` (`export { DEFAULT_BASE_DELAY_MS, MAX_BACKOFF_DELAY_MS, MAX_RATE_LIMIT_RETRIES }`). Keep the internal imports on lines 3-5 since `calculateBackoff` uses them as default parameters. See requirements.md change #8 for full context.
 - **Verification**: `npx vitest run tests/rate-limit.test.ts`

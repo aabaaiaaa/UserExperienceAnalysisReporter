@@ -4,10 +4,12 @@ import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import {
   isRateLimitError,
   getBackoffDelay,
+} from '../src/rate-limit.js';
+import {
   DEFAULT_BASE_DELAY_MS,
   MAX_BACKOFF_DELAY_MS,
   MAX_RATE_LIMIT_RETRIES,
-} from '../src/rate-limit.js';
+} from '../src/config.js';
 import { ClaudeCliResult } from '../src/claude-cli.js';
 import { formatProgressLine, InstanceProgress, ANSI_YELLOW, ANSI_RESET } from '../src/progress-display.js';
 import {
