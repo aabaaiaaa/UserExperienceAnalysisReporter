@@ -103,7 +103,7 @@
 - **Verification**: `npx vitest run tests/instance-manager.test.ts 2>&1 | tail -5`
 
 ### TASK-012b: Remove file-polling from ProgressDisplay
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-012a
 - **Description**: Remove `updateFromFiles()` and `updateAllFromFiles()` methods from `src/progress-display.ts`. Replace them with a new `updateProgress(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount)` method that receives data from the callback. The timer tick should only handle rendering (ETA, spinner animation), not data fetching. Remove the imports of `readCheckpoint`, `readReportContent`, etc. from `progress-display.ts`. Make the render interval configurable via `config.ts`. Update the orchestrator's `buildProgressCallback` to wire the new `onProgressUpdate` event to the display. Update all affected tests. Reference requirements.md change #12.
 - **Verification**: `npx vitest run tests/progress-display.test.ts tests/orchestrator.test.ts 2>&1 | tail -5`

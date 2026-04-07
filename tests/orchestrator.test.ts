@@ -59,7 +59,7 @@ const mockProgressDisplay = {
   startConsolidation: vi.fn(),
   completeConsolidation: vi.fn(),
   renderToTerminal: vi.fn(),
-  updateAllFromFiles: vi.fn(),
+  updateProgress: vi.fn(),
 };
 
 vi.mock('../src/progress-display.js', () => ({
@@ -723,6 +723,51 @@ describe('orchestrate', () => {
     expect(mockProgressDisplay.markRunning).toHaveBeenCalled(); // onRetrySuccess calls markRunning
     expect(mockProgressDisplay.markRoundComplete).toHaveBeenCalledWith(1, 5000);
     expect(mockProgressDisplay.markCompleted).toHaveBeenCalledWith(1);
+  });
+
+  it('onProgressUpdate callback flows through to display.updateProgress', async () => {
+    const args = makeArgs({ instances: 1 });
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-orch-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## Navigation\n- Review nav bar'],
+      usedClaude: false,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      // Simulate progress update via callback
+      config.progress?.onProgressUpdate?.(1, 2, 1, 4, 3);
+      config.progress?.onCompleted?.(1);
+      return makeSuccessResult(1, 1);
+    });
+
+    mockConsolidateReports.mockResolvedValue({
+      findings: [],
+      duplicateGroups: [],
+      usedClaude: false,
+    });
+    mockReassignAndRemap.mockReturnValue({
+      findings: [],
+      idMapping: new Map(),
+      screenshotOps: [],
+    });
+    mockOrganizeHierarchically.mockResolvedValue([]);
+    mockFormatConsolidatedReport.mockReturnValue('');
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '',
+      instanceCount: 1,
+      usedClaude: false,
+    });
+
+    await orchestrate(args);
+
+    // Verify onProgressUpdate reached the progress display
+    expect(mockProgressDisplay.updateProgress).toHaveBeenCalledWith(1, 2, 1, 4, 3);
   });
 
   it('ProgressDisplay is constructed with correct instance numbers and rounds', async () => {

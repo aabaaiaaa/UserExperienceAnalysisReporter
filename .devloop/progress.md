@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 27
-- **Completed**: 17
-- **Remaining**: 10
-- **Last Updated**: 2026-04-07T09:55:14.772Z
+- **Completed**: 18
+- **Remaining**: 9
+- **Last Updated**: 2026-04-07T10:04:02.499Z
 
 ## Iteration Log
 
@@ -190,4 +190,15 @@
 - **Verification Duration**: ~22s
 - **Tokens**: 1,380,839 total (602 in, 14,275 out, 59,190 cache-create, 1,306,772 cache-read)
 - **Cost**: $1.3832
+
+### Iteration 18 - 2026-04-07T10:04:02.497Z
+- **Task Attempted**: TASK-012b
+- **Task Completed**: TASK-012b
+- **Summary**: Completed Remove file-polling from ProgressDisplay
+- **Duration**: 8m 46s
+- **Exit Status**: success
+- **Work Duration**: ~8m 23s
+- **Verification Duration**: ~23s
+- **Tokens**: 2,848,929 total (34 in, 34,219 out, 116,618 cache-create, 2,698,058 cache-read)
+- **Cost**: $2.9335
 

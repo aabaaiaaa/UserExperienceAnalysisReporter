@@ -1,6 +1,5 @@
-import { readCheckpoint, Checkpoint } from './checkpoint.js';
-import { readReportContent } from './report.js';
-import { POLL_INTERVAL_MS } from './config.js';
+import type { Checkpoint } from './checkpoint.js';
+import { RENDER_INTERVAL_MS } from './config.js';
 
 export interface InstanceProgress {
   instanceNumber: number;
@@ -289,29 +288,19 @@ export class ProgressDisplay {
     progress.permanentlyFailed = true;
   }
 
-  updateFromFiles(instanceNumber: number): void {
+  updateProgress(
+    instanceNumber: number,
+    completedItems: number,
+    inProgressItems: number,
+    totalItems: number,
+    findingsCount: number,
+  ): void {
     const progress = this.instances.get(instanceNumber);
-    if (!progress || progress.status === 'completed' || progress.status === 'failed' || progress.status === 'retrying' || progress.status === 'rate-limited' || progress.permanentlyFailed) return;
-
-    const checkpoint = readCheckpoint(instanceNumber);
-    if (checkpoint) {
-      const { completed, inProgress, total } = getProgressFromCheckpoint(checkpoint);
-      progress.completedItems = completed;
-      progress.inProgressItems = inProgress;
-      progress.totalItems = total;
-      progress.currentRound = checkpoint.currentRound;
-    }
-
-    const reportContent = readReportContent(instanceNumber);
-    if (reportContent) {
-      progress.findingsCount = countFindings(reportContent);
-    }
-  }
-
-  updateAllFromFiles(): void {
-    for (const num of this.instanceNumbers) {
-      this.updateFromFiles(num);
-    }
+    if (!progress) return;
+    progress.completedItems = completedItems;
+    progress.inProgressItems = inProgressItems;
+    progress.totalItems = totalItems;
+    progress.findingsCount = findingsCount;
   }
 
   startConsolidation(): void {
@@ -361,10 +350,9 @@ export class ProgressDisplay {
     this.renderedLineCount = lines.length;
   }
 
-  start(intervalMs = POLL_INTERVAL_MS): void {
+  start(intervalMs = RENDER_INTERVAL_MS): void {
     this.renderToTerminal();
     this.pollTimer = setInterval(() => {
-      this.updateAllFromFiles();
       this.renderToTerminal();
     }, intervalMs);
   }

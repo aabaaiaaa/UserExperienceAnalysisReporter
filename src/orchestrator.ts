@@ -103,6 +103,15 @@ function buildProgressCallback(display: ProgressDisplay): ProgressCallback {
     onPermanentlyFailed(instanceNumber: number, error: string) {
       display.markPermanentlyFailed(instanceNumber, error);
     },
+    onProgressUpdate(
+      instanceNumber: number,
+      completedItems: number,
+      inProgressItems: number,
+      totalItems: number,
+      findingsCount: number,
+    ) {
+      display.updateProgress(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount);
+    },
   };
 }
 

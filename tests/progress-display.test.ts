@@ -1,24 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
-import { resolve, join } from 'node:path';
-
-const TEST_TEMP_DIR = resolve('.uxreview-temp-progress-test');
-
-// Mock file-manager to use our test directory
-vi.mock('../src/file-manager.js', () => ({
-  getInstancePaths: (n: number) => {
-    const dir = join(TEST_TEMP_DIR, `instance-${n}`);
-    return {
-      dir,
-      discovery: join(dir, 'discovery.md'),
-      checkpoint: join(dir, 'checkpoint.json'),
-      report: join(dir, 'report.md'),
-      screenshots: join(dir, 'screenshots'),
-    };
-  },
-  getInstanceDir: (n: number) => join(TEST_TEMP_DIR, `instance-${n}`),
-  getTempDir: () => TEST_TEMP_DIR,
-}));
+import { describe, it, expect, vi } from 'vitest';
 
 import {
   formatDuration,
@@ -36,33 +16,6 @@ import {
   ANSI_GREEN,
 } from '../src/progress-display.js';
 import { Checkpoint } from '../src/checkpoint.js';
-
-function ensureInstanceDir(instanceNumber: number): string {
-  const dir = join(TEST_TEMP_DIR, `instance-${instanceNumber}`);
-  mkdirSync(dir, { recursive: true });
-  mkdirSync(join(dir, 'screenshots'), { recursive: true });
-  return dir;
-}
-
-function writeCheckpointFile(instanceNumber: number, checkpoint: Checkpoint): void {
-  const dir = ensureInstanceDir(instanceNumber);
-  writeFileSync(join(dir, 'checkpoint.json'), JSON.stringify(checkpoint, null, 2), 'utf-8');
-}
-
-function writeReportFile(instanceNumber: number, content: string): void {
-  const dir = ensureInstanceDir(instanceNumber);
-  writeFileSync(join(dir, 'report.md'), content, 'utf-8');
-}
-
-beforeEach(() => {
-  mkdirSync(TEST_TEMP_DIR, { recursive: true });
-});
-
-afterEach(() => {
-  if (existsSync(TEST_TEMP_DIR)) {
-    rmSync(TEST_TEMP_DIR, { recursive: true, force: true });
-  }
-});
 
 describe('formatDuration', () => {
   it('formats seconds only', () => {
@@ -459,186 +412,49 @@ describe('ProgressDisplay', () => {
     });
   });
 
-  describe('updateFromFiles', () => {
-    it('reads checkpoint and report files to update progress', () => {
+  describe('updateProgress', () => {
+    it('updates progress data for an existing instance', () => {
       const display = new ProgressDisplay([1], 2);
 
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['Nav', 'Dashboard', 'Settings'],
-        currentRound: 1,
-        areas: [
-          { name: 'Nav', status: 'complete' },
-          { name: 'Dashboard', status: 'in-progress' },
-          { name: 'Settings', status: 'not-started' },
-        ],
-        lastAction: 'Checking dashboard layout',
-        timestamp: '2026-04-02T10:05:00Z',
-      });
-
-      writeReportFile(
-        1,
-        `# UX Report - Instance 1
-
-## I1-UXR-001: Nav hover states inconsistent
-- **UI Area**: Navigation
-- **Severity**: minor
-- **Description**: Hover states differ
-- **Suggestion**: Standardize
-- **Screenshot**: I1-UXR-001.png
-
-## I1-UXR-002: Nav breadcrumb missing
-- **UI Area**: Navigation
-- **Severity**: major
-- **Description**: No breadcrumbs
-- **Suggestion**: Add breadcrumbs
-- **Screenshot**: I1-UXR-002.png
-`,
-      );
-
-      display.updateFromFiles(1);
+      display.updateProgress(1, 2, 1, 4, 3);
 
       const p = display.getProgress(1);
-      expect(p!.completedItems).toBe(1);
+      expect(p!.completedItems).toBe(2);
       expect(p!.inProgressItems).toBe(1);
+      expect(p!.totalItems).toBe(4);
+      expect(p!.findingsCount).toBe(3);
+    });
+
+    it('ignores updates for non-existent instances', () => {
+      const display = new ProgressDisplay([1], 1);
+      display.updateProgress(99, 1, 0, 3, 1);
+      expect(display.getProgress(99)).toBeUndefined();
+    });
+
+    it('overwrites previous progress values on subsequent calls', () => {
+      const display = new ProgressDisplay([1], 1);
+
+      display.updateProgress(1, 1, 1, 3, 1);
+      expect(display.getProgress(1)!.completedItems).toBe(1);
+
+      display.updateProgress(1, 3, 0, 3, 5);
+      const p = display.getProgress(1);
+      expect(p!.completedItems).toBe(3);
+      expect(p!.inProgressItems).toBe(0);
       expect(p!.totalItems).toBe(3);
-      expect(p!.findingsCount).toBe(2);
-      expect(p!.currentRound).toBe(1);
+      expect(p!.findingsCount).toBe(5);
     });
 
-    it('skips update for completed instances', () => {
-      const display = new ProgressDisplay([1], 1);
-      display.markCompleted(1);
-      display.setProgress(1, { completedItems: 5 });
+    it('does not affect other instance fields like status or round', () => {
+      const display = new ProgressDisplay([1], 2);
+      display.setProgress(1, { currentRound: 2, status: 'running' });
 
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['Nav'],
-        currentRound: 1,
-        areas: [{ name: 'Nav', status: 'not-started' }],
-        lastAction: 'Starting',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
-
-      display.updateFromFiles(1);
-
-      // Should not have updated from checkpoint
-      expect(display.getProgress(1)!.completedItems).toBe(5);
-    });
-
-    it('skips update for failed instances', () => {
-      const display = new ProgressDisplay([1], 1);
-      display.markFailed(1, 'Crash');
-      display.setProgress(1, { completedItems: 3 });
-
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['Nav'],
-        currentRound: 1,
-        areas: [{ name: 'Nav', status: 'not-started' }],
-        lastAction: 'Starting',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
-
-      display.updateFromFiles(1);
-
-      expect(display.getProgress(1)!.completedItems).toBe(3);
-    });
-
-    it('handles missing checkpoint gracefully', () => {
-      ensureInstanceDir(1);
-      const display = new ProgressDisplay([1], 1);
-      display.updateFromFiles(1);
+      display.updateProgress(1, 3, 1, 5, 2);
 
       const p = display.getProgress(1);
-      expect(p!.completedItems).toBe(0);
-      expect(p!.totalItems).toBe(0);
-    });
-
-    it('handles missing report gracefully', () => {
-      const display = new ProgressDisplay([1], 1);
-
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['Nav'],
-        currentRound: 1,
-        areas: [{ name: 'Nav', status: 'complete' }],
-        lastAction: 'Done',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
-
-      display.updateFromFiles(1);
-
-      const p = display.getProgress(1);
-      expect(p!.completedItems).toBe(1);
-      expect(p!.findingsCount).toBe(0);
-    });
-  });
-
-  describe('updateAllFromFiles', () => {
-    it('updates all instances from files', () => {
-      const display = new ProgressDisplay([1, 2], 1);
-
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['Nav', 'Dashboard'],
-        currentRound: 1,
-        areas: [
-          { name: 'Nav', status: 'complete' },
-          { name: 'Dashboard', status: 'not-started' },
-        ],
-        lastAction: 'Completed Nav',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
-
-      writeCheckpointFile(2, {
-        instanceId: 2,
-        assignedAreas: ['Settings', 'Profile', 'Help'],
-        currentRound: 1,
-        areas: [
-          { name: 'Settings', status: 'complete' },
-          { name: 'Profile', status: 'complete' },
-          { name: 'Help', status: 'in-progress' },
-        ],
-        lastAction: 'Checking Help page',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
-
-      writeReportFile(
-        1,
-        `# UX Report - Instance 1
-
-## I1-UXR-001: Finding one
-- **UI Area**: Nav
-`,
-      );
-
-      writeReportFile(
-        2,
-        `# UX Report - Instance 2
-
-## I2-UXR-001: Finding one
-- **UI Area**: Settings
-
-## I2-UXR-002: Finding two
-- **UI Area**: Profile
-
-## I2-UXR-003: Finding three
-- **UI Area**: Profile
-`,
-      );
-
-      display.updateAllFromFiles();
-
-      const p1 = display.getProgress(1);
-      expect(p1!.completedItems).toBe(1);
-      expect(p1!.totalItems).toBe(2);
-      expect(p1!.findingsCount).toBe(1);
-
-      const p2 = display.getProgress(2);
-      expect(p2!.completedItems).toBe(2);
-      expect(p2!.totalItems).toBe(3);
-      expect(p2!.findingsCount).toBe(3);
+      expect(p!.currentRound).toBe(2);
+      expect(p!.status).toBe('running');
+      expect(p!.completedItems).toBe(3);
     });
   });
 
@@ -686,11 +502,10 @@ describe('ProgressDisplay', () => {
   });
 
   describe('start and stop', () => {
-    it('starts and stops polling without errors', () => {
+    it('starts and stops rendering without errors', () => {
       const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
       const display = new ProgressDisplay([1], 1);
-      ensureInstanceDir(1);
 
       display.start(100);
       display.stop();
@@ -699,15 +514,15 @@ describe('ProgressDisplay', () => {
     });
   });
 
-  describe('verification: 2 mock instances with advancing progress', () => {
-    it('each instance has its own progress bar that updates as checkpoints advance', () => {
+  describe('verification: 2 mock instances with advancing progress via updateProgress', () => {
+    it('each instance has its own progress bar that updates as progress events arrive', () => {
       const display = new ProgressDisplay([1, 2], 2);
       const baseTime = 1000000000;
 
       display.setProgress(1, { roundStartTime: baseTime - 60000, startTime: baseTime - 60000 });
       display.setProgress(2, { roundStartTime: baseTime - 45000, startTime: baseTime - 45000 });
 
-      // Step 1: Initial state — no checkpoint files yet
+      // Step 1: Initial state — no progress updates yet
       const lines0 = display.renderLines(baseTime);
       expect(lines0).toHaveLength(2);
       expect(lines0[0]).toContain('I1');
@@ -715,35 +530,10 @@ describe('ProgressDisplay', () => {
       expect(lines0[1]).toContain('I2');
       expect(lines0[1]).toContain('0%');
 
-      // Step 2: Write initial checkpoints (nothing complete yet)
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['Nav', 'Dashboard', 'Settings', 'Profile'],
-        currentRound: 1,
-        areas: [
-          { name: 'Nav', status: 'not-started' },
-          { name: 'Dashboard', status: 'not-started' },
-          { name: 'Settings', status: 'not-started' },
-          { name: 'Profile', status: 'not-started' },
-        ],
-        lastAction: 'Starting review',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
+      // Step 2: Push initial progress (nothing complete yet)
+      display.updateProgress(1, 0, 0, 4, 0);
+      display.updateProgress(2, 0, 0, 3, 0);
 
-      writeCheckpointFile(2, {
-        instanceId: 2,
-        assignedAreas: ['Help', 'Account', 'Billing'],
-        currentRound: 1,
-        areas: [
-          { name: 'Help', status: 'not-started' },
-          { name: 'Account', status: 'not-started' },
-          { name: 'Billing', status: 'not-started' },
-        ],
-        lastAction: 'Starting review',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
-
-      display.updateAllFromFiles();
       const lines1 = display.renderLines(baseTime);
       expect(lines1[0]).toContain('0/4 areas');
       expect(lines1[0]).toContain('0%');
@@ -751,55 +541,9 @@ describe('ProgressDisplay', () => {
       expect(lines1[1]).toContain('0%');
 
       // Step 3: Instance 1 completes 1 area, Instance 2 completes 2 areas
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['Nav', 'Dashboard', 'Settings', 'Profile'],
-        currentRound: 1,
-        areas: [
-          { name: 'Nav', status: 'complete' },
-          { name: 'Dashboard', status: 'in-progress' },
-          { name: 'Settings', status: 'not-started' },
-          { name: 'Profile', status: 'not-started' },
-        ],
-        lastAction: 'Checking Dashboard layout',
-        timestamp: '2026-04-02T10:02:00Z',
-      });
+      display.updateProgress(1, 1, 1, 4, 1);
+      display.updateProgress(2, 2, 1, 3, 2);
 
-      writeReportFile(
-        1,
-        `# UX Report - Instance 1
-
-## I1-UXR-001: Nav inconsistent hover
-- **UI Area**: Navigation
-`,
-      );
-
-      writeCheckpointFile(2, {
-        instanceId: 2,
-        assignedAreas: ['Help', 'Account', 'Billing'],
-        currentRound: 1,
-        areas: [
-          { name: 'Help', status: 'complete' },
-          { name: 'Account', status: 'complete' },
-          { name: 'Billing', status: 'in-progress' },
-        ],
-        lastAction: 'Checking Billing forms',
-        timestamp: '2026-04-02T10:03:00Z',
-      });
-
-      writeReportFile(
-        2,
-        `# UX Report - Instance 2
-
-## I2-UXR-001: Help page missing search
-- **UI Area**: Help
-
-## I2-UXR-002: Account form no validation
-- **UI Area**: Account
-`,
-      );
-
-      display.updateAllFromFiles();
       const lines2 = display.renderLines(baseTime + 120000);
 
       // Instance 1: 1/4 = 25%
@@ -817,34 +561,9 @@ describe('ProgressDisplay', () => {
       expect(lines2[1]).toContain('ETA');
 
       // Step 4: Instance 1 completes 3 areas, Instance 2 completes all
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['Nav', 'Dashboard', 'Settings', 'Profile'],
-        currentRound: 1,
-        areas: [
-          { name: 'Nav', status: 'complete' },
-          { name: 'Dashboard', status: 'complete' },
-          { name: 'Settings', status: 'complete' },
-          { name: 'Profile', status: 'in-progress' },
-        ],
-        lastAction: 'Checking Profile forms',
-        timestamp: '2026-04-02T10:05:00Z',
-      });
+      display.updateProgress(1, 3, 1, 4, 1);
+      display.updateProgress(2, 3, 0, 3, 2);
 
-      writeCheckpointFile(2, {
-        instanceId: 2,
-        assignedAreas: ['Help', 'Account', 'Billing'],
-        currentRound: 1,
-        areas: [
-          { name: 'Help', status: 'complete' },
-          { name: 'Account', status: 'complete' },
-          { name: 'Billing', status: 'complete' },
-        ],
-        lastAction: 'Round 1 complete',
-        timestamp: '2026-04-02T10:04:00Z',
-      });
-
-      display.updateAllFromFiles();
       const lines3 = display.renderLines(baseTime + 300000);
 
       // Instance 1: 3/4 = 75%
@@ -864,58 +583,10 @@ describe('ProgressDisplay', () => {
       display.setProgress(1, { roundStartTime: baseTime - 20000, startTime: baseTime - 20000 });
       display.setProgress(2, { roundStartTime: baseTime - 40000, startTime: baseTime - 40000 });
 
-      // Write checkpoints with some progress
-      writeCheckpointFile(1, {
-        instanceId: 1,
-        assignedAreas: ['A', 'B', 'C', 'D'],
-        currentRound: 1,
-        areas: [
-          { name: 'A', status: 'complete' },
-          { name: 'B', status: 'complete' },
-          { name: 'C', status: 'not-started' },
-          { name: 'D', status: 'not-started' },
-        ],
-        lastAction: 'Completed B',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
+      // Push progress via updateProgress
+      display.updateProgress(1, 2, 0, 4, 3);
+      display.updateProgress(2, 1, 1, 2, 1);
 
-      writeReportFile(
-        1,
-        `# UX Report - Instance 1
-
-## I1-UXR-001: Finding A
-- **UI Area**: A
-
-## I1-UXR-002: Finding B1
-- **UI Area**: B
-
-## I1-UXR-003: Finding B2
-- **UI Area**: B
-`,
-      );
-
-      writeCheckpointFile(2, {
-        instanceId: 2,
-        assignedAreas: ['X', 'Y'],
-        currentRound: 1,
-        areas: [
-          { name: 'X', status: 'complete' },
-          { name: 'Y', status: 'in-progress' },
-        ],
-        lastAction: 'Checking Y forms',
-        timestamp: '2026-04-02T10:00:00Z',
-      });
-
-      writeReportFile(
-        2,
-        `# UX Report - Instance 2
-
-## I2-UXR-001: Finding X
-- **UI Area**: X
-`,
-      );
-
-      display.updateAllFromFiles();
       const lines = display.renderLines(baseTime);
 
       // Instance 1: 2/4 done in 20s => 10s per area => 20s remaining
@@ -1125,45 +796,6 @@ describe('ProgressDisplay', () => {
         const display = new ProgressDisplay([1], 1);
         const state = display.getConsolidationState();
         expect(state.status).toBe('idle');
-      });
-    });
-
-    describe('updateFromFiles skips non-running states', () => {
-      it('skips retrying instances', () => {
-        const display = new ProgressDisplay([1], 1);
-        display.setProgress(1, { completedItems: 2 });
-        display.markRetrying(1, 1, 3);
-
-        writeCheckpointFile(1, {
-          instanceId: 1,
-          assignedAreas: ['Nav'],
-          currentRound: 1,
-          areas: [{ name: 'Nav', status: 'complete' }],
-          lastAction: 'Done',
-          timestamp: '2026-04-02T10:00:00Z',
-        });
-
-        display.updateFromFiles(1);
-        // Should not have updated from files
-        expect(display.getProgress(1)!.completedItems).toBe(2);
-      });
-
-      it('skips permanently failed instances', () => {
-        const display = new ProgressDisplay([1], 1);
-        display.setProgress(1, { completedItems: 2 });
-        display.markPermanentlyFailed(1, 'Max retries');
-
-        writeCheckpointFile(1, {
-          instanceId: 1,
-          assignedAreas: ['Nav'],
-          currentRound: 1,
-          areas: [{ name: 'Nav', status: 'complete' }],
-          lastAction: 'Done',
-          timestamp: '2026-04-02T10:00:00Z',
-        });
-
-        display.updateFromFiles(1);
-        expect(display.getProgress(1)!.completedItems).toBe(2);
       });
     });
 
