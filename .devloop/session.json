@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 11,
+  "lastIteration": 12,
   "startedAt": "2026-04-07T11:36:36.233Z",
   "iteration": 2,
   "devloopVersion": "3.4.0",
   "activeTask": {
-    "taskId": "TASK-007",
-    "taskTitle": "Deduplicate countFindings function",
-    "iterationNumber": 12,
-    "startedAt": "2026-04-07T12:20:24.983Z"
+    "taskId": "TASK-008",
+    "taskTitle": "Enforce 26-screenshot limit in code",
+    "iterationNumber": 13,
+    "startedAt": "2026-04-07T12:24:37.297Z"
   }
 }

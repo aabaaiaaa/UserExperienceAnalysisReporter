@@ -820,6 +820,19 @@ describe('buildNewScreenshotFilenames', () => {
       'UXR-005-b.png',
     ]);
   });
+
+  it('succeeds for count 26 (boundary)', () => {
+    const result = buildNewScreenshotFilenames('UXR-001', 26);
+    expect(result).toHaveLength(26);
+    expect(result[0]).toBe('UXR-001.png');
+    expect(result[25]).toBe('UXR-001-y.png');
+  });
+
+  it('throws for count 27 (exceeds limit)', () => {
+    expect(() => buildNewScreenshotFilenames('UXR-001', 27)).toThrow(
+      'Maximum 26 screenshots per finding (got 27)',
+    );
+  });
 });
 
 describe('reassignIds', () => {

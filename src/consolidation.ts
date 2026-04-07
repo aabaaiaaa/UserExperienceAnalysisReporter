@@ -372,6 +372,9 @@ export function extractInstanceFromScreenshot(filename: string): number | null {
  */
 export function buildNewScreenshotFilenames(finalId: string, count: number): string[] {
   if (count <= 0) return [];
+  if (count > 26) {
+    throw new Error(`Maximum 26 screenshots per finding (got ${count})`);
+  }
   const result = [`${finalId}.png`];
   for (let i = 1; i < count; i++) {
     const suffix = String.fromCharCode(96 + i); // 1->'a', 2->'b', etc.

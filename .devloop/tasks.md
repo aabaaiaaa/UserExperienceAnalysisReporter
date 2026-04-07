@@ -73,7 +73,7 @@
 - **Verification**: `npx vitest run tests/report.test.ts && npx vitest run tests/instance-manager.test.ts && npx vitest run tests/progress-display.test.ts`
 
 ### TASK-008: Enforce 26-screenshot limit in code
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a guard at the top of `buildNewScreenshotFilenames()` in `src/consolidation.ts:372` that throws an error if `count > 26`: `throw new Error('Maximum 26 screenshots per finding (got ${count})')`. Add tests: (1) count = 27 throws, (2) count = 26 succeeds (boundary case). See requirements.md change #9.
 - **Verification**: `npx vitest run tests/consolidation.test.ts`
