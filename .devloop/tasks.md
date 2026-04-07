@@ -25,7 +25,7 @@
 - **Verification**: `npx vitest run tests/cli.test.ts 2>&1 | tail -5`
 
 ### TASK-005: Add file size validation to resolveTextOrFile
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/cli.ts`, after `resolveTextOrFile` reads a file, check the content length. Warn to stderr if >1MB, throw an error if >10MB. Apply to `--intro`, `--plan`, and `--scope` file reads. Inline text (not file paths) should not be subject to the size check. Add tests for both thresholds and for inline text bypass. Reference requirements.md change #5.
 - **Verification**: `npx vitest run tests/cli.test.ts 2>&1 | tail -5`

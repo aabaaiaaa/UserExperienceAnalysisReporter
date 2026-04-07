@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { parseArgs, resolveTextOrFile } from '../src/cli.js';
 
 describe('cli parseArgs', () => {
@@ -48,5 +50,54 @@ describe('cli parseArgs', () => {
   it('sets keepTemp to true when --keep-temp is provided', () => {
     const result = parseArgs([...requiredArgs, '--keep-temp']);
     expect(result.keepTemp).toBe(true);
+  });
+});
+
+describe('resolveTextOrFile file size validation', () => {
+  const testDir = join(process.cwd(), '.uxreview-temp-cli-size-test');
+
+  beforeEach(() => {
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it('returns inline text without size check', () => {
+    // A string that is not a file path should pass through without any size validation
+    const longText = 'x'.repeat(20 * 1024 * 1024); // 20MB inline text
+    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = resolveTextOrFile(longText);
+    expect(result).toBe(longText);
+    expect(stderrSpy).not.toHaveBeenCalled();
+  });
+
+  it('reads small files without warning', () => {
+    const filePath = join(testDir, 'small.txt');
+    writeFileSync(filePath, 'small content');
+    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = resolveTextOrFile(filePath);
+    expect(result).toBe('small content');
+    expect(stderrSpy).not.toHaveBeenCalled();
+  });
+
+  it('warns to stderr for files larger than 1MB', () => {
+    const filePath = join(testDir, 'large.txt');
+    const content = 'x'.repeat(1.5 * 1024 * 1024); // 1.5MB
+    writeFileSync(filePath, content);
+    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = resolveTextOrFile(filePath);
+    expect(result).toBe(content);
+    expect(stderrSpy).toHaveBeenCalledOnce();
+    expect(stderrSpy.mock.calls[0][0]).toMatch(/Warning: File is large/);
+  });
+
+  it('throws an error for files larger than 10MB', () => {
+    const filePath = join(testDir, 'huge.txt');
+    const content = 'x'.repeat(10.5 * 1024 * 1024); // 10.5MB
+    writeFileSync(filePath, content);
+    expect(() => resolveTextOrFile(filePath)).toThrow(/File is too large/);
   });
 });

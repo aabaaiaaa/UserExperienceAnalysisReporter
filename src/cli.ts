@@ -38,10 +38,21 @@ Options:
  * If the value is a path to an existing file, read and return its contents.
  * Otherwise, return the value as-is (inline text).
  */
+const FILE_SIZE_WARN_THRESHOLD = 1 * 1024 * 1024;  // 1 MB
+const FILE_SIZE_ERROR_THRESHOLD = 10 * 1024 * 1024; // 10 MB
+
 export function resolveTextOrFile(value: string): string {
   const resolved = resolve(value);
   if (existsSync(resolved)) {
-    return readFileSync(resolved, 'utf-8');
+    const content = readFileSync(resolved, 'utf-8');
+    const byteLength = Buffer.byteLength(content, 'utf-8');
+    if (byteLength > FILE_SIZE_ERROR_THRESHOLD) {
+      throw new Error(`File is too large (${(byteLength / 1024 / 1024).toFixed(1)}MB): ${resolved}. Maximum allowed size is 10MB.`);
+    }
+    if (byteLength > FILE_SIZE_WARN_THRESHOLD) {
+      console.error(`Warning: File is large (${(byteLength / 1024 / 1024).toFixed(1)}MB): ${resolved}`);
+    }
+    return content;
   }
   return value;
 }
