@@ -33,11 +33,11 @@ export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
 
   return new Promise((resolve, reject) => {
     const args = ['-p', '--output-format', 'text', ...extraArgs];
+    const command = process.platform === 'win32' ? 'claude.cmd' : 'claude';
 
-    const child = spawn('claude', args, {
+    const child = spawn(command, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: true,
       timeout,
     });
 

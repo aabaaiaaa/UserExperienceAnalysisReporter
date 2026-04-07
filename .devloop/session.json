@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 1,
+  "lastIteration": 2,
   "startedAt": "2026-04-07T00:34:29.222Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-002",
-    "taskTitle": "Add files field to package.json",
-    "iterationNumber": 2,
-    "startedAt": "2026-04-07T00:35:38.196Z"
+    "taskId": "TASK-003",
+    "taskTitle": "Remove shell: true from Claude CLI spawn",
+    "iterationNumber": 3,
+    "startedAt": "2026-04-07T00:36:07.846Z"
   }
 }

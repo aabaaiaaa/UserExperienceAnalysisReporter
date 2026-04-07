@@ -13,7 +13,7 @@
 - **Verification**: Run `npm pack --dry-run` and confirm only dist/, README.md, LICENSE, and package.json are listed.
 
 ### TASK-003: Remove shell: true from Claude CLI spawn
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/claude-cli.ts` (line ~40), remove the `shell: true` option from the `spawn` call. The `claude` command should be invoked directly without a shell wrapper. Ensure it works on both Windows and Unix — on Windows, the executable may need to be resolved as `claude.cmd` or the full path. Update any tests that depend on shell behavior. See requirements.md change #3.
 - **Verification**: `npx vitest run tests/claude-cli --reporter=verbose` passes. Grep confirms no `shell: true` in `src/claude-cli.ts`.

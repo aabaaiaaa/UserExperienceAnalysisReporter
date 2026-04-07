@@ -60,15 +60,18 @@ describe('runClaude', () => {
     mockProc._simulateOutput('response', '', 0);
     await promise;
 
+    const expectedCommand = process.platform === 'win32' ? 'claude.cmd' : 'claude';
     expect(mockSpawn).toHaveBeenCalledWith(
-      'claude',
+      expectedCommand,
       ['-p', '--output-format', 'text'],
       expect.objectContaining({
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true,
         timeout: 5 * 60 * 1000,
       }),
     );
+    // shell: true must NOT be present (security: defense-in-depth)
+    const spawnOptions = mockSpawn.mock.calls[0][2] as Record<string, unknown>;
+    expect(spawnOptions).not.toHaveProperty('shell');
   });
 
   it('passes prompt via stdin', async () => {
@@ -140,8 +143,9 @@ describe('runClaude', () => {
     mockProc._simulateOutput('ok', '', 0);
     await promise;
 
+    const expectedCommand = process.platform === 'win32' ? 'claude.cmd' : 'claude';
     expect(mockSpawn).toHaveBeenCalledWith(
-      'claude',
+      expectedCommand,
       expect.any(Array),
       expect.objectContaining({ cwd: '/some/dir' }),
     );
@@ -152,8 +156,9 @@ describe('runClaude', () => {
     mockProc._simulateOutput('ok', '', 0);
     await promise;
 
+    const expectedCommand = process.platform === 'win32' ? 'claude.cmd' : 'claude';
     expect(mockSpawn).toHaveBeenCalledWith(
-      'claude',
+      expectedCommand,
       expect.any(Array),
       expect.objectContaining({ timeout: 30000 }),
     );
@@ -167,8 +172,9 @@ describe('runClaude', () => {
     mockProc._simulateOutput('ok', '', 0);
     await promise;
 
+    const expectedCommand = process.platform === 'win32' ? 'claude.cmd' : 'claude';
     expect(mockSpawn).toHaveBeenCalledWith(
-      'claude',
+      expectedCommand,
       ['-p', '--output-format', 'text', '--allowedTools', 'mcp__playwright__*'],
       expect.any(Object),
     );
