@@ -55,7 +55,7 @@
 - **Verification**: `npx vitest run tests/consolidation.test.ts`
 
 ### TASK-005: Add code comment explaining sequential consolidation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a code comment above the `for...of` loop in `organizeHierarchically()` at `src/consolidation.ts:882` explaining: (1) the loop is intentionally sequential, (2) parallelizing with Promise.all would create race conditions with multiple Claude instances touching shared files, (3) the consolidation phase is short and does not benefit from parallelism. See requirements.md change #5.
 - **Verification**: `npx vitest run tests/consolidation.test.ts`

@@ -880,6 +880,10 @@ export async function organizeHierarchically(findings: Finding[]): Promise<UIAre
   const areaMap = groupFindingsByArea(findings);
   const groups: UIAreaGroup[] = [];
 
+  // Sequential iteration is intentional — each determineHierarchy() call invokes
+  // Claude, and parallelizing with Promise.all would create race conditions with
+  // multiple Claude instances touching shared state/files. The consolidation phase
+  // processes a small number of UI areas and does not benefit from parallelism.
   for (const [area, areaFindings] of areaMap) {
     const hierarchical = await determineHierarchy(areaFindings);
     groups.push({ area, findings: hierarchical });
