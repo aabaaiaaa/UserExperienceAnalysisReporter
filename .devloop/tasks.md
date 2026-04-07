@@ -43,7 +43,7 @@
 - **Verification**: `npx vitest run tests/cli tests/orchestrator --reporter=verbose` passes, including new --keep-temp tests.
 
 ### TASK-008: Remove placeholder.test.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Find and delete the placeholder test file (likely `tests/placeholder.test.ts` or `src/__tests__/placeholder.test.ts`). See requirements.md change #7.
 - **Verification**: Glob confirms no file matching `**/placeholder.test.*` exists in the project.
