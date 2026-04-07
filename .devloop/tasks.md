@@ -1,79 +1,55 @@
-# Iteration 4 — Tasks
+# Iteration 5 — Tasks
 
-### TASK-001a: Fix failing tests in progress-recalibration.test.ts
-- **Status**: done
+### TASK-001: Fix flaky cross-run resume test timeouts
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Replace all `display.updateFromFiles(N)` calls in `tests/progress-recalibration.test.ts` with the equivalent `display.updateProgress(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount)` calls. Derive the arguments from the mock checkpoint data each test sets up (e.g., a checkpoint with 3 items where 1 is complete → `updateProgress(1, 1, 1, 3, 0)`). Call sites are at lines 128, 229, 262, 291, 308, 326, 354, 375. See requirements.md change #1 for full context.
-- **Verification**: `npx vitest run tests/progress-recalibration.test.ts`
+- **Description**: In `tests/consolidation-resume.test.ts`, increase the timeout on the four cross-run resume tests (lines 788, 823, 847, 870) from `{ timeout: 15000 }` to `{ timeout: 30000 }`. These tests use `vi.importActual()` for real filesystem I/O and intermittently time out on Windows at the current 15-second limit. See requirements.md section 1 for full context.
+- **Verification**: `npx vitest run tests/consolidation-resume.test.ts` — all tests pass. Confirm the four tests at lines 788, 823, 847, 870 now have `{ timeout: 30000 }`.
 
-### TASK-001b: Fix failing tests in integration-dedup-consolidation.test.ts
-- **Status**: done
+### TASK-002: Add single-quote escaping to escapeHtml
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Two fixes in `tests/integration-dedup-consolidation.test.ts`: (1) Line 1110: change `parent.children[0].id` to `parent.children[0].finding.id`. (2) Lines 1130-1152: wrap each child object in the `children` array as `{ finding: { ...existingObject }, children: [] }` to match the `HierarchicalFinding` interface. See requirements.md change #1 for full context.
-- **Verification**: `npx vitest run tests/integration-dedup-consolidation.test.ts`
+- **Description**: In `src/html-report.ts:43-48`, add `.replace(/'/g, '&#39;')` to the `escapeHtml()` function's escape chain, after the existing `&quot;` replacement. Then add or update a test in the HTML report test file to verify that single quotes are escaped to `&#39;`. See requirements.md section 2.
+- **Verification**: `npx vitest run tests/html-report.test.ts` — all tests pass, including a test that asserts `escapeHtml("it's")` produces `it&#39;s`.
 
-### TASK-002a: Modify initTempDir to preserve checkpoint data on re-run
-- **Status**: done
-- **Dependencies**: TASK-001a, TASK-001b
-- **Description**: In `src/file-manager.ts`, modify `initTempDir()` so it does not unconditionally wipe `.uxreview-temp/`. Before calling `cleanupTempDir()`, check for `consolidation-checkpoint.json` and instance checkpoint files. If checkpoint data exists, preserve checkpoint files and completed instance output directories — only clean instance directories that will be re-initialized. If no checkpoint data exists, clean as before (fresh run). See requirements.md change #2 for full context.
-- **Verification**: `npx vitest run tests/file-manager.test.ts`
-
-### TASK-002b: Add integration test for cross-run resume
-- **Status**: done
-- **Dependencies**: TASK-002a
-- **Description**: Add an integration test that simulates an interrupted run followed by a restart. The test should: (1) Set up a `.uxreview-temp/` directory with a consolidation checkpoint indicating partial completion (e.g., dedup done, hierarchy not started). (2) Call `initTempDir()` / `initWorkspace()`. (3) Verify the consolidation checkpoint file survives. (4) Verify consolidation resumes from the correct step. See requirements.md change #2 for full context.
-- **Verification**: `npx vitest run tests/consolidation-resume.test.ts`
-
-### TASK-003a: Replace process.exit with flag-based signal handling
-- **Status**: done
-- **Dependencies**: TASK-001a, TASK-001b
-- **Description**: In `src/orchestrator.ts:147-151`, replace `process.exit(130/143)` in the signal handler with a flag-based approach. The handler should: (1) kill child processes, (2) stop the display, (3) set `process.exitCode` to 130 or 143, (4) set a signal flag that causes the main async function to reject/return early so the `try` block exits and `finally` runs. The `finally` block at line 388 already handles listener removal, display stop, and temp cleanup. See requirements.md change #3 for full context.
-- **Verification**: `npx vitest run tests/orchestrator.test.ts`
-
-### TASK-003b: Add test for signal handler finally-block execution
-- **Status**: done
-- **Dependencies**: TASK-003a
-- **Description**: Add a test in the orchestrator test suite that verifies the `finally` block executes when a signal is received. The test should confirm: (1) signal listeners are deregistered, (2) temp directory cleanup runs when `--keep-temp` is false. See requirements.md change #3 for full context.
-- **Verification**: `npx vitest run tests/orchestrator.test.ts`
-
-### TASK-004a: Clean up backward-compat re-exports in rate-limit.ts
-- **Status**: done
-- **Dependencies**: TASK-001a, TASK-001b
-- **Description**: Update all test file imports that reference `DEFAULT_BASE_DELAY_MS`, `MAX_BACKOFF_DELAY_MS`, or `MAX_RATE_LIMIT_RETRIES` from `rate-limit.ts` (or `../rate-limit.js`) to import from `config.ts` (or `../config.js`) instead. Then remove the re-export line from `src/rate-limit.ts:10` (`export { DEFAULT_BASE_DELAY_MS, MAX_BACKOFF_DELAY_MS, MAX_RATE_LIMIT_RETRIES }`). Keep the internal imports on lines 3-5 since `calculateBackoff` uses them as default parameters. See requirements.md change #8 for full context.
-- **Verification**: `npx vitest run tests/rate-limit.test.ts`
-
-### TASK-004b: Extract shared rate-limit retry utility
-- **Status**: done
-- **Dependencies**: TASK-004a
-- **Description**: Extract a general-purpose rate-limit retry function from `instance-manager.ts:323` (`handleRateLimitRetries`) into `src/rate-limit.ts`. The new utility should accept: (1) an async function to retry, (2) a max retry count (default from `MAX_RATE_LIMIT_RETRIES` config), and (3) use exponential backoff with jitter via the existing `calculateBackoff`. It should detect rate-limit errors using the existing `isRateLimitError` function. Refactor `instance-manager.ts` to use the shared utility internally. See requirements.md change #4.
-- **Verification**: `npx vitest run tests/rate-limit.test.ts && npx vitest run tests/instance-manager.test.ts`
-
-### TASK-004c: Apply rate-limit retries to consolidation Claude calls
-- **Status**: done
-- **Dependencies**: TASK-004b
-- **Description**: Apply the shared rate-limit retry utility (from TASK-004b) to all Claude calls in `src/consolidation.ts`: dedup call (~line 254), hierarchy determination per area (~line 882 inside the `for...of` loop), and discovery merge (~line 857). Wrap each `callClaude` invocation with the retry utility. See requirements.md change #4.
-- **Verification**: `npx vitest run tests/consolidation.test.ts`
-
-### TASK-005: Add code comment explaining sequential consolidation
-- **Status**: done
+### TASK-003: Add parseConsolidatedReport unit tests
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Add a code comment above the `for...of` loop in `organizeHierarchically()` at `src/consolidation.ts:882` explaining: (1) the loop is intentionally sequential, (2) parallelizing with Promise.all would create race conditions with multiple Claude instances touching shared files, (3) the consolidation phase is short and does not benefit from parallelism. See requirements.md change #5.
-- **Verification**: `npx vitest run tests/consolidation.test.ts`
+- **Description**: Add a new test file `tests/parse-consolidated-report.test.ts` with dedicated unit tests for `parseConsolidatedReport()` from `src/consolidation.ts`. Cover these cases: (1) empty input → empty array, (2) no finding headings → empty array, (3) single finding with all fields → correctly parsed, (4) missing severity line → still parsed, (5) multiple findings across multiple areas → correct area assignment, (6) deeply nested findings (####, #####, ######) → all heading levels recognized, (7) malformed heading without `UXR-` prefix → skipped, (8) area heading starting with `## UXR-` → treated as finding context not area heading, (9) multi-line description → full description captured. See requirements.md section 3.
+- **Verification**: `npx vitest run tests/parse-consolidated-report.test.ts` — all new tests pass.
 
-### TASK-006: Remove deprecated POLL_INTERVAL_MS from config
-- **Status**: done
+### TASK-004: Improve file-manager.ts coverage and fix bare catch block
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Remove the `POLL_INTERVAL_MS` export from `src/config.ts:36`. No consumer imports it — it is dead code. The `@deprecated` annotation already points to `RENDER_INTERVAL_MS` as the replacement. See requirements.md change #6.
-- **Verification**: `npx vitest run tests/config.test.ts`
+- **Description**: Two changes in `src/file-manager.ts` plus new tests. (A) Fix the bare `catch` at line 104 in `hasExistingCheckpointData()`: change to `catch (err)` and add a `debug()` call logging the error before returning false. Import `debug` from `./logger.js` if not already imported. (B) Add tests (in a new or existing file-manager test file) that: (1) simulate an `EBUSY` error on the first `rmSync` call, verify `cleanupTempDir()` retries and succeeds on subsequent attempt; (2) simulate `EBUSY` on all 5 attempts, verify `cleanupTempDir()` throws; (3) verify `hasExistingCheckpointData()` returns false when `readdirSync` throws; (4) verify the debug log is called when the catch block fires. See requirements.md sections 4 and 6.
+- **Verification**: `npx vitest run tests/file-manager*.test.ts` — all tests pass. Run `npx vitest run --coverage tests/file-manager*.test.ts` and confirm `file-manager.ts` coverage is above 95% statements.
 
-### TASK-007: Deduplicate countFindings function
-- **Status**: done
+### TASK-005: Remove unused countFindings re-export from progress-display.ts
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Move the `countFindings` function to `src/report.ts` (which already handles finding/report logic) and export it. Update `src/instance-manager.ts:356` and `src/progress-display.ts:95` to import from `report.ts` instead of defining their own copies. Remove both duplicate definitions. The function uses a regex to count `### UXR-` headings in report content. See requirements.md change #7.
-- **Verification**: `npx vitest run tests/report.test.ts && npx vitest run tests/instance-manager.test.ts && npx vitest run tests/progress-display.test.ts`
+- **Description**: Remove line 95 (`export { countFindings } from './report.js';`) from `src/progress-display.ts`. Before removing, verify with grep that no source or test file imports `countFindings` from `progress-display`. If any file does, update its import to reference `report.js` instead. See requirements.md section 5.
+- **Verification**: `npx vitest run tests/progress-display*.test.ts` — all tests pass. Grep for `countFindings.*progress-display` across `src/` and `tests/` returns zero matches.
 
-### TASK-008: Enforce 26-screenshot limit in code
-- **Status**: done
+### TASK-006a: Refactor ConsolidationCheckpoint interface to use structured types
+- **Status**: pending
+- **Dependencies**: TASK-001
+- **Description**: In `src/consolidation-checkpoint.ts`, change the `ConsolidationCheckpoint` interface fields from `string | null` to structured types for the three double-serialized fields: `dedupOutput: ConsolidationResult | null`, `reassignOutput: Finding[] | null`, `hierarchyOutput: UIAreaGroup[] | null`. Import the required types (`ConsolidationResult`, `Finding`, `UIAreaGroup`) from their source modules. Keep `formatReportOutput` and `discoveryMergeOutput` as `string | null` since they hold actual text content. Update `readConsolidationCheckpoint()` validation: for the three changed fields, validate they are objects/arrays or null instead of strings. Update `createEmptyConsolidationCheckpoint()` if needed (the null defaults should still work). See requirements.md section 7.
+- **Verification**: `npx vitest run tests/consolidation-checkpoint*.test.ts` — all tests pass. `npx tsc --noEmit src/consolidation-checkpoint.ts` — no type errors.
+
+### TASK-006b: Update orchestrator to use structured checkpoint data directly
+- **Status**: pending
+- **Dependencies**: TASK-006a
+- **Description**: In `src/orchestrator.ts`, remove the `JSON.stringify()` wrappers when writing to checkpoint fields and remove the `JSON.parse()` calls when reading them. Specifically: (1) Line 348: change `checkpoint.dedupOutput = JSON.stringify(consolidation)` to `checkpoint.dedupOutput = consolidation`. (2) Line 385: change `checkpoint.reassignOutput = JSON.stringify(findings)` to `checkpoint.reassignOutput = findings`. (3) Line 398: change `checkpoint.hierarchyOutput = JSON.stringify(groups)` to `checkpoint.hierarchyOutput = groups`. (4) Line 320: change `consolidation = JSON.parse(checkpoint.dedupOutput)` to `consolidation = checkpoint.dedupOutput`. (5) Line 375: change `findings = JSON.parse(checkpoint.reassignOutput)` to `findings = checkpoint.reassignOutput`. (6) Line 394: change `groups = JSON.parse(checkpoint.hierarchyOutput)` to `groups = checkpoint.hierarchyOutput`. See requirements.md section 7.
+- **Verification**: `npx vitest run tests/orchestrator*.test.ts tests/consolidation-resume.test.ts` — all tests pass. `npx tsc --noEmit src/orchestrator.ts` — no type errors.
+
+### TASK-006c: Update consolidation checkpoint tests for structured types
+- **Status**: pending
+- **Dependencies**: TASK-006a
+- **Description**: Update any existing tests that create `ConsolidationCheckpoint` objects with string values for `dedupOutput`, `reassignOutput`, or `hierarchyOutput`. These fields are now structured types (`ConsolidationResult | null`, `Finding[] | null`, `UIAreaGroup[] | null`). Update test fixtures to use the actual structured data instead of `JSON.stringify()`'d strings. Verify that round-trip tests (write checkpoint → read checkpoint) work with the structured data. See requirements.md section 7.
+- **Verification**: `npx vitest run tests/consolidation-checkpoint*.test.ts tests/consolidation-resume.test.ts` — all tests pass.
+
+### TASK-007: Add --version CLI flag
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Add a guard at the top of `buildNewScreenshotFilenames()` in `src/consolidation.ts:372` that throws an error if `count > 26`: `throw new Error('Maximum 26 screenshots per finding (got ${count})')`. Add tests: (1) count = 27 throws, (2) count = 26 succeeds (boundary case). See requirements.md change #9.
-- **Verification**: `npx vitest run tests/consolidation.test.ts`
+- **Description**: Add a `--version` flag to the CLI in `src/cli.ts`. (1) Add `--version` to the USAGE string after `--help`, with description `Show the version number`. (2) Add `'version'` to the boolean flag check at line 113. (3) Add `'version'` to the `knownFlags` set at line 145. (4) After the `--help` handler (line 134), add a `--version` handler that reads the version from `package.json` and prints it, then calls `process.exit(0)`. Use `createRequire(import.meta.url)` from `node:module` to load `package.json`, or `readFileSync` + `JSON.parse`. (5) Add tests: verify `--version` outputs the version from `package.json` and exits, and that `--version` appears in the usage text. See requirements.md section 8.
+- **Verification**: `npx vitest run tests/cli*.test.ts` — all tests pass, including new `--version` tests.

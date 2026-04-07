@@ -1,137 +1,145 @@
-# UX Analysis Reporter — Iteration 4 Requirements
+# UX Analysis Reporter — Iteration 5 Requirements
 
 ## Overview
 
-This iteration addresses all bugs and technical debt identified in the iteration 3 code review. There are no new features — the focus is entirely on fixing broken behavior, eliminating dead code, and improving code quality.
+This iteration addresses all remaining bugs, test gaps, code quality issues, and technical debt identified in the iteration 4 code review. It also adds a `--version` CLI flag. There are no new analysis features — the focus is on stability, test reliability, defensive coding, and cleanup.
 
-All changes build on the existing codebase. The prior iteration produced a fully functional tool with 835 of 840 tests passing across 32 test files. This iteration fixes the 5 failing tests, resolves a critical design flaw in resume-across-runs, fixes signal handler cleanup, adds rate-limit handling to consolidation, and performs several small code quality improvements.
+All changes build on the existing codebase. The prior iteration left the project at 847/847 tests passing across 32 test files with 98.18% statement coverage. This iteration improves test reliability, closes coverage gaps, hardens HTML escaping, eliminates double-serialized checkpoint data, and adds a version flag.
 
 ---
 
 ## Bug Fixes
 
-### 1. Fix 5 failing tests
+### 1. Fix flaky cross-run resume test timeouts
 
-**Problem:** After iteration 3, 5 tests fail due to stale API references:
+**Problem:** Two cross-run resume tests in `tests/consolidation-resume.test.ts` intermittently time out on Windows. The tests at lines 788 and 870 use `vi.importActual()` to bypass mocks and call the real `initTempDir()`, which involves filesystem I/O including directory creation and cleanup. The current 15-second per-test timeout is occasionally insufficient on Windows.
 
-- `tests/progress-recalibration.test.ts` — Multiple tests call `display.updateFromFiles(1)`, a method removed in TASK-012b when file-polling was replaced with event-driven progress via `updateProgress()`. Call sites at lines 128, 229, 262, 291, 308, 326, 354, 375.
+**Fix:** Increase the timeout on the four cross-run resume tests (lines 788, 823, 847, 870) from `{ timeout: 15000 }` to `{ timeout: 30000 }`. Alternatively, set `{ timeout: 30000 }` on the parent `describe('cross-run resume: initTempDir preserves checkpoint data')` block at line 771 to apply uniformly.
 
-- `tests/integration-dedup-consolidation.test.ts:1110` — Asserts `parent.children[0].id` instead of `parent.children[0].finding.id`. TASK-016a changed `HierarchicalFinding.children` from `Finding[]` to `HierarchicalFinding[]`.
+**Testing:** Run the cross-run resume tests multiple times; they should no longer time out intermittently.
 
-- `tests/integration-dedup-consolidation.test.ts:1130-1152` — The `formatConsolidatedReport` test constructs children as raw `Finding` objects instead of `HierarchicalFinding` objects (which have `{ finding, children }` shape), causing a TypeError in the recursive renderer.
+---
+
+### 2. Add single-quote escaping to `escapeHtml()`
+
+**Problem:** `escapeHtml()` in `src/html-report.ts:43-48` escapes `&`, `<`, `>`, and `"` but does not escape single quotes (`'`). Currently safe because all HTML attribute values in the template use double quotes. However, if the template is ever changed to use single-quoted attributes, this becomes an XSS vector.
+
+**Fix:** Add `.replace(/'/g, '&#39;')` to the escape chain in `escapeHtml()`, after the existing `&quot;` replacement.
+
+**Testing:** Update or add a test that verifies single quotes are escaped to `&#39;`. Existing HTML report tests should continue to pass.
+
+---
+
+## Test Improvements
+
+### 3. Add `parseConsolidatedReport()` unit tests
+
+**Problem:** `parseConsolidatedReport()` in `src/consolidation.ts:402` is exported and used in append mode, but only tested indirectly via integration tests. Edge cases like malformed headings, missing severity lines, empty input, and deeply nested findings lack dedicated unit tests.
+
+**Fix:** Add a focused test file (or a new `describe` block in an existing consolidation test file) with unit tests covering:
+
+- Empty input string → returns empty array
+- Input with no finding headings → returns empty array
+- Standard single finding with all fields (id, title, severity, area, description) → correctly parsed
+- Finding with missing severity line → still parsed, severity defaults or is empty
+- Multiple findings across multiple areas → all parsed with correct area assignment
+- Deeply nested findings (####, #####, ######) → all heading levels recognized
+- Malformed heading (missing `UXR-` prefix) → skipped
+- Area heading that starts with `## UXR-` → treated as finding context, not area heading (the fragile regex at line 414)
+- Finding description spans multiple lines → full description captured
+
+**Testing:** All new tests pass. Existing tests unaffected.
+
+---
+
+### 4. Improve `file-manager.ts` test coverage
+
+**Problem:** `file-manager.ts` has the lowest coverage in the project at 89% statements/lines. The uncovered code is:
+- Windows file-locking retry loop in `cleanupTempDir()` (lines 68-78): the `EBUSY`/`EPERM` retry logic
+- Bare `catch` block in `hasExistingCheckpointData()` (lines 104-106): swallows all errors without logging
 
 **Fix:**
-- In `progress-recalibration.test.ts`: Replace all `display.updateFromFiles(N)` calls with the equivalent `display.updateProgress(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount)` calls, using data derived from the mock checkpoint that each test sets up.
-- In `integration-dedup-consolidation.test.ts:1110`: Change `parent.children[0].id` to `parent.children[0].finding.id`.
-- In `integration-dedup-consolidation.test.ts:1130-1152`: Wrap each child in the `children` array as `{ finding: { ... }, children: [] }` to match the `HierarchicalFinding` interface.
+1. Add a test that simulates an `EBUSY` error on the first `rmSync` call, verifying that `cleanupTempDir()` retries and eventually succeeds.
+2. Add a test that simulates an `EBUSY` error on all attempts, verifying that `cleanupTempDir()` throws after exhausting retries.
+3. Fix the bare `catch` block in `hasExistingCheckpointData()` (line 104): add `debug()` logging of the error before returning false. This turns a silent failure into a debuggable one.
+4. Add a test that verifies `hasExistingCheckpointData()` returns false when `readdirSync` throws (e.g., permission error).
 
-**Testing:** All 5 previously failing tests pass. Full test suite passes.
-
----
-
-### 2. Fix resume-across-runs design flaw
-
-**Problem:** `initTempDir()` in `file-manager.ts:84-102` unconditionally calls `cleanupTempDir()` (line 89) before creating the temp directory structure. This wipes the entire `.uxreview-temp/` directory, including any consolidation checkpoint from a previous interrupted run. The orchestrator calls `initWorkspace()` (which calls `initTempDir()`) unconditionally at line 139.
-
-This means re-running the command after an interruption always starts fresh — the consolidation checkpoint written by the previous run is destroyed before it can be read. The "Recovery and Resumption" section in the README documents behavior that cannot occur in practice.
-
-**Fix:** Modify `initTempDir()` to detect and preserve existing checkpoint data before cleaning:
-
-1. Before cleaning, check for `consolidation-checkpoint.json` and instance checkpoint files in `.uxreview-temp/`.
-2. If checkpoint data exists, preserve it. Only clean directories for instances that will be re-initialized — do not wipe checkpoint files or completed instance output.
-3. If no checkpoint data exists, clean as before (fresh run).
-4. Update the orchestrator to detect a resumed run and log accordingly when verbose mode is enabled.
-5. Update the README's "Recovery and Resumption" section if any documented behavior changes.
-
-**Testing:** Add an integration test that simulates an interrupted run followed by a restart, verifying that checkpoint data survives the restart and consolidation resumes from the correct step.
+**Testing:** `file-manager.ts` coverage improves above 95%. All new and existing tests pass.
 
 ---
 
-### 3. Fix signal handler bypassing `finally` block
+## Code Quality
 
-**Problem:** In `orchestrator.ts:147-151`, the SIGINT/SIGTERM signal handler calls `process.exit(130/143)` directly. `process.exit()` does not execute the `finally` block at line 388. This means:
-- Signal listeners are not deregistered (lines 389-390)
-- The progress display is not stopped (line 391)
-- Temp directory cleanup never runs on interrupt, even when `--keep-temp` is false (lines 392-394)
+### 5. Remove unused `countFindings` re-export from `progress-display.ts`
 
-Users accumulate `.uxreview-temp/` directories across interrupted runs.
+**Problem:** `progress-display.ts:95` has `export { countFindings } from './report.js';`. No external consumer uses this re-export. The canonical location is `report.ts`, and internal consumers already import from there. This is a stale indirection left over from the deduplication in iteration 4.
 
-**Fix:** Replace `process.exit()` with a flag-based approach:
-1. In the signal handler, kill child processes, stop the display, and set `process.exitCode` to 130 (SIGINT) or 143 (SIGTERM).
-2. Instead of calling `process.exit()`, allow the promise chain to unwind naturally so the `finally` block executes.
-3. The `finally` block already handles listener removal, display stop, and temp cleanup — let it do its job.
-4. The orchestrator's main async function should check the signal flag and reject/return early so the `try` block exits and `finally` runs.
+**Fix:** Remove line 95 from `progress-display.ts`. Verify with grep that no file imports `countFindings` from `progress-display`.
 
-**Testing:** Add a test that verifies the `finally` block executes when a signal is received (listeners removed, temp cleaned up when `--keep-temp` is false).
+**Testing:** All existing tests pass. Grep confirms no remaining imports of `countFindings` from `progress-display`.
 
 ---
 
-### 4. Add rate-limit retry handling to consolidation Claude calls
+### 6. Fix bare catch block in `file-manager.ts`
 
-**Problem:** The 3+ Claude calls during consolidation (deduplication at `consolidation.ts:254`, hierarchy per area at `consolidation.ts:882`, discovery merge at `consolidation.ts:857`) have no rate-limit retry logic. Under heavy API load, these can fail and waste all the analysis work done by the instances. The `handleRateLimitRetries` helper exists in `instance-manager.ts:323` but is tightly coupled to instance state.
+**Problem:** `hasExistingCheckpointData()` at `src/file-manager.ts:104` has a bare `catch` that swallows all errors identically without logging. If `readdirSync` fails for an unexpected reason (permissions, corrupted filesystem), the error is silently eaten and the function returns `false`, potentially causing a fresh run when resume was intended.
+
+**Fix:** Change the bare `catch` to `catch (err)` and add a `debug()` call logging the error before returning `false`. This makes the failure visible in verbose mode without changing the function's behavior (it still returns `false` on error).
+
+**Note:** This is bundled with item #4 (file-manager coverage) since they touch the same code. Implementation should happen in the same task.
+
+---
+
+## Technical Debt
+
+### 7. Eliminate double-serialized checkpoint data
+
+**Problem:** In `src/orchestrator.ts`, the consolidation checkpoint stores intermediate outputs as JSON strings inside a JSON object. For example:
+- Line 348: `checkpoint.dedupOutput = JSON.stringify(consolidation);`
+- Line 385: `checkpoint.reassignOutput = JSON.stringify(findings);`
+- Line 398: `checkpoint.hierarchyOutput = JSON.stringify(groups);`
+
+When the checkpoint itself is written to disk via `writeConsolidationCheckpoint()` (which calls `JSON.stringify(checkpoint)`), these fields are double-serialized: a JSON string containing another JSON string. When reading back, the orchestrator must `JSON.parse()` the field value (lines 320, 375, 394) to recover the structured data.
+
+This is fragile and confusing. The checkpoint interface (`ConsolidationCheckpoint` in `src/consolidation-checkpoint.ts:35-50`) types these fields as `string | null`, forcing the serialize/deserialize dance.
 
 **Fix:**
-1. Extract a general-purpose rate-limit retry utility from `instance-manager.ts` into `rate-limit.ts` (or a new shared module). The utility should accept a function to retry and the max retry count, and apply exponential backoff with jitter (reusing the existing `calculateBackoff` function from `rate-limit.ts`).
-2. Apply the retry wrapper to all consolidation Claude calls: dedup, hierarchy determination (each area call), and discovery merge.
-3. The instance manager's `handleRateLimitRetries` should be refactored to use the shared utility internally.
-4. Use the `RATE_LIMIT_RETRIES` config value as the default retry limit.
+1. Change the `ConsolidationCheckpoint` interface to use structured types instead of `string | null`:
+   - `dedupOutput: ConsolidationResult | null`
+   - `reassignOutput: Finding[] | null`
+   - `hierarchyOutput: UIAreaGroup[] | null`
+   - `formatReportOutput` and `discoveryMergeOutput` remain `string | null` since they hold actual string content (markdown/text)
+2. In `orchestrator.ts`, remove the `JSON.stringify()` calls when writing to checkpoint fields (lines 348, 385, 398) — assign the structured data directly.
+3. In `orchestrator.ts`, remove the `JSON.parse()` calls when reading checkpoint fields (lines 320, 375, 394) — use the data directly.
+4. In `readConsolidationCheckpoint()` (`consolidation-checkpoint.ts:74`), update the validation for the changed fields: instead of checking `typeof field === 'string'`, check that the field is an object/array or null. Since `JSON.parse` during `readConsolidationCheckpoint` already deserializes the entire checkpoint from disk, the fields will arrive as their actual types.
+5. No backward compatibility — old checkpoint files will fail validation and be treated as corrupted (returning `null`), which triggers a fresh consolidation. This is acceptable.
 
-**Testing:** Test that consolidation Claude calls retry on rate-limit errors. Test that the retry budget is respected. Existing instance manager rate-limit tests should continue to pass.
-
----
-
-### 5. Add code comment explaining sequential consolidation
-
-**Problem:** The `for...of` loop in `organizeHierarchically()` (`consolidation.ts:882`) processes UI area groups sequentially. Reviews have repeatedly suggested parallelizing these calls with `Promise.all`. This is incorrect — consolidation involves multiple Claude instances touching shared files and parallelizing creates race conditions. The sequential nature is intentional but not documented in code.
-
-**Fix:** Add a clear code comment above the `for...of` loop in `organizeHierarchically()` explaining:
-- The loop is intentionally sequential
-- Parallelizing would create race conditions with multiple Claude instances touching shared files
-- The consolidation phase is short and does not benefit from parallelism
-
-**Testing:** No tests needed — comment only.
+**Testing:** Existing consolidation checkpoint tests updated for the new types. The resume integration tests should verify that structured data round-trips correctly through write → read → resume.
 
 ---
 
-## Code Quality Cleanup
+## New Feature
 
-### 6. Remove deprecated `POLL_INTERVAL_MS` from config
+### 8. Add `--version` CLI flag
 
-**Problem:** `config.ts:36` exports `POLL_INTERVAL_MS`, marked as `@deprecated` with a note to use `RENDER_INTERVAL_MS` instead. No file in the codebase imports `POLL_INTERVAL_MS`. It is dead code.
+**Problem:** The CLI has no `--version` flag. Users cannot check which version they're running.
 
-**Fix:** Remove the `POLL_INTERVAL_MS` export from `config.ts`.
+**Fix:**
+1. Add `--version` to the USAGE string in `src/cli.ts` (after `--help`), with description: `Show the version number`.
+2. Add `'version'` to the boolean flag list at line 113.
+3. Add `'version'` to the `knownFlags` set at line 145.
+4. In `parseArgs()`, after the `--help` check (line 134), add a `--version` handler that reads `version` from `package.json` using `createRequire` (or a static import of the package.json) and prints it, then calls `process.exit(0)`.
+5. Since this is an ES module project (`"type": "module"` in `package.json`), use `createRequire(import.meta.url)` from `node:module` to load `package.json`, or use a `readFileSync` + `JSON.parse` approach. Either works — the key is that the version comes from `package.json` at runtime, not a hardcoded string.
 
-**Testing:** Verify no imports reference `POLL_INTERVAL_MS`. Existing tests pass.
-
----
-
-### 7. Deduplicate `countFindings` function
-
-**Problem:** An identical `countFindings` function exists in both `instance-manager.ts:356` and `progress-display.ts:95`. Same regex pattern, same logic. The `progress-display.ts` version is exported but unused externally. The `instance-manager.ts` version is private.
-
-**Fix:** Move `countFindings` to a shared location (e.g., `report.ts`, which already deals with finding/report logic). Export it from there. Update both `instance-manager.ts` and `progress-display.ts` to import from the shared location. Remove the duplicate definitions.
-
-**Testing:** Existing tests that exercise `countFindings` behavior continue to pass. Verify with grep that no duplicate definitions remain.
+**Testing:** Add a test that verifies `--version` prints the version from `package.json` and exits. Add a test that `--version` appears in the help/usage text.
 
 ---
 
-### 8. Clean up backward-compat re-exports in `rate-limit.ts`
+## Dependencies Between Changes
 
-**Problem:** `rate-limit.ts:3-5,10` imports and re-exports `DEFAULT_BASE_DELAY_MS`, `MAX_BACKOFF_DELAY_MS`, and `MAX_RATE_LIMIT_RETRIES` from `config.ts`. All source files have been migrated to import from `config.ts` directly. The only remaining consumers of the re-exports are test files.
-
-**Fix:** Update test file imports to reference `config.ts` (or the config module path) directly. Then remove the re-exports from `rate-limit.ts`. The module should still import these values for its own internal use (e.g., `calculateBackoff` default parameters at line 49-50) but not re-export them.
-
-**Testing:** All existing tests pass with updated imports.
-
----
-
-### 9. Enforce 26-screenshot limit in code
-
-**Problem:** `buildNewScreenshotFilenames()` in `consolidation.ts:372-379` uses `String.fromCharCode(96 + i)` for suffixes (a-z), supporting only 26 screenshots per finding. The limit is documented in the README but not enforced in code. A finding with 27+ screenshots would produce non-alphabetic characters (`{`, `|`, etc.) that could break filename validation.
-
-**Fix:** Add a guard at the top of `buildNewScreenshotFilenames()` that throws an error if count exceeds 26.
-
-**Testing:** Test that calling `buildNewScreenshotFilenames` with count > 26 throws. Test that count = 26 works (boundary). Existing screenshot tests pass.
+- **#4 and #6 are the same task** — both touch `file-manager.ts` coverage and the bare catch block. Implement together.
+- **#7 (checkpoint refactor) should come after #1 (flaky test fix)** — the flaky tests are in the consolidation-resume test file, and #7 will modify checkpoint types that those tests exercise. Fix the timeouts first so the test suite is stable before refactoring.
+- **All other changes are independent** and can be done in any order.
 
 ---
 
@@ -139,31 +147,25 @@ Users accumulate `.uxreview-temp/` directories across interrupted runs.
 
 All changes must maintain the 95% coverage threshold enforced by `vitest.config.ts`.
 
-- **Test fixes (#1):** Update stale test references. Target: full suite green.
-- **Resume fix (#2):** Integration test for cross-run resume.
-- **Signal handler (#3):** Test that `finally` executes on signal.
-- **Rate-limit in consolidation (#4):** Test retry behavior for consolidation calls.
-- **Sequential comment (#5):** No tests.
-- **Dead export (#6):** No new tests — grep verification only.
-- **Dedup function (#7):** Existing tests pass with new import paths.
-- **Re-export cleanup (#8):** Existing tests pass with updated imports.
-- **Screenshot guard (#9):** Boundary and overflow tests.
-
----
-
-## Dependencies Between Changes
-
-- **#1 (fix failing tests) should be first** — establishes a green test baseline before making further changes.
-- **#8 (re-export cleanup) before #4 (rate-limit in consolidation)** — both touch `rate-limit.ts`, cleaner to do the cleanup first then add the shared retry utility.
-- **All other changes are independent** and can be done in any order after #1.
+- **#1 (flaky timeouts):** Increase timeout values. No new tests — verification is that existing tests stop timing out.
+- **#2 (single-quote escape):** Add/update escapeHtml test.
+- **#3 (parseConsolidatedReport tests):** New dedicated unit test file or describe block.
+- **#4 + #6 (file-manager coverage):** New tests for EBUSY retry and error logging. Target: file-manager.ts above 95%.
+- **#5 (remove re-export):** Grep verification only.
+- **#7 (checkpoint refactor):** Update existing checkpoint tests for new types. Existing resume tests verify round-trip.
+- **#8 (--version flag):** New CLI tests for version output.
 
 ---
 
 ## Out of Scope
 
-The following are deferred to future iterations:
+The following remain deferred to future iterations:
 - Finding severity filtering (`--min-severity`)
 - Claude Agent SDK migration
 - Structured IPC (replacing file-based communication)
 - Report diffing for `--append` mode
 - Consolidation as a separate CLI subcommand
+- AbortController for cancellation
+- Large dataset / performance testing
+- Concurrent write race condition tests
+- Filesystem error tests (EACCES, ENOSPC) beyond EBUSY
