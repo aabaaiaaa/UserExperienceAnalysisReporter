@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 27
-- **Completed**: 16
-- **Remaining**: 11
-- **Last Updated**: 2026-04-07T09:50:31.252Z
+- **Completed**: 17
+- **Remaining**: 10
+- **Last Updated**: 2026-04-07T09:55:14.772Z
 
 ## Iteration Log
 
@@ -179,4 +179,15 @@
 - **Verification Duration**: ~8s
 - **Tokens**: 154,833 total (7 in, 1,507 out, 21,283 cache-create, 132,036 cache-read)
 - **Cost**: $0.2367
+
+### Iteration 17 - 2026-04-07T09:55:14.770Z
+- **Task Attempted**: TASK-012a
+- **Task Completed**: TASK-012a
+- **Summary**: Completed Extend ProgressCallback with item-level progress events
+- **Duration**: 4m 41s
+- **Exit Status**: success
+- **Work Duration**: ~4m 20s
+- **Verification Duration**: ~22s
+- **Tokens**: 1,380,839 total (602 in, 14,275 out, 59,190 cache-create, 1,306,772 cache-read)
+- **Cost**: $1.3832
 

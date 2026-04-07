@@ -97,7 +97,7 @@
 - **Verification**: `grep -q "Recovery" README.md && echo "PASS" || echo "FAIL"`
 
 ### TASK-012a: Extend ProgressCallback with item-level progress events
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Extend the `ProgressCallback` interface in `src/instance-manager.ts` to include item-level progress updates: `onProgressUpdate(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount)`. Call this callback from the instance execution flow at the same points where checkpoints are written, so progress data is pushed rather than polled. Reference requirements.md change #12.
 - **Verification**: `npx vitest run tests/instance-manager.test.ts 2>&1 | tail -5`

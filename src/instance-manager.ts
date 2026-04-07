@@ -2,7 +2,7 @@ import { runClaude, ClaudeCliResult, killAllChildProcesses, getActiveProcessCoun
 export { killAllChildProcesses, getActiveProcessCount };
 import { getInstancePaths } from './file-manager.js';
 import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent, extractDiscoveryItems } from './discovery.js';
-import { buildReportInstructions } from './report.js';
+import { buildReportInstructions, readReportContent } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
 import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
 import { isRateLimitError, getBackoffDelay, sleep } from './rate-limit.js';
@@ -251,6 +251,13 @@ export interface ProgressCallback {
   onPermanentlyFailed?: (instanceNumber: number, error: string) => void;
   onRateLimited?: (instanceNumber: number, round: number, backoffMs: number) => void;
   onRateLimitResolved?: (instanceNumber: number, round: number) => void;
+  onProgressUpdate?: (
+    instanceNumber: number,
+    completedItems: number,
+    inProgressItems: number,
+    totalItems: number,
+    findingsCount: number,
+  ) => void;
 }
 
 export interface RoundExecutionConfig {
@@ -343,6 +350,39 @@ async function handleRateLimitRetries(
 }
 
 /**
+ * Count finding headings in a report string.
+ * Matches lines like "## I1-UXR-001: ..."
+ */
+function countFindings(reportContent: string): number {
+  const matches = reportContent.match(/^## I\d+-UXR-\d+:/gm);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * Push item-level progress data through the callback.
+ * Derives area progress from the checkpoint and reads findings count from the report file.
+ */
+function emitProgressUpdate(
+  instanceNumber: number,
+  checkpoint: Checkpoint | null,
+  cb?: ProgressCallback,
+): void {
+  if (!cb?.onProgressUpdate || !checkpoint) return;
+
+  const completedItems = checkpoint.areas.filter(a => a.status === 'complete').length;
+  const inProgressItems = checkpoint.areas.filter(a => a.status === 'in-progress').length;
+  const totalItems = checkpoint.areas.length;
+
+  let findingsCount = 0;
+  const reportContent = readReportContent(instanceNumber);
+  if (reportContent) {
+    findingsCount = countFindings(reportContent);
+  }
+
+  cb.onProgressUpdate(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount);
+}
+
+/**
  * Run multiple sequential rounds for a single instance.
  *
  * Round 1 uses the plan chunk and scope.
@@ -380,6 +420,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
     // Write checkpoint at the start of each round
     const initialCheckpoint = createInitialCheckpoint(config.instanceNumber, roundAreas, round);
     writeCheckpoint(config.instanceNumber, initialCheckpoint);
+    emitProgressUpdate(config.instanceNumber, initialCheckpoint, cb);
 
     cb?.onRoundStart?.(config.instanceNumber, round);
 
@@ -418,6 +459,9 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
     // Uses the global rateLimitRetryState shared across all rounds and retries.
     state = await handleRateLimitRetries(state, rateLimitRetryState, respawn, rateLimitCallbacks, rateLimitRetries);
 
+    // Push progress after initial spawn cycle completes
+    emitProgressUpdate(config.instanceNumber, readCheckpoint(config.instanceNumber), cb);
+
     // If the round failed (non-rate-limit or rate limit retries exhausted),
     // enter the normal retry loop
     if (state.status === 'failed') {
@@ -445,12 +489,16 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
           // Checkpoint missing or corrupted: restart the round from scratch
           const freshCheckpoint = createInitialCheckpoint(config.instanceNumber, areas, round);
           writeCheckpoint(config.instanceNumber, freshCheckpoint);
+          emitProgressUpdate(config.instanceNumber, freshCheckpoint, cb);
           state = await spawnInstance(instanceConfig);
         }
 
         // If the retry itself hits a rate limit, use the same shared helper
         // with the global retry budget
         state = await handleRateLimitRetries(state, rateLimitRetryState, respawn, rateLimitCallbacks, rateLimitRetries);
+
+        // Push progress after retry spawn cycle completes
+        emitProgressUpdate(config.instanceNumber, readCheckpoint(config.instanceNumber), cb);
 
         if (state.status === 'completed') {
           retryInfo.succeeded = true;

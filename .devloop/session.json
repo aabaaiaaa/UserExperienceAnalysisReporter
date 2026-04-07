@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 15,
+  "lastIteration": 16,
   "startedAt": "2026-04-07T09:10:37.667Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-011",
-    "taskTitle": "Add recovery documentation to README",
-    "iterationNumber": 16,
-    "startedAt": "2026-04-07T09:49:42.050Z"
+    "taskId": "TASK-012a",
+    "taskTitle": "Extend ProgressCallback with item-level progress events",
+    "iterationNumber": 17,
+    "startedAt": "2026-04-07T09:50:33.350Z"
   }
 }

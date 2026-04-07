@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolve, join } from 'node:path';
-import { mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import {
   buildInstancePrompt,
   spawnInstance,
@@ -8,6 +8,7 @@ import {
   runInstanceRounds,
   InstanceConfig,
   RoundExecutionConfig,
+  ProgressCallback,
 } from '../src/instance-manager.js';
 
 // Mock the claude-cli module
@@ -484,5 +485,183 @@ describe('runInstanceRounds with custom config values', () => {
     expect(result.retries[0].attempts).toBe(3); // default MAX_RETRIES
     // 1 initial + 3 retries = 4 total calls
     expect(mockRunClaude).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('onProgressUpdate callback', () => {
+  const BASE_ROUND_CONFIG: RoundExecutionConfig = {
+    instanceNumber: 1,
+    url: 'https://example.com/app',
+    intro: 'Test app context.',
+    planChunk: '## Navigation\n- Review main nav bar',
+    scope: '## Layout\n- Check spacing consistency',
+    totalRounds: 1,
+    assignedAreas: ['Navigation', 'Forms'],
+  };
+
+  beforeEach(() => {
+    mkdirSync(join(TEST_TEMP_DIR, 'instance-1'), { recursive: true });
+    mkdirSync(join(TEST_TEMP_DIR, 'instance-1', 'screenshots'), { recursive: true });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (existsSync(TEST_TEMP_DIR)) {
+      rmSync(TEST_TEMP_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('fires onProgressUpdate with initial checkpoint data at round start', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    const onProgressUpdate = vi.fn();
+    const progress: ProgressCallback = { onProgressUpdate };
+
+    await runInstanceRounds({ ...BASE_ROUND_CONFIG, progress });
+
+    // First call should be from the initial checkpoint write (all not-started)
+    expect(onProgressUpdate).toHaveBeenCalled();
+    const firstCall = onProgressUpdate.mock.calls[0];
+    expect(firstCall[0]).toBe(1);  // instanceNumber
+    expect(firstCall[1]).toBe(0);  // completedItems
+    expect(firstCall[2]).toBe(0);  // inProgressItems
+    expect(firstCall[3]).toBe(2);  // totalItems (Navigation, Forms)
+    expect(firstCall[4]).toBe(0);  // findingsCount (no report yet)
+  });
+
+  it('fires onProgressUpdate after spawn completes with updated checkpoint', async () => {
+    // Mock runClaude to write an updated checkpoint as a side effect
+    mockRunClaude.mockImplementation(async () => {
+      const cpPath = join(TEST_TEMP_DIR, 'instance-1', 'checkpoint.json');
+      const checkpoint = {
+        instanceId: 1,
+        assignedAreas: ['Navigation', 'Forms'],
+        currentRound: 1,
+        areas: [
+          { name: 'Navigation', status: 'complete' },
+          { name: 'Forms', status: 'in-progress' },
+        ],
+        lastAction: 'Reviewed navigation',
+        timestamp: new Date().toISOString(),
+      };
+      writeFileSync(cpPath, JSON.stringify(checkpoint), 'utf-8');
+      return { stdout: 'ok', stderr: '', exitCode: 0, success: true };
+    });
+
+    const onProgressUpdate = vi.fn();
+    const progress: ProgressCallback = { onProgressUpdate };
+
+    await runInstanceRounds({ ...BASE_ROUND_CONFIG, progress });
+
+    // Should be called at least twice: initial checkpoint + after spawn
+    expect(onProgressUpdate.mock.calls.length).toBeGreaterThanOrEqual(2);
+
+    // The post-spawn call should reflect the updated checkpoint
+    const postSpawnCall = onProgressUpdate.mock.calls[1];
+    expect(postSpawnCall[0]).toBe(1);  // instanceNumber
+    expect(postSpawnCall[1]).toBe(1);  // completedItems (Navigation)
+    expect(postSpawnCall[2]).toBe(1);  // inProgressItems (Forms)
+    expect(postSpawnCall[3]).toBe(2);  // totalItems
+    expect(postSpawnCall[4]).toBe(0);  // findingsCount (no report file)
+  });
+
+  it('includes findings count from report file', async () => {
+    // Mock runClaude to write checkpoint and report as side effects
+    mockRunClaude.mockImplementation(async () => {
+      const cpPath = join(TEST_TEMP_DIR, 'instance-1', 'checkpoint.json');
+      const checkpoint = {
+        instanceId: 1,
+        assignedAreas: ['Navigation', 'Forms'],
+        currentRound: 1,
+        areas: [
+          { name: 'Navigation', status: 'complete' },
+          { name: 'Forms', status: 'complete' },
+        ],
+        lastAction: 'Completed review',
+        timestamp: new Date().toISOString(),
+      };
+      writeFileSync(cpPath, JSON.stringify(checkpoint), 'utf-8');
+
+      const reportPath = join(TEST_TEMP_DIR, 'instance-1', 'report.md');
+      const reportContent = [
+        '# Instance 1 Report',
+        '',
+        '## I1-UXR-001: Missing breadcrumb',
+        'Details here',
+        '',
+        '## I1-UXR-002: Form validation unclear',
+        'Details here',
+      ].join('\n');
+      writeFileSync(reportPath, reportContent, 'utf-8');
+
+      return { stdout: 'ok', stderr: '', exitCode: 0, success: true };
+    });
+
+    const onProgressUpdate = vi.fn();
+    const progress: ProgressCallback = { onProgressUpdate };
+
+    await runInstanceRounds({ ...BASE_ROUND_CONFIG, progress });
+
+    // The post-spawn call should include findings count
+    const postSpawnCall = onProgressUpdate.mock.calls[1];
+    expect(postSpawnCall[0]).toBe(1);  // instanceNumber
+    expect(postSpawnCall[1]).toBe(2);  // completedItems
+    expect(postSpawnCall[2]).toBe(0);  // inProgressItems
+    expect(postSpawnCall[3]).toBe(2);  // totalItems
+    expect(postSpawnCall[4]).toBe(2);  // findingsCount (2 findings in report)
+  });
+
+  it('fires onProgressUpdate during retry with fresh checkpoint', async () => {
+    let callCount = 0;
+    mockRunClaude.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        // First call fails — don't write a valid checkpoint
+        return { stdout: '', stderr: 'crash', exitCode: 1, success: false };
+      }
+      // Retry succeeds
+      return { stdout: 'ok', stderr: '', exitCode: 0, success: true };
+    });
+
+    const onProgressUpdate = vi.fn();
+    const progress: ProgressCallback = { onProgressUpdate };
+
+    await runInstanceRounds({ ...BASE_ROUND_CONFIG, progress });
+
+    // Should have multiple calls:
+    // 1. Initial checkpoint write
+    // 2. After failed spawn (reads checkpoint from file)
+    // 3. Fresh checkpoint write on retry (since initial spawn didn't write a valid checkpoint)
+    // 4. After retry spawn
+    expect(onProgressUpdate.mock.calls.length).toBeGreaterThanOrEqual(3);
+
+    // All calls should have the correct instanceNumber and totalItems
+    for (const call of onProgressUpdate.mock.calls) {
+      expect(call[0]).toBe(1);  // instanceNumber
+      expect(call[3]).toBe(2);  // totalItems (Navigation, Forms)
+    }
+  });
+
+  it('is not called when onProgressUpdate is not provided', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    // No onProgressUpdate in callbacks — should not throw
+    const progress: ProgressCallback = {
+      onRoundStart: vi.fn(),
+    };
+
+    const result = await runInstanceRounds({ ...BASE_ROUND_CONFIG, progress });
+    expect(result.status).toBe('completed');
   });
 });
