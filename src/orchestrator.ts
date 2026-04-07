@@ -122,6 +122,17 @@ function buildProgressCallback(display: ProgressDisplay): ProgressCallback {
 }
 
 /**
+ * Error thrown when the orchestrator is interrupted by a signal (SIGINT/SIGTERM).
+ * Allows callers to distinguish signal interruptions from other errors.
+ */
+export class SignalInterruptError extends Error {
+  constructor(signal: string) {
+    super(`Process interrupted by ${signal}`);
+    this.name = 'SignalInterruptError';
+  }
+}
+
+/**
  * Run the full orchestration flow:
  *
  * 1. Initialize workspace (temp + output directories)
@@ -143,11 +154,32 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
   const display = new ProgressDisplay(instanceNumbers, args.rounds);
   const progressCallback = buildProgressCallback(display);
 
-  // Register signal handlers to clean up child processes on SIGINT/SIGTERM
+  // Flag-based signal handling: instead of process.exit(), set a flag and
+  // reject a promise so the try block unwinds and the finally block runs cleanup.
+  let signalReceived = false;
+  let rejectOnSignal: ((err: SignalInterruptError) => void) | undefined;
+  const signalPromise = new Promise<never>((_, reject) => {
+    rejectOnSignal = reject;
+  });
+  // Prevent unhandled rejection if signal fires between raceSignal calls
+  signalPromise.catch(() => {});
+
+  function raceSignal<T>(promise: Promise<T>): Promise<T> {
+    if (signalReceived) {
+      return Promise.reject(new SignalInterruptError('signal'));
+    }
+    return Promise.race([promise, signalPromise]);
+  }
+
   const signalHandler = (signal: NodeJS.Signals) => {
+    if (signalReceived) return;
+    signalReceived = true;
     killAllChildProcesses();
     display.stop();
-    process.exit(signal === 'SIGINT' ? 130 : 143);
+    process.exitCode = signal === 'SIGINT' ? 130 : 143;
+    if (rejectOnSignal) {
+      rejectOnSignal(new SignalInterruptError(signal));
+    }
   };
   process.on('SIGINT', signalHandler);
   process.on('SIGTERM', signalHandler);
@@ -157,7 +189,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
   try {
     // 3. Distribute work across instances
     const distributionStart = Date.now();
-    const distribution = await distributePlan(args.plan, args.instances);
+    const distribution = await raceSignal(distributePlan(args.plan, args.instances));
     debug(`Distribution phase completed in ${Date.now() - distributionStart}ms`);
 
     // 3a. Dry-run mode: print distribution info and exit
@@ -199,9 +231,9 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
 
     debug(`Spawning ${configs.length} instance(s) for ${args.rounds} round(s)`);
     const executionStart = Date.now();
-    const settled = await Promise.allSettled(
+    const settled = await raceSignal(Promise.allSettled(
       configs.map((config) => runInstanceRounds(config)),
-    );
+    ));
     debug(`Instance execution phase completed in ${Date.now() - executionStart}ms`);
 
     // Process results — mark any unexpected rejections as permanently failed
@@ -240,7 +272,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       consolidation = JSON.parse(checkpoint.dedupOutput);
       debug('Resuming consolidation: skipping dedup (already completed)');
     } else {
-      consolidation = await consolidateReports(instanceNumbers);
+      consolidation = await raceSignal(consolidateReports(instanceNumbers));
 
       // In append mode, run cross-run deduplication against existing findings
       if (args.append) {
@@ -250,7 +282,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
           const existingFindings = parseConsolidatedReport(existingContent);
           if (existingFindings.length > 0) {
             debug(`Append mode: cross-run dedup against ${existingFindings.length} existing finding(s)`);
-            const crossRunDedup = await detectCrossRunDuplicates(existingFindings, consolidation.findings);
+            const crossRunDedup = await raceSignal(detectCrossRunDuplicates(existingFindings, consolidation.findings));
             if (crossRunDedup.duplicateGroups.length > 0) {
               const filtered = filterCrossRunDuplicates(
                 existingFindings,
@@ -315,7 +347,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       groups = JSON.parse(checkpoint.hierarchyOutput);
       debug('Resuming consolidation: skipping hierarchy (already completed)');
     } else {
-      groups = await organizeHierarchically(findings);
+      groups = await raceSignal(organizeHierarchically(findings));
       checkpoint.hierarchyOutput = JSON.stringify(groups);
       checkpoint.completedSteps = [...checkpoint.completedSteps, 'hierarchy'];
       checkpoint.timestamp = new Date().toISOString();
@@ -353,7 +385,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     if (isStepCompleted(checkpoint, 'discovery-merge') && checkpoint.discoveryMergeOutput) {
       debug('Resuming consolidation: skipping discovery-merge (already completed)');
     } else {
-      const discoveryResult = await consolidateDiscoveryDocs(instanceNumbers);
+      const discoveryResult = await raceSignal(consolidateDiscoveryDocs(instanceNumbers));
       // In append mode, merge with existing discovery document
       let mergedDiscovery = discoveryResult.content;
       if (args.append && existsSync(discoveryPath)) {

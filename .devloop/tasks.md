@@ -25,7 +25,7 @@
 - **Verification**: `npx vitest run tests/consolidation-resume.test.ts`
 
 ### TASK-003a: Replace process.exit with flag-based signal handling
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001a, TASK-001b
 - **Description**: In `src/orchestrator.ts:147-151`, replace `process.exit(130/143)` in the signal handler with a flag-based approach. The handler should: (1) kill child processes, (2) stop the display, (3) set `process.exitCode` to 130 or 143, (4) set a signal flag that causes the main async function to reject/return early so the `try` block exits and `finally` runs. The `finally` block at line 388 already handles listener removal, display stop, and temp cleanup. See requirements.md change #3 for full context.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts`

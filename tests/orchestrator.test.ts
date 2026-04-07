@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { extractAreasFromPlanChunk } from '../src/orchestrator.js';
+import { extractAreasFromPlanChunk, SignalInterruptError } from '../src/orchestrator.js';
 
 // --- Mocks ---
 
@@ -971,15 +971,18 @@ describe('orchestrate', () => {
     let processExitSpy: ReturnType<typeof vi.spyOn>;
     let processOnSpy: ReturnType<typeof vi.spyOn>;
     let processRemoveListenerSpy: ReturnType<typeof vi.spyOn>;
+    let savedExitCode: number | undefined;
 
     beforeEach(() => {
-      // Spy on process.exit to prevent actually exiting
+      savedExitCode = process.exitCode;
+      // Spy on process.exit as a safety net (should no longer be called)
       processExitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
       processOnSpy = vi.spyOn(process, 'on');
       processRemoveListenerSpy = vi.spyOn(process, 'removeListener');
     });
 
     afterEach(() => {
+      process.exitCode = savedExitCode;
       processExitSpy.mockRestore();
       processOnSpy.mockRestore();
       processRemoveListenerSpy.mockRestore();
@@ -1084,7 +1087,7 @@ describe('orchestrate', () => {
       expect(removeSigterm.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('SIGINT handler kills child processes, stops display, and exits with code 130', async () => {
+    it('SIGINT handler kills child processes, stops display, and sets exitCode 130', async () => {
       const args = makeArgs({ instances: 1 });
       setupDefaultMocks();
 
@@ -1105,14 +1108,16 @@ describe('orchestrate', () => {
         return makeSuccessResult(config.instanceNumber, 1);
       });
 
-      await orchestrate(args);
+      await expect(orchestrate(args)).rejects.toThrow(SignalInterruptError);
 
       expect(mockKillAllChildProcesses).toHaveBeenCalled();
       expect(mockProgressDisplay.stop).toHaveBeenCalled();
-      expect(processExitSpy).toHaveBeenCalledWith(130);
+      expect(process.exitCode).toBe(130);
+      // Verify finally block ran (cleanup happened)
+      expect(mockCleanupTempDir).toHaveBeenCalled();
     });
 
-    it('SIGTERM handler kills child processes, stops display, and exits with code 143', async () => {
+    it('SIGTERM handler kills child processes, stops display, and sets exitCode 143', async () => {
       const args = makeArgs({ instances: 1 });
       setupDefaultMocks();
 
@@ -1133,11 +1138,13 @@ describe('orchestrate', () => {
         return makeSuccessResult(config.instanceNumber, 1);
       });
 
-      await orchestrate(args);
+      await expect(orchestrate(args)).rejects.toThrow(SignalInterruptError);
 
       expect(mockKillAllChildProcesses).toHaveBeenCalled();
       expect(mockProgressDisplay.stop).toHaveBeenCalled();
-      expect(processExitSpy).toHaveBeenCalledWith(143);
+      expect(process.exitCode).toBe(143);
+      // Verify finally block ran (cleanup happened)
+      expect(mockCleanupTempDir).toHaveBeenCalled();
     });
   });
 
