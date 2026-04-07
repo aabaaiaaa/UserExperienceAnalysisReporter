@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runClaude } from '../src/claude-cli.js';
+import { runClaude, killAllChildProcesses, getActiveProcessCount } from '../src/claude-cli.js';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 
@@ -200,5 +200,59 @@ describe('runClaude', () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('killAllChildProcesses', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('kills active processes spawned by runClaude', async () => {
+    const proc = createMockProcess();
+    // Add a kill method
+    proc.kill = vi.fn();
+    mockSpawn.mockReturnValue(proc as any);
+
+    // Start a runClaude call but don't let it finish yet
+    const promise = runClaude({ prompt: 'test' });
+
+    // Process is now active; kill all
+    expect(getActiveProcessCount()).toBe(1);
+    killAllChildProcesses();
+    expect(proc.kill).toHaveBeenCalled();
+    expect(getActiveProcessCount()).toBe(0);
+
+    // Clean up: let the process finish
+    proc._simulateOutput('ok', '', 0);
+    await promise;
+  });
+
+  it('handles processes that have already exited', async () => {
+    const proc = createMockProcess();
+    proc.kill = vi.fn().mockImplementation(() => {
+      throw new Error('Process already exited');
+    });
+    mockSpawn.mockReturnValue(proc as any);
+
+    const promise = runClaude({ prompt: 'test' });
+
+    // Should not throw even if kill() throws
+    killAllChildProcesses();
+    expect(getActiveProcessCount()).toBe(0);
+
+    proc._simulateOutput('ok', '', 0);
+    await promise;
+  });
+
+  it('returns 0 when no processes are active', () => {
+    expect(getActiveProcessCount()).toBe(0);
+    // Should not throw
+    killAllChildProcesses();
+    expect(getActiveProcessCount()).toBe(0);
   });
 });

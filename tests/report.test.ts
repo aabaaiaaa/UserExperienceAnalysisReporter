@@ -315,6 +315,7 @@ describe('readInstanceReport', () => {
     const result = readInstanceReport(3);
     expect(result).toBeNull();
   });
+
 });
 
 describe('readReportContent', () => {

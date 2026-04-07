@@ -205,6 +205,27 @@ describe('formatProgressLine - rate-limited state', () => {
     const line = formatProgressLine(progress, 2000);
     expect(line).toContain('pausing 11s');
   });
+
+  it('shows 0s pause when rateLimitBackoffMs is not set', () => {
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 3,
+      completedItems: 0,
+      inProgressItems: 0,
+      findingsCount: 0,
+      startTime: 1000,
+      roundStartTime: 1000,
+      status: 'rate-limited',
+      priorRoundDurations: [],
+    };
+
+    const line = formatProgressLine(progress, 2000);
+    expect(line).toContain(ANSI_YELLOW);
+    expect(line).toContain('Rate limited');
+    expect(line).toContain('pausing 0s');
+  });
 });
 
 // ─── Integration: rate limit handling in runInstanceRounds ─────────

@@ -308,6 +308,7 @@ describe('readDiscoveryDocument', () => {
     const result = readDiscoveryDocument(3);
     expect(result).toBeNull();
   });
+
 });
 
 describe('readDiscoveryContent', () => {
@@ -329,6 +330,7 @@ describe('readDiscoveryContent', () => {
     const content = readDiscoveryContent(2);
     expect(content).toBeNull();
   });
+
 });
 
 describe('appendDiscoveryRound', () => {

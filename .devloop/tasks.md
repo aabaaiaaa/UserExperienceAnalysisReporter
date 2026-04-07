@@ -31,7 +31,7 @@
 - **Verification**: `npx vitest run tests/orchestrator --reporter=verbose` passes, including new signal handling tests.
 
 ### TASK-006: Raise coverage thresholds to 95%
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `vitest.config.ts`, change all four coverage threshold values (statements, branches, functions, lines) from 80 to 95. See requirements.md change #5.
 - **Verification**: `npx vitest run --coverage` passes with thresholds at 95%.

@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 4,
+  "lastIteration": 5,
   "startedAt": "2026-04-07T00:34:29.222Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-005",
-    "taskTitle": "Add SIGINT/SIGTERM handler in orchestrator",
-    "iterationNumber": 5,
-    "startedAt": "2026-04-07T00:38:56.382Z"
+    "taskId": "TASK-006",
+    "taskTitle": "Raise coverage thresholds to 95%",
+    "iterationNumber": 6,
+    "startedAt": "2026-04-07T00:40:55.990Z"
   }
 }
