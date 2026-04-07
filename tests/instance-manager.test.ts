@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolve, join } from 'node:path';
+import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import {
   buildInstancePrompt,
   spawnInstance,
   spawnInstances,
+  runInstanceRounds,
   InstanceConfig,
+  RoundExecutionConfig,
 } from '../src/instance-manager.js';
 
 // Mock the claude-cli module
@@ -12,13 +15,15 @@ vi.mock('../src/claude-cli.js', () => ({
   runClaude: vi.fn(),
 }));
 
+const TEST_TEMP_DIR = resolve('.uxreview-temp-instance-test');
+
 // Mock file-manager to return deterministic paths
 vi.mock('../src/file-manager.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../src/file-manager.js')>();
   return {
     ...original,
     getInstancePaths: (n: number) => {
-      const dir = resolve(`.uxreview-temp-instance-test/instance-${n}`);
+      const dir = join(TEST_TEMP_DIR, `instance-${n}`);
       return {
         dir,
         discovery: join(dir, 'discovery.md'),
@@ -27,6 +32,15 @@ vi.mock('../src/file-manager.js', async (importOriginal) => {
         screenshots: join(dir, 'screenshots'),
       };
     },
+  };
+});
+
+// Mock sleep to avoid waiting in tests
+vi.mock('../src/rate-limit.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/rate-limit.js')>();
+  return {
+    ...original,
+    sleep: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -319,5 +333,156 @@ describe('spawnInstances', () => {
     const states = await spawnInstances([]);
     expect(states).toHaveLength(0);
     expect(mockRunClaude).not.toHaveBeenCalled();
+  });
+});
+
+describe('spawnInstance with custom timeout', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uses custom timeoutMs when provided', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    await spawnInstance({ ...BASE_CONFIG, timeoutMs: 10 * 60 * 1000 });
+
+    const callArgs = mockRunClaude.mock.calls[0][0];
+    expect(callArgs.timeout).toBe(10 * 60 * 1000);
+  });
+
+  it('uses default INSTANCE_TIMEOUT_MS when timeoutMs is not provided', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    await spawnInstance(BASE_CONFIG);
+
+    const callArgs = mockRunClaude.mock.calls[0][0];
+    expect(callArgs.timeout).toBe(30 * 60 * 1000);
+  });
+});
+
+describe('runInstanceRounds with custom config values', () => {
+  const BASE_ROUND_CONFIG: RoundExecutionConfig = {
+    instanceNumber: 1,
+    url: 'https://example.com/app',
+    intro: 'Test app context.',
+    planChunk: '## Navigation\n- Review main nav bar',
+    scope: '## Layout\n- Check spacing consistency',
+    totalRounds: 1,
+    assignedAreas: ['Navigation'],
+  };
+
+  beforeEach(() => {
+    mkdirSync(join(TEST_TEMP_DIR, 'instance-1'), { recursive: true });
+    mkdirSync(join(TEST_TEMP_DIR, 'instance-1', 'screenshots'), { recursive: true });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (existsSync(TEST_TEMP_DIR)) {
+      rmSync(TEST_TEMP_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('threads custom instanceTimeoutMs to runClaude', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      instanceTimeoutMs: 15 * 60 * 1000, // 15 minutes
+    });
+
+    const callArgs = mockRunClaude.mock.calls[0][0];
+    expect(callArgs.timeout).toBe(15 * 60 * 1000);
+  });
+
+  it('uses default INSTANCE_TIMEOUT_MS when instanceTimeoutMs not provided', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    await runInstanceRounds(BASE_ROUND_CONFIG);
+
+    const callArgs = mockRunClaude.mock.calls[0][0];
+    expect(callArgs.timeout).toBe(30 * 60 * 1000);
+  });
+
+  it('uses custom maxRetries to limit retry attempts', async () => {
+    // All calls fail with non-rate-limit error
+    mockRunClaude.mockResolvedValue({
+      stdout: '',
+      stderr: 'MCP crash',
+      exitCode: 1,
+      success: false,
+    });
+
+    const result = await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      maxRetries: 2,
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.permanentlyFailed).toBe(true);
+    expect(result.retries).toHaveLength(1);
+    expect(result.retries[0].attempts).toBe(2);
+    // 1 initial + 2 retries = 3 total calls
+    expect(mockRunClaude).toHaveBeenCalledTimes(3);
+  });
+
+  it('uses custom rateLimitRetries to limit rate-limit retry attempts', async () => {
+    // All calls return rate-limit errors
+    mockRunClaude.mockResolvedValue({
+      stdout: '',
+      stderr: 'Error: rate limit exceeded',
+      exitCode: 1,
+      success: false,
+    });
+
+    const result = await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      rateLimitRetries: 3,
+      maxRetries: 0,
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.permanentlyFailed).toBe(true);
+    // 1 initial + 3 rate-limit retries = 4 total calls
+    expect(mockRunClaude).toHaveBeenCalledTimes(4);
+  });
+
+  it('defaults to config values when custom values not provided', async () => {
+    // Fail with non-rate-limit error to test maxRetries default (3)
+    mockRunClaude.mockResolvedValue({
+      stdout: '',
+      stderr: 'MCP crash',
+      exitCode: 1,
+      success: false,
+    });
+
+    const result = await runInstanceRounds(BASE_ROUND_CONFIG);
+
+    expect(result.status).toBe('failed');
+    expect(result.permanentlyFailed).toBe(true);
+    expect(result.retries[0].attempts).toBe(3); // default MAX_RETRIES
+    // 1 initial + 3 retries = 4 total calls
+    expect(mockRunClaude).toHaveBeenCalledTimes(4);
   });
 });

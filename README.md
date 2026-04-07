@@ -51,6 +51,9 @@ uxreview --show-default-scope
 | `--rounds <n>` | `1` | Number of review rounds per instance. Additional rounds use findings from prior rounds to go deeper. |
 | `--output <dir>` | `./uxreview-output` | Output directory for final deliverables. |
 | `--keep-temp` | `false` | Preserve the `.uxreview-temp/` working directory after the run. Useful for debugging. By default, the temp directory is deleted on completion. |
+| `--max-retries <n>` | `3` | Maximum normal retry attempts per instance when a round fails. |
+| `--instance-timeout <min>` | `30` | Timeout per Claude instance in minutes. Increase for complex apps that need longer analysis time. |
+| `--rate-limit-retries <n>` | `10` | Maximum rate-limit retry attempts globally across all rounds and retries. Rate-limit retries use exponential backoff. |
 | `--help` | — | Show usage information and exit. |
 
 ## Examples

@@ -55,7 +55,7 @@
 - **Verification**: `npx vitest run tests/cli.test.ts 2>&1 | tail -5`
 
 ### TASK-008b: Thread configurable retry/timeout values through execution
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-008a
 - **Description**: Thread the new `ParsedArgs` fields (`maxRetries`, `instanceTimeout`, `rateLimitRetries`) from the orchestrator through to `instance-manager.ts` and rate-limit logic. Replace references to config defaults with the values from args. Update `RoundExecutionConfig` to include the new fields. Update the README to document the new flags. Add tests verifying custom values override defaults in instance execution. Reference requirements.md change #8.
 - **Verification**: `npx vitest run tests/instance-manager.test.ts 2>&1 | tail -5`

@@ -23,6 +23,8 @@ export interface InstanceConfig {
   scope: string;
   /** Current round number (1-based, default: 1) */
   round?: number;
+  /** Timeout in milliseconds (default: INSTANCE_TIMEOUT_MS from config) */
+  timeoutMs?: number;
 }
 
 export interface InstanceState {
@@ -146,7 +148,7 @@ export async function spawnInstance(config: InstanceConfig): Promise<InstanceSta
     const result = await runClaude({
       prompt,
       cwd: paths.dir,
-      timeout: INSTANCE_TIMEOUT_MS,
+      timeout: config.timeoutMs ?? INSTANCE_TIMEOUT_MS,
       extraArgs: ['--allowedTools', 'Bash,Read,Write,Edit,mcp__playwright'],
     });
 
@@ -214,7 +216,7 @@ export async function spawnInstanceWithResume(
     const result = await runClaude({
       prompt: fullPrompt,
       cwd: paths.dir,
-      timeout: INSTANCE_TIMEOUT_MS,
+      timeout: config.timeoutMs ?? INSTANCE_TIMEOUT_MS,
       extraArgs: ['--allowedTools', 'Bash,Read,Write,Edit,mcp__playwright'],
     });
 
@@ -265,8 +267,12 @@ export interface RoundExecutionConfig {
   totalRounds: number;
   /** Assigned area names for checkpoint tracking */
   assignedAreas?: string[];
-  /** Maximum retry attempts per round on failure (default: 3) */
+  /** Maximum retry attempts per round on failure (default: MAX_RETRIES from config) */
   maxRetries?: number;
+  /** Timeout per instance in milliseconds (default: INSTANCE_TIMEOUT_MS from config) */
+  instanceTimeoutMs?: number;
+  /** Maximum rate-limit retry attempts globally (default: MAX_RATE_LIMIT_RETRIES from config) */
+  rateLimitRetries?: number;
   /** Optional callbacks for progress reporting to the orchestrator */
   progress?: ProgressCallback;
 }
@@ -314,12 +320,13 @@ async function handleRateLimitRetries(
     onRateLimited?: (backoffMs: number) => void;
     onRateLimitResolved?: () => void;
   },
+  maxRateLimitRetries: number = MAX_RATE_LIMIT_RETRIES,
 ): Promise<InstanceState> {
   while (
     state.status === 'failed' &&
     state.result &&
     isRateLimitError(state.result) &&
-    retryState.globalAttempts < MAX_RATE_LIMIT_RETRIES
+    retryState.globalAttempts < maxRateLimitRetries
   ) {
     retryState.globalAttempts++;
     const backoffMs = getBackoffDelay(retryState.globalAttempts - 1);
@@ -349,6 +356,8 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
   const roundResults: InstanceState[] = [];
   const areas = config.assignedAreas ?? [];
   const maxRetries = config.maxRetries ?? MAX_RETRIES;
+  const instanceTimeoutMs = config.instanceTimeoutMs ?? INSTANCE_TIMEOUT_MS;
+  const rateLimitRetries = config.rateLimitRetries ?? MAX_RATE_LIMIT_RETRIES;
   const retries: RetryInfo[] = [];
   const cb = config.progress;
   // Global rate-limit retry counter shared across all rounds and normal retries
@@ -382,6 +391,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
       planChunk: config.planChunk,
       scope: config.scope,
       round,
+      timeoutMs: instanceTimeoutMs,
     };
 
     let state = await spawnInstance(instanceConfig);
@@ -404,7 +414,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
     // If the round failed due to rate limiting, backoff and retry
     // without counting against the normal retry limit.
     // Uses the global rateLimitRetryState shared across all rounds and retries.
-    state = await handleRateLimitRetries(state, rateLimitRetryState, respawn, rateLimitCallbacks);
+    state = await handleRateLimitRetries(state, rateLimitRetryState, respawn, rateLimitCallbacks, rateLimitRetries);
 
     // If the round failed (non-rate-limit or rate limit retries exhausted),
     // enter the normal retry loop
@@ -437,7 +447,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
 
         // If the retry itself hits a rate limit, use the same shared helper
         // with the global retry budget
-        state = await handleRateLimitRetries(state, rateLimitRetryState, respawn, rateLimitCallbacks);
+        state = await handleRateLimitRetries(state, rateLimitRetryState, respawn, rateLimitCallbacks, rateLimitRetries);
 
         if (state.status === 'completed') {
           retryInfo.succeeded = true;

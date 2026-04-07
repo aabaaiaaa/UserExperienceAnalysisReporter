@@ -139,6 +139,9 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       scope: args.scope,
       totalRounds: args.rounds,
       assignedAreas: extractAreasFromPlanChunk(chunk),
+      maxRetries: args.maxRetries,
+      instanceTimeoutMs: args.instanceTimeout * 60_000,
+      rateLimitRetries: args.rateLimitRetries,
       progress: progressCallback,
     }));
 

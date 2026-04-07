@@ -106,6 +106,9 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     rounds: 2,
     output: OUTPUT_DIR,
     keepTemp: false,
+    maxRetries: 3,
+    instanceTimeout: 30,
+    rateLimitRetries: 10,
     ...overrides,
   };
 }
