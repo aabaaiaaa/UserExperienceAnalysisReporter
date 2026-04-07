@@ -49,7 +49,7 @@
 - **Verification**: `npx vitest run tests/rate-limit.test.ts && npx vitest run tests/instance-manager.test.ts`
 
 ### TASK-004c: Apply rate-limit retries to consolidation Claude calls
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-004b
 - **Description**: Apply the shared rate-limit retry utility (from TASK-004b) to all Claude calls in `src/consolidation.ts`: dedup call (~line 254), hierarchy determination per area (~line 882 inside the `for...of` loop), and discovery merge (~line 857). Wrap each `callClaude` invocation with the retry utility. See requirements.md change #4.
 - **Verification**: `npx vitest run tests/consolidation.test.ts`
