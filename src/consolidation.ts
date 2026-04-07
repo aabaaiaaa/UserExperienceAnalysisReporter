@@ -5,6 +5,7 @@ import { withRateLimitRetry, sleep } from './rate-limit.js';
 import { readDiscoveryContent } from './discovery.js';
 import { getInstancePaths } from './file-manager.js';
 import { readInstanceReport, Finding, InstanceReport, Severity } from './report.js';
+export { Finding };
 
 /**
  * A group of finding IDs that Claude identified as duplicates of each other.

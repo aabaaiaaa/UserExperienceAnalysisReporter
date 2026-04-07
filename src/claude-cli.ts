@@ -58,13 +58,14 @@ export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
 
   return new Promise((resolve, reject) => {
     const args = ['-p', '--output-format', 'text', ...extraArgs];
-    const command = process.platform === 'win32' ? 'claude.cmd' : 'claude';
+    const command = 'claude';
 
     const spawnStart = Date.now();
     const child = spawn(command, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout,
+      shell: process.platform === 'win32',
     });
 
     activeProcesses.add(child);
