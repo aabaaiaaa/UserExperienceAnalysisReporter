@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 5,
+  "lastIteration": 6,
   "startedAt": "2026-04-07T09:10:37.667Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-006",
-    "taskTitle": "Document 26-screenshot suffix limit in README",
-    "iterationNumber": 6,
-    "startedAt": "2026-04-07T09:16:15.595Z"
+    "taskId": "TASK-007",
+    "taskTitle": "Create config module with centralized constants",
+    "iterationNumber": 7,
+    "startedAt": "2026-04-07T09:16:47.805Z"
   }
 }

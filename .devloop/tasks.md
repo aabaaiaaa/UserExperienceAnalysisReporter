@@ -37,7 +37,7 @@
 - **Verification**: `grep -q "26" README.md && echo "PASS" || echo "FAIL"`
 
 ### TASK-007: Create config module with centralized constants
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Create `src/config.ts` exporting all hardcoded constants currently scattered across the codebase. Include at minimum: `INSTANCE_TIMEOUT_MS` (30 min), `DEFAULT_CLI_TIMEOUT_MS` (5 min), `POLL_INTERVAL_MS` (1 sec), `MAX_RETRIES` (3), `MAX_RATE_LIMIT_RETRIES` (10), `DEFAULT_BASE_DELAY_MS` (10 sec), `MAX_BACKOFF_DELAY_MS` (5 min), `SPINNER_INTERVAL_MS`. Move or re-export the existing constants from `rate-limit.ts`. Do NOT update consumers yet — that's TASK-007a. Add a test that imports the config and asserts expected default values. Reference requirements.md change #7.
 - **Verification**: `npx vitest run tests/config.test.ts 2>&1 | tail -5`
