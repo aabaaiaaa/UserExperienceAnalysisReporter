@@ -17,6 +17,7 @@ import {
   formatConsolidatedReport,
   consolidateDiscoveryDocs,
   writeConsolidatedDiscovery,
+  parseExistingReportIds,
   ConsolidationResult,
   UIAreaGroup,
 } from './consolidation.js';
@@ -130,7 +131,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
   setVerbose(args.verbose);
 
   // 1. Initialize workspace
-  const workspace = await initWorkspace(args.instances, args.output);
+  const workspace = await initWorkspace(args.instances, args.output, args.append);
 
   // 2. Set up progress display
   const instanceNumbers = Array.from({ length: args.instances }, (_, i) => i + 1);
@@ -220,12 +221,26 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     }
 
     // Step 2: Reassign IDs and remap screenshots
+    // In append mode, determine the next available ID from the existing report
+    let startId = 1;
+    if (args.append) {
+      const reportPath = join(workspace.outputDir, 'report.md');
+      const existing = parseExistingReportIds(reportPath);
+      if (!existing.success) {
+        debug('Warning: existing report could not be parsed, starting IDs from 1');
+      }
+      startId = existing.maxId + 1;
+      if (startId > 1) {
+        debug(`Append mode: continuing IDs from UXR-${String(startId).padStart(3, '0')}`);
+      }
+    }
+
     let findings: ConsolidationResult['findings'];
     if (isStepCompleted(checkpoint, 'reassign') && checkpoint.reassignOutput) {
       findings = JSON.parse(checkpoint.reassignOutput);
       debug('Resuming consolidation: skipping reassign (already completed)');
     } else {
-      const reassignResult = reassignAndRemapScreenshots(consolidation, workspace.outputDir);
+      const reassignResult = reassignAndRemapScreenshots(consolidation, workspace.outputDir, startId);
       findings = reassignResult.findings;
       checkpoint.reassignOutput = JSON.stringify(findings);
       checkpoint.completedSteps = [...checkpoint.completedSteps, 'reassign'];

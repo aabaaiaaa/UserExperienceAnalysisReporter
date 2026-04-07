@@ -115,7 +115,7 @@
 - **Verification**: `npx vitest run tests/cli.test.ts tests/file-manager.test.ts 2>&1 | tail -5`
 
 ### TASK-013b: Read existing findings and continue ID numbering in append mode
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-013a
 - **Description**: When `--append` is true, read the existing `report.md` from the output directory and parse out existing findings with their IDs. Determine the next available `UXR-NNN` number. Pass the existing findings and next ID offset into the consolidation pipeline so new findings get non-colliding sequential IDs. Handle edge cases: missing output directory (fresh run), corrupt/unparseable report (warn and start fresh). Add tests for ID continuation and edge cases. Reference requirements.md change #13.
 - **Verification**: `npx vitest run tests/consolidation.test.ts 2>&1 | tail -5`

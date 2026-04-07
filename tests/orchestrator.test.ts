@@ -28,6 +28,7 @@ vi.mock('../src/consolidation.js', () => ({
   formatConsolidatedReport: vi.fn(),
   consolidateDiscoveryDocs: vi.fn(),
   writeConsolidatedDiscovery: vi.fn(),
+  parseExistingReportIds: vi.fn().mockReturnValue({ maxId: 0, success: true }),
 }));
 
 // Mock file-manager
@@ -133,6 +134,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     rounds: 2,
     output: OUTPUT_DIR,
     keepTemp: false,
+    append: false,
     verbose: false,
     maxRetries: 3,
     instanceTimeout: 30,
@@ -1238,8 +1240,8 @@ describe('orchestrate', () => {
       // Dedup was skipped — consolidateReports should NOT have been called
       expect(mockConsolidateReports).not.toHaveBeenCalled();
 
-      // But reassign was called with the cached dedup result
-      expect(mockReassignAndRemap).toHaveBeenCalledWith(dedupResult, OUTPUT_DIR);
+      // But reassign was called with the cached dedup result (startId=1 for non-append mode)
+      expect(mockReassignAndRemap).toHaveBeenCalledWith(dedupResult, OUTPUT_DIR, 1);
 
       // Remaining steps ran
       expect(mockOrganizeHierarchically).toHaveBeenCalled();

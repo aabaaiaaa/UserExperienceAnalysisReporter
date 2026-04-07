@@ -17,6 +17,7 @@ import {
   reassignIds,
   copyScreenshots,
   reassignAndRemapScreenshots,
+  parseExistingReportIds,
   ConsolidationResult,
   groupFindingsByArea,
   buildHierarchyPrompt,
@@ -1780,5 +1781,205 @@ describe('TASK-020 verification: hierarchical grouping end-to-end', () => {
     expect(report).toContain('### UXR-006:');
     expect(report).toContain('## Settings');
     expect(report).toContain('### UXR-007:');
+  });
+});
+
+// ---- TASK-013b: Append mode — ID continuation tests ----
+
+describe('parseExistingReportIds', () => {
+  const testDir = join(process.cwd(), '.uxreview-parse-ids-test');
+  const testReportPath = join(testDir, 'report.md');
+
+  beforeEach(() => {
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns maxId 0 and success true for missing file', () => {
+    const result = parseExistingReportIds(join(testDir, 'nonexistent.md'));
+    expect(result).toEqual({ maxId: 0, success: true });
+  });
+
+  it('returns maxId 0 and success true for report with no findings', () => {
+    writeFileSync(testReportPath, '# UX Analysis Report\n\nNo findings.\n', 'utf-8');
+    const result = parseExistingReportIds(testReportPath);
+    expect(result).toEqual({ maxId: 0, success: true });
+  });
+
+  it('extracts the highest UXR ID from a report with multiple findings', () => {
+    const report = `# UX Analysis Report
+
+## Navigation
+
+### UXR-001: Issue A
+- **Severity**: major
+
+### UXR-002: Issue B
+- **Severity**: minor
+
+## Dashboard
+
+### UXR-003: Issue C
+- **Severity**: critical
+`;
+    writeFileSync(testReportPath, report, 'utf-8');
+    const result = parseExistingReportIds(testReportPath);
+    expect(result).toEqual({ maxId: 3, success: true });
+  });
+
+  it('handles non-sequential IDs and finds the maximum', () => {
+    const report = `# UX Analysis Report
+
+## Navigation
+
+### UXR-005: Issue E
+- **Severity**: major
+
+### UXR-002: Issue B
+- **Severity**: minor
+
+### UXR-010: Issue J
+- **Severity**: critical
+`;
+    writeFileSync(testReportPath, report, 'utf-8');
+    const result = parseExistingReportIds(testReportPath);
+    expect(result).toEqual({ maxId: 10, success: true });
+  });
+
+  it('finds UXR IDs in child findings and screenshot references', () => {
+    const report = `# UX Analysis Report
+
+## Navigation
+
+### UXR-001: Parent
+- **Screenshot**: UXR-001.png
+
+  #### UXR-002: Child
+  - **Screenshot**: UXR-002.png
+`;
+    writeFileSync(testReportPath, report, 'utf-8');
+    const result = parseExistingReportIds(testReportPath);
+    expect(result).toEqual({ maxId: 2, success: true });
+  });
+
+  it('returns success false for unreadable file', () => {
+    // Write a directory where a file is expected — reading it will throw
+    mkdirSync(join(testDir, 'badfile.md'), { recursive: true });
+    const result = parseExistingReportIds(join(testDir, 'badfile.md'));
+    expect(result.success).toBe(false);
+    expect(result.maxId).toBe(0);
+  });
+});
+
+describe('reassignIds with startId offset', () => {
+  it('assigns IDs starting from startId when offset is provided', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+      makeFinding({ id: 'I2-UXR-001', screenshot: 'I2-UXR-001.png' }),
+    ];
+
+    const result = reassignIds(findings, 4);
+
+    expect(result.findings[0].id).toBe('UXR-004');
+    expect(result.findings[1].id).toBe('UXR-005');
+  });
+
+  it('builds correct ID mapping with offset', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+    ];
+
+    const result = reassignIds(findings, 10);
+
+    expect(result.idMapping.get('I1-UXR-001')).toBe('UXR-010');
+  });
+
+  it('remaps screenshot references correctly with offset', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+      makeFinding({ id: 'I2-UXR-001', screenshot: 'I2-UXR-001.png' }),
+    ];
+
+    const result = reassignIds(findings, 5);
+
+    expect(result.findings[0].screenshot).toBe('UXR-005.png');
+    expect(result.findings[1].screenshot).toBe('UXR-006.png');
+  });
+
+  it('defaults to startId=1 when not provided', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+    ];
+
+    const result = reassignIds(findings);
+
+    expect(result.findings[0].id).toBe('UXR-001');
+  });
+
+  it('generates correct screenshot copy operations with offset', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+    ];
+
+    const result = reassignIds(findings, 7);
+
+    expect(result.screenshotOps).toHaveLength(1);
+    expect(result.screenshotOps[0].destFilename).toBe('UXR-007.png');
+  });
+});
+
+describe('reassignAndRemapScreenshots with startId', () => {
+  const testTempDir = join(process.cwd(), '.uxreview-temp-test');
+  const testOutputDir = join(process.cwd(), '.uxreview-output-test');
+
+  beforeEach(() => {
+    mkdirSync(join(testTempDir, 'instance-1', 'screenshots'), { recursive: true });
+    mkdirSync(join(testOutputDir, 'screenshots'), { recursive: true });
+
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-001.png'), 'img-1');
+  });
+
+  afterEach(() => {
+    if (existsSync(testTempDir)) {
+      rmSync(testTempDir, { recursive: true, force: true });
+    }
+    if (existsSync(testOutputDir)) {
+      rmSync(testOutputDir, { recursive: true, force: true });
+    }
+  });
+
+  it('passes startId through to reassignIds', () => {
+    const consolidationResult: ConsolidationResult = {
+      findings: [
+        makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+      ],
+      duplicateGroups: [],
+      usedClaude: false,
+    };
+
+    const result = reassignAndRemapScreenshots(consolidationResult, testOutputDir, 5);
+
+    expect(result.findings[0].id).toBe('UXR-005');
+    expect(result.findings[0].screenshot).toBe('UXR-005.png');
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-005.png'))).toBe(true);
+  });
+
+  it('defaults to startId=1 when not provided', () => {
+    const consolidationResult: ConsolidationResult = {
+      findings: [
+        makeFinding({ id: 'I1-UXR-001', screenshot: 'I1-UXR-001.png' }),
+      ],
+      duplicateGroups: [],
+      usedClaude: false,
+    };
+
+    const result = reassignAndRemapScreenshots(consolidationResult, testOutputDir);
+
+    expect(result.findings[0].id).toBe('UXR-001');
   });
 });

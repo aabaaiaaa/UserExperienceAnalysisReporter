@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runClaude } from './claude-cli.js';
 import { readDiscoveryContent } from './discovery.js';
@@ -380,6 +380,37 @@ export function buildNewScreenshotFilenames(finalId: string, count: number): str
 }
 
 /**
+ * Parse an existing consolidated report to extract finding IDs and determine
+ * the next available UXR-NNN number.
+ *
+ * Returns the highest UXR number found, or 0 if no findings are found.
+ * Returns 0 for missing files or corrupt/unparseable content (caller should warn).
+ */
+export function parseExistingReportIds(reportPath: string): { maxId: number; success: boolean } {
+  if (!existsSync(reportPath)) {
+    return { maxId: 0, success: true };
+  }
+
+  try {
+    const content = readFileSync(reportPath, 'utf-8');
+    const idPattern = /\bUXR-(\d{3,})\b/g;
+    let maxId = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = idPattern.exec(content)) !== null) {
+      const num = parseInt(match[1], 10);
+      if (num > maxId) {
+        maxId = num;
+      }
+    }
+
+    return { maxId, success: true };
+  } catch {
+    return { maxId: 0, success: false };
+  }
+}
+
+/**
  * Reassign clean sequential IDs to all findings and build screenshot
  * copy operations for remapping.
  *
@@ -387,15 +418,19 @@ export function buildNewScreenshotFilenames(finalId: string, count: number): str
  * - findings with new UXR-NNN IDs and updated screenshot references
  * - a mapping from old IDs to new IDs
  * - screenshot copy operations to execute
+ *
+ * The optional `startId` parameter specifies the first sequence number to use
+ * (default 1). In append mode, this should be set to one past the highest
+ * existing ID so that new findings don't collide with previous ones.
  */
-export function reassignIds(findings: Finding[]): ReassignmentResult {
+export function reassignIds(findings: Finding[], startId: number = 1): ReassignmentResult {
   const idMapping = new Map<string, string>();
   const reassignedFindings: Finding[] = [];
   const screenshotOps: ScreenshotCopyOp[] = [];
 
   for (let i = 0; i < findings.length; i++) {
     const finding = findings[i];
-    const newId = buildFinalId(i + 1);
+    const newId = buildFinalId(startId + i);
     idMapping.set(finding.id, newId);
 
     const oldRefs = parseScreenshotRefs(finding.screenshot);
@@ -449,13 +484,17 @@ export function copyScreenshots(screenshotOps: ScreenshotCopyOp[], outputDir: st
  * 2. Remaps screenshot references in each finding
  * 3. Copies and renames screenshot files to the output directory
  *
+ * The optional `startId` parameter specifies the first sequence number to use
+ * (default 1). In append mode, pass the next available ID after existing findings.
+ *
  * Returns the findings with their final IDs and updated screenshot references.
  */
 export function reassignAndRemapScreenshots(
   consolidationResult: ConsolidationResult,
   outputDir: string,
+  startId: number = 1,
 ): ReassignmentResult {
-  const { findings, idMapping, screenshotOps } = reassignIds(consolidationResult.findings);
+  const { findings, idMapping, screenshotOps } = reassignIds(consolidationResult.findings, startId);
 
   copyScreenshots(screenshotOps, outputDir);
 
