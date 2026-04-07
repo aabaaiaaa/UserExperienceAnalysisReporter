@@ -174,7 +174,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
     scope: resolvedScope,
     instances: instancesRaw !== undefined && instancesRaw !== true ? Number(instancesRaw) : 1,
     rounds: roundsRaw !== undefined && roundsRaw !== true ? Number(roundsRaw) : 1,
-    output: (raw.get('output') as string) || './uxreview-output',
+    output: (() => {
+      const outputRaw = raw.get('output');
+      return typeof outputRaw === 'string' ? outputRaw : './uxreview-output';
+    })(),
     keepTemp: raw.has('keep-temp'),
   };
 }

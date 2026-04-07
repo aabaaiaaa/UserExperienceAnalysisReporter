@@ -19,7 +19,7 @@
 - **Verification**: `npx vitest run tests/consolidation.test.ts 2>&1 | tail -5`
 
 ### TASK-004: Replace as-string cast with runtime check in CLI
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/cli.ts:177`, replace `(raw.get('output') as string) || './uxreview-output'` with a runtime type check (e.g., `const outputRaw = raw.get('output'); ... typeof outputRaw === 'string' ? outputRaw : './uxreview-output'`), consistent with how `instancesRaw` and `roundsRaw` are handled. Add a test verifying the output flag defaults correctly when omitted. Reference requirements.md change #4.
 - **Verification**: `npx vitest run tests/cli.test.ts 2>&1 | tail -5`
