@@ -8,6 +8,7 @@ import {
   RoundExecutionConfig,
   RoundExecutionResult,
   ProgressCallback,
+  killAllChildProcesses,
 } from './instance-manager.js';
 import {
   consolidateReports,
@@ -117,6 +118,15 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
   const display = new ProgressDisplay(instanceNumbers, args.rounds);
   const progressCallback = buildProgressCallback(display);
 
+  // Register signal handlers to clean up child processes on SIGINT/SIGTERM
+  const signalHandler = (signal: NodeJS.Signals) => {
+    killAllChildProcesses();
+    display.stop();
+    process.exit(signal === 'SIGINT' ? 130 : 143);
+  };
+  process.on('SIGINT', signalHandler);
+  process.on('SIGTERM', signalHandler);
+
   display.start();
 
   try {
@@ -183,6 +193,8 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     // 6. Show final output paths
     display.completeConsolidation(reportPath, discoveryPath);
   } finally {
+    process.removeListener('SIGINT', signalHandler);
+    process.removeListener('SIGTERM', signalHandler);
     display.stop();
   }
 }

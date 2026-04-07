@@ -25,7 +25,7 @@
 - **Verification**: `npx vitest run tests/instance-manager --reporter=verbose` passes. The new `killAllChildProcesses` function exists and is exported.
 
 ### TASK-005: Add SIGINT/SIGTERM handler in orchestrator
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-004
 - **Description**: In `src/orchestrator.ts`, register process signal handlers for `SIGINT` and `SIGTERM` that: (1) call the `killAllChildProcesses()` function from TASK-004, (2) stop the progress display, (3) exit the process. The handler should be registered before instances are spawned and cleaned up in the finally block. Add tests that verify signal handling kills child processes. See requirements.md change #4.
 - **Verification**: `npx vitest run tests/orchestrator --reporter=verbose` passes, including new signal handling tests.

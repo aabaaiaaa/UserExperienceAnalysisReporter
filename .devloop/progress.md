@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 11
-- **Completed**: 4
-- **Remaining**: 7
-- **Last Updated**: 2026-04-07T00:38:54.546Z
+- **Completed**: 5
+- **Remaining**: 6
+- **Last Updated**: 2026-04-07T00:40:54.064Z
 
 ## Iteration Log
 
@@ -51,4 +51,15 @@
 - **Verification Duration**: ~39s
 - **Tokens**: 531,293 total (965 in, 2,962 out, 34,495 cache-create, 492,871 cache-read)
 - **Cost**: $0.5409
+
+### Iteration 5 - 2026-04-07T00:40:54.063Z
+- **Task Attempted**: TASK-005
+- **Task Completed**: TASK-005
+- **Summary**: Completed Add SIGINT/SIGTERM handler in orchestrator
+- **Duration**: 1m 58s
+- **Exit Status**: success
+- **Work Duration**: ~1m 37s
+- **Verification Duration**: ~21s
+- **Tokens**: 754,946 total (17 in, 5,842 out, 50,184 cache-create, 698,903 cache-read)
+- **Cost**: $0.8092
 

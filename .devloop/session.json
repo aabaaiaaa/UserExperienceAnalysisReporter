@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 3,
+  "lastIteration": 4,
   "startedAt": "2026-04-07T00:34:29.222Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-004",
-    "taskTitle": "Add child process registry to instance manager",
-    "iterationNumber": 4,
-    "startedAt": "2026-04-07T00:37:18.592Z"
+    "taskId": "TASK-005",
+    "taskTitle": "Add SIGINT/SIGTERM handler in orchestrator",
+    "iterationNumber": 5,
+    "startedAt": "2026-04-07T00:38:56.382Z"
   }
 }

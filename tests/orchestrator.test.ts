@@ -16,6 +16,7 @@ vi.mock('../src/instance-manager.js', async (importOriginal) => {
   return {
     ...original,
     runInstanceRounds: vi.fn(),
+    killAllChildProcesses: vi.fn(),
   };
 });
 
@@ -66,7 +67,7 @@ vi.mock('../src/progress-display.js', () => ({
 
 // Import mocked modules
 import { distributePlan } from '../src/work-distribution.js';
-import { runInstanceRounds, RoundExecutionResult } from '../src/instance-manager.js';
+import { runInstanceRounds, RoundExecutionResult, killAllChildProcesses } from '../src/instance-manager.js';
 import {
   consolidateReports,
   reassignAndRemapScreenshots,
@@ -82,6 +83,7 @@ import { ParsedArgs } from '../src/cli.js';
 
 const mockDistributePlan = vi.mocked(distributePlan);
 const mockRunInstanceRounds = vi.mocked(runInstanceRounds);
+const mockKillAllChildProcesses = vi.mocked(killAllChildProcesses);
 const mockConsolidateReports = vi.mocked(consolidateReports);
 const mockReassignAndRemap = vi.mocked(reassignAndRemapScreenshots);
 const mockOrganizeHierarchically = vi.mocked(organizeHierarchically);
@@ -710,5 +712,179 @@ describe('orchestrate', () => {
     await orchestrate(args);
 
     expect(ProgressDisplay).toHaveBeenCalledWith([1, 2, 3], 2);
+  });
+
+  describe('signal handling', () => {
+    let processExitSpy: ReturnType<typeof vi.spyOn>;
+    let processOnSpy: ReturnType<typeof vi.spyOn>;
+    let processRemoveListenerSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      // Spy on process.exit to prevent actually exiting
+      processExitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+      processOnSpy = vi.spyOn(process, 'on');
+      processRemoveListenerSpy = vi.spyOn(process, 'removeListener');
+    });
+
+    afterEach(() => {
+      processExitSpy.mockRestore();
+      processOnSpy.mockRestore();
+      processRemoveListenerSpy.mockRestore();
+    });
+
+    function setupDefaultMocks() {
+      mockDistributePlan.mockResolvedValue({
+        chunks: ['## A'],
+        usedClaude: false,
+      });
+      mockInitWorkspace.mockReturnValue({
+        tempDir: resolve('.uxreview-temp-orch-test'),
+        instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+        outputDir: OUTPUT_DIR,
+      });
+      mockConsolidateReports.mockResolvedValue({
+        findings: [],
+        duplicateGroups: [],
+        usedClaude: false,
+      });
+      mockReassignAndRemap.mockReturnValue({
+        findings: [],
+        idMapping: new Map(),
+        screenshotOps: [],
+      });
+      mockOrganizeHierarchically.mockResolvedValue([]);
+      mockFormatConsolidatedReport.mockReturnValue('');
+      mockConsolidateDiscoveryDocs.mockResolvedValue({
+        content: '',
+        instanceCount: 1,
+        usedClaude: false,
+      });
+    }
+
+    it('registers SIGINT and SIGTERM handlers before instances are spawned', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupDefaultMocks();
+
+      let handlersRegisteredBeforeSpawn = false;
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        // At this point, handlers should already be registered
+        const sigintCalls = processOnSpy.mock.calls.filter(
+          (call) => call[0] === 'SIGINT',
+        );
+        const sigtermCalls = processOnSpy.mock.calls.filter(
+          (call) => call[0] === 'SIGTERM',
+        );
+        handlersRegisteredBeforeSpawn =
+          sigintCalls.length > 0 && sigtermCalls.length > 0;
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+
+      await orchestrate(args);
+
+      expect(handlersRegisteredBeforeSpawn).toBe(true);
+    });
+
+    it('removes signal handlers in the finally block after successful completion', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupDefaultMocks();
+
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+
+      await orchestrate(args);
+
+      // Verify removeListener was called for both signals
+      const removeSigint = processRemoveListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'SIGINT',
+      );
+      const removeSigterm = processRemoveListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'SIGTERM',
+      );
+      expect(removeSigint.length).toBeGreaterThanOrEqual(1);
+      expect(removeSigterm.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('removes signal handlers in the finally block even after an error', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupDefaultMocks();
+
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+
+      mockConsolidateReports.mockRejectedValue(new Error('Consolidation failed'));
+
+      await expect(orchestrate(args)).rejects.toThrow('Consolidation failed');
+
+      // Handlers should still be removed even though consolidation threw
+      const removeSigint = processRemoveListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'SIGINT',
+      );
+      const removeSigterm = processRemoveListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'SIGTERM',
+      );
+      expect(removeSigint.length).toBeGreaterThanOrEqual(1);
+      expect(removeSigterm.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('SIGINT handler kills child processes, stops display, and exits with code 130', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupDefaultMocks();
+
+      let capturedSigintHandler: ((signal: NodeJS.Signals) => void) | undefined;
+      processOnSpy.mockImplementation(function (this: NodeJS.Process, event: string, handler: (...args: unknown[]) => void) {
+        if (event === 'SIGINT') {
+          capturedSigintHandler = handler as (signal: NodeJS.Signals) => void;
+        }
+        return this;
+      });
+
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        // Simulate SIGINT arriving during instance execution
+        if (capturedSigintHandler) {
+          capturedSigintHandler('SIGINT');
+        }
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+
+      await orchestrate(args);
+
+      expect(mockKillAllChildProcesses).toHaveBeenCalled();
+      expect(mockProgressDisplay.stop).toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(130);
+    });
+
+    it('SIGTERM handler kills child processes, stops display, and exits with code 143', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupDefaultMocks();
+
+      let capturedSigtermHandler: ((signal: NodeJS.Signals) => void) | undefined;
+      processOnSpy.mockImplementation(function (this: NodeJS.Process, event: string, handler: (...args: unknown[]) => void) {
+        if (event === 'SIGTERM') {
+          capturedSigtermHandler = handler as (signal: NodeJS.Signals) => void;
+        }
+        return this;
+      });
+
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        // Simulate SIGTERM arriving during instance execution
+        if (capturedSigtermHandler) {
+          capturedSigtermHandler('SIGTERM');
+        }
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+
+      await orchestrate(args);
+
+      expect(mockKillAllChildProcesses).toHaveBeenCalled();
+      expect(mockProgressDisplay.stop).toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(143);
+    });
   });
 });
