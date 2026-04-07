@@ -1,4 +1,29 @@
-import { spawn } from 'node:child_process';
+import { spawn, ChildProcess } from 'node:child_process';
+
+/** Registry of currently active child processes for cleanup on shutdown */
+const activeProcesses = new Set<ChildProcess>();
+
+/**
+ * Kill all active child processes.
+ * Used by the orchestrator's signal handler to clean up on SIGINT/SIGTERM.
+ */
+export function killAllChildProcesses(): void {
+  for (const child of activeProcesses) {
+    try {
+      child.kill();
+    } catch {
+      // Process may have already exited — ignore
+    }
+  }
+  activeProcesses.clear();
+}
+
+/**
+ * Returns the number of currently tracked active child processes.
+ */
+export function getActiveProcessCount(): number {
+  return activeProcesses.size;
+}
 
 export interface ClaudeCliResult {
   stdout: string;
@@ -41,6 +66,8 @@ export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
       timeout,
     });
 
+    activeProcesses.add(child);
+
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
 
@@ -53,10 +80,12 @@ export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
     });
 
     child.on('error', (err) => {
+      activeProcesses.delete(child);
       reject(new Error(`Failed to spawn Claude Code CLI: ${err.message}`));
     });
 
     child.on('close', (code, signal) => {
+      activeProcesses.delete(child);
       const stdout = Buffer.concat(stdoutChunks).toString('utf-8');
       const stderr = Buffer.concat(stderrChunks).toString('utf-8');
       const exitCode = code ?? 1;

@@ -19,7 +19,7 @@
 - **Verification**: `npx vitest run tests/claude-cli --reporter=verbose` passes. Grep confirms no `shell: true` in `src/claude-cli.ts`.
 
 ### TASK-004: Add child process registry to instance manager
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-003
 - **Description**: Modify `src/instance-manager.ts` (or `src/claude-cli.ts`) to maintain a registry of active child process references (the `ChildProcess` objects returned by `spawn`). Expose a function to kill all active child processes (e.g., `killAllChildProcesses()`). This is the prerequisite for the signal handler in TASK-005. See requirements.md change #4.
 - **Verification**: `npx vitest run tests/instance-manager --reporter=verbose` passes. The new `killAllChildProcesses` function exists and is exported.

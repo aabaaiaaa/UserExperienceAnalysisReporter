@@ -1,4 +1,5 @@
-import { runClaude, ClaudeCliResult } from './claude-cli.js';
+import { runClaude, ClaudeCliResult, killAllChildProcesses, getActiveProcessCount } from './claude-cli.js';
+export { killAllChildProcesses, getActiveProcessCount };
 import { getInstancePaths } from './file-manager.js';
 import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent, extractDiscoveryItems } from './discovery.js';
 import { buildReportInstructions } from './report.js';
