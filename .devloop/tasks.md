@@ -1,7 +1,7 @@
 # Iteration 3 — Tasks
 
 ### TASK-001: Create MIT LICENSE file
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Create a standard MIT LICENSE file at the project root. Use the current year (2026) and "UX Analysis Reporter Contributors" as the copyright holder. Reference requirements.md change #1.
 - **Verification**: `test -f LICENSE && head -1 LICENSE | grep -q "MIT" && echo "PASS" || echo "FAIL"`
