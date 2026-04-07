@@ -127,7 +127,7 @@
 - **Verification**: `npx vitest run tests/consolidation.test.ts tests/integration-*.test.ts 2>&1 | tail -5`
 
 ### TASK-014a: Create HTML report generator module
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Create `src/html-report.ts` with a `formatHtmlReport(groups: UIAreaGroup[], metadata: ReportMetadata)` function. This is a pure code transformation — no Claude calls. Generate a self-contained HTML string with: inline CSS styling, table of contents with anchor links, severity color coding (critical=red, major=orange, minor=yellow, info=blue), `<details>`/`<summary>` collapsible sections per UI area, and a metadata header (URL, date, instance count, round count). Define a `ReportMetadata` interface for the metadata fields. Add tests that verify the output is valid HTML containing expected structure (TOC, sections, severity colors). Reference requirements.md change #14.
 - **Verification**: `npx vitest run tests/html-report.test.ts 2>&1 | tail -5`
