@@ -37,7 +37,7 @@
 - **Verification**: `npx vitest run tests/consolidation-checkpoint*.test.ts` — all tests pass. `npx tsc --noEmit src/consolidation-checkpoint.ts` — no type errors.
 
 ### TASK-006b: Update orchestrator to use structured checkpoint data directly
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-006a
 - **Description**: In `src/orchestrator.ts`, remove the `JSON.stringify()` wrappers when writing to checkpoint fields and remove the `JSON.parse()` calls when reading them. Specifically: (1) Line 348: change `checkpoint.dedupOutput = JSON.stringify(consolidation)` to `checkpoint.dedupOutput = consolidation`. (2) Line 385: change `checkpoint.reassignOutput = JSON.stringify(findings)` to `checkpoint.reassignOutput = findings`. (3) Line 398: change `checkpoint.hierarchyOutput = JSON.stringify(groups)` to `checkpoint.hierarchyOutput = groups`. (4) Line 320: change `consolidation = JSON.parse(checkpoint.dedupOutput)` to `consolidation = checkpoint.dedupOutput`. (5) Line 375: change `findings = JSON.parse(checkpoint.reassignOutput)` to `findings = checkpoint.reassignOutput`. (6) Line 394: change `groups = JSON.parse(checkpoint.hierarchyOutput)` to `groups = checkpoint.hierarchyOutput`. See requirements.md section 7.
 - **Verification**: `npx vitest run tests/orchestrator*.test.ts tests/consolidation-resume.test.ts` — all tests pass. `npx tsc --noEmit src/orchestrator.ts` — no type errors.

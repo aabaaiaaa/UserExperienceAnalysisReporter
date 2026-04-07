@@ -317,7 +317,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       // Step 1: Dedup — consolidate reports (within-run dedup)
       let consolidation: ConsolidationResult;
       if (isStepCompleted(checkpoint, 'dedup') && checkpoint.dedupOutput) {
-        consolidation = JSON.parse(checkpoint.dedupOutput);
+        consolidation = checkpoint.dedupOutput;
         debug('Resuming consolidation: skipping dedup (already completed)');
       } else {
         consolidation = await raceSignal(consolidateReports(instanceNumbers));
@@ -345,7 +345,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
           }
         }
 
-        checkpoint.dedupOutput = JSON.stringify(consolidation);
+        checkpoint.dedupOutput = consolidation;
         checkpoint.completedSteps = [...checkpoint.completedSteps, 'dedup'];
         checkpoint.timestamp = new Date().toISOString();
         writeConsolidationCheckpoint(checkpoint);
@@ -372,7 +372,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       }
 
       if (isStepCompleted(checkpoint, 'reassign') && checkpoint.reassignOutput) {
-        findings = JSON.parse(checkpoint.reassignOutput);
+        findings = checkpoint.reassignOutput;
         debug('Resuming consolidation: skipping reassign (already completed)');
       } else {
         const reassignResult = reassignAndRemapScreenshots(
@@ -382,7 +382,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
         findings = args.append
           ? [...existingFindings, ...reassignResult.findings]
           : reassignResult.findings;
-        checkpoint.reassignOutput = JSON.stringify(findings);
+        checkpoint.reassignOutput = findings;
         checkpoint.completedSteps = [...checkpoint.completedSteps, 'reassign'];
         checkpoint.timestamp = new Date().toISOString();
         writeConsolidationCheckpoint(checkpoint);
@@ -391,11 +391,11 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       // Step 3: Organize hierarchically (all findings: existing + new)
       let groups: UIAreaGroup[];
       if (isStepCompleted(checkpoint, 'hierarchy') && checkpoint.hierarchyOutput) {
-        groups = JSON.parse(checkpoint.hierarchyOutput);
+        groups = checkpoint.hierarchyOutput;
         debug('Resuming consolidation: skipping hierarchy (already completed)');
       } else {
         groups = await raceSignal(organizeHierarchically(findings));
-        checkpoint.hierarchyOutput = JSON.stringify(groups);
+        checkpoint.hierarchyOutput = groups;
         checkpoint.completedSteps = [...checkpoint.completedSteps, 'hierarchy'];
         checkpoint.timestamp = new Date().toISOString();
         writeConsolidationCheckpoint(checkpoint);

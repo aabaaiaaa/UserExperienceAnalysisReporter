@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 5,
+  "lastIteration": 6,
   "startedAt": "2026-04-07T16:23:52.580Z",
   "iteration": 3,
   "devloopVersion": "3.5.0",
   "activeTask": {
-    "taskId": "TASK-006a",
-    "taskTitle": "Refactor ConsolidationCheckpoint interface to use structured types",
-    "iterationNumber": 6,
-    "startedAt": "2026-04-07T16:30:02.122Z"
+    "taskId": "TASK-006b",
+    "taskTitle": "Update orchestrator to use structured checkpoint data directly",
+    "iterationNumber": 7,
+    "startedAt": "2026-04-07T16:31:49.132Z"
   }
 }
