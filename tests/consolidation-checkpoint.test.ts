@@ -46,8 +46,8 @@ describe('writeConsolidationCheckpoint / readConsolidationCheckpoint', () => {
   it('writes and reads back a checkpoint with all fields correct', () => {
     const checkpoint: ConsolidationCheckpoint = {
       completedSteps: ['dedup', 'reassign'],
-      dedupOutput: JSON.stringify([{ id: 'UXR-001', title: 'Test' }]),
-      reassignOutput: JSON.stringify([{ id: 'UXR-001', title: 'Test' }]),
+      dedupOutput: { findings: [{ id: 'UXR-001', title: 'Test', uiArea: 'Navigation', severity: 'major' as const, description: 'desc', suggestion: 'sug', screenshot: 'UXR-001.png' }], duplicateGroups: [], usedClaude: true },
+      reassignOutput: [{ id: 'UXR-001', title: 'Test', uiArea: 'Navigation', severity: 'major' as const, description: 'desc', suggestion: 'sug', screenshot: 'UXR-001.png' }],
       hierarchyOutput: null,
       formatReportOutput: null,
       discoveryMergeOutput: null,
@@ -59,8 +59,8 @@ describe('writeConsolidationCheckpoint / readConsolidationCheckpoint', () => {
 
     expect(result).not.toBeNull();
     expect(result!.completedSteps).toEqual(['dedup', 'reassign']);
-    expect(result!.dedupOutput).toBe(checkpoint.dedupOutput);
-    expect(result!.reassignOutput).toBe(checkpoint.reassignOutput);
+    expect(result!.dedupOutput).toEqual(checkpoint.dedupOutput);
+    expect(result!.reassignOutput).toEqual(checkpoint.reassignOutput);
     expect(result!.hierarchyOutput).toBeNull();
     expect(result!.formatReportOutput).toBeNull();
     expect(result!.discoveryMergeOutput).toBeNull();
@@ -70,9 +70,9 @@ describe('writeConsolidationCheckpoint / readConsolidationCheckpoint', () => {
   it('writes and reads back a fully completed checkpoint', () => {
     const checkpoint: ConsolidationCheckpoint = {
       completedSteps: [...CONSOLIDATION_STEPS],
-      dedupOutput: '{"groups":[]}',
-      reassignOutput: '{"findings":[]}',
-      hierarchyOutput: '{"areas":[]}',
+      dedupOutput: { findings: [], duplicateGroups: [], usedClaude: false },
+      reassignOutput: [{ id: 'UXR-001', title: 'Finding', uiArea: 'Nav', severity: 'minor' as const, description: 'd', suggestion: 's', screenshot: 'UXR-001.png' }],
+      hierarchyOutput: [{ area: 'Nav', findings: [{ finding: { id: 'UXR-001', title: 'Finding', uiArea: 'Nav', severity: 'minor' as const, description: 'd', suggestion: 's', screenshot: 'UXR-001.png' }, children: [] }] }],
       formatReportOutput: '# UX Report\n\nNo findings.',
       discoveryMergeOutput: '# Discovery\n\nAll areas explored.',
       timestamp: '2026-04-07T13:00:00.000Z',
@@ -83,9 +83,9 @@ describe('writeConsolidationCheckpoint / readConsolidationCheckpoint', () => {
 
     expect(result).not.toBeNull();
     expect(result!.completedSteps).toEqual(CONSOLIDATION_STEPS);
-    expect(result!.dedupOutput).toBe('{"groups":[]}');
-    expect(result!.reassignOutput).toBe('{"findings":[]}');
-    expect(result!.hierarchyOutput).toBe('{"areas":[]}');
+    expect(result!.dedupOutput).toEqual({ findings: [], duplicateGroups: [], usedClaude: false });
+    expect(result!.reassignOutput).toEqual(checkpoint.reassignOutput);
+    expect(result!.hierarchyOutput).toEqual(checkpoint.hierarchyOutput);
     expect(result!.formatReportOutput).toBe('# UX Report\n\nNo findings.');
     expect(result!.discoveryMergeOutput).toBe('# Discovery\n\nAll areas explored.');
   });
@@ -196,13 +196,13 @@ describe('writeConsolidationCheckpoint / readConsolidationCheckpoint', () => {
     const cp2: ConsolidationCheckpoint = {
       ...cp1,
       completedSteps: ['dedup'],
-      dedupOutput: '{"merged": true}',
+      dedupOutput: { findings: [], duplicateGroups: [], usedClaude: true },
     };
     writeConsolidationCheckpoint(cp2);
 
     const result = readConsolidationCheckpoint();
     expect(result!.completedSteps).toEqual(['dedup']);
-    expect(result!.dedupOutput).toBe('{"merged": true}');
+    expect(result!.dedupOutput).toEqual({ findings: [], duplicateGroups: [], usedClaude: true });
   });
 
   it('writes valid JSON that can be parsed by JSON.parse', () => {

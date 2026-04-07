@@ -43,7 +43,7 @@
 - **Verification**: `npx vitest run tests/orchestrator*.test.ts tests/consolidation-resume.test.ts` — all tests pass. `npx tsc --noEmit src/orchestrator.ts` — no type errors.
 
 ### TASK-006c: Update consolidation checkpoint tests for structured types
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-006a
 - **Description**: Update any existing tests that create `ConsolidationCheckpoint` objects with string values for `dedupOutput`, `reassignOutput`, or `hierarchyOutput`. These fields are now structured types (`ConsolidationResult | null`, `Finding[] | null`, `UIAreaGroup[] | null`). Update test fixtures to use the actual structured data instead of `JSON.stringify()`'d strings. Verify that round-trip tests (write checkpoint → read checkpoint) work with the structured data. See requirements.md section 7.
 - **Verification**: `npx vitest run tests/consolidation-checkpoint*.test.ts tests/consolidation-resume.test.ts` — all tests pass.

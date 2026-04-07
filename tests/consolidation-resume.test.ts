@@ -335,9 +335,8 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       expect(checkpoint).not.toBeNull();
       expect(checkpoint!.dedupOutput).not.toBeNull();
 
-      const dedupData = JSON.parse(checkpoint!.dedupOutput!);
-      expect(dedupData.findings).toBeDefined();
-      expect(Array.isArray(dedupData.findings)).toBe(true);
+      expect(checkpoint!.dedupOutput!.findings).toBeDefined();
+      expect(Array.isArray(checkpoint!.dedupOutput!.findings)).toBe(true);
     });
 
     it('checkpoint contains reassign output after reassign step', async () => {
@@ -348,10 +347,9 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       expect(checkpoint).not.toBeNull();
       expect(checkpoint!.reassignOutput).not.toBeNull();
 
-      const reassignData = JSON.parse(checkpoint!.reassignOutput!);
-      expect(Array.isArray(reassignData)).toBe(true);
+      expect(Array.isArray(checkpoint!.reassignOutput)).toBe(true);
       // Findings should have final UXR-NNN IDs
-      expect(reassignData[0].id).toMatch(/^UXR-\d{3}$/);
+      expect(checkpoint!.reassignOutput![0].id).toMatch(/^UXR-\d{3}$/);
     });
 
     it('checkpoint contains hierarchy output after hierarchy step', async () => {
@@ -362,11 +360,10 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       expect(checkpoint).not.toBeNull();
       expect(checkpoint!.hierarchyOutput).not.toBeNull();
 
-      const hierarchyData = JSON.parse(checkpoint!.hierarchyOutput!);
-      expect(Array.isArray(hierarchyData)).toBe(true);
+      expect(Array.isArray(checkpoint!.hierarchyOutput)).toBe(true);
       // Should have UI area groups
-      expect(hierarchyData[0].area).toBeDefined();
-      expect(hierarchyData[0].findings).toBeDefined();
+      expect(checkpoint!.hierarchyOutput![0].area).toBeDefined();
+      expect(checkpoint!.hierarchyOutput![0].findings).toBeDefined();
     });
 
     it('checkpoint contains format-report output after format step', async () => {
@@ -414,7 +411,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
             id: 'I1-UXR-001',
             title: 'Inconsistent hover states on nav items',
             uiArea: 'Navigation',
-            severity: 'major',
+            severity: 'major' as const,
             description: 'Primary and secondary nav items use different hover effects',
             suggestion: 'Standardize hover styles across all nav items',
             screenshot: 'I1-UXR-001.png',
@@ -423,7 +420,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
             id: 'I2-UXR-001',
             title: 'Card layout breaks at medium breakpoints',
             uiArea: 'Dashboard',
-            severity: 'major',
+            severity: 'major' as const,
             description: 'At medium breakpoints the card grid collapses incorrectly',
             suggestion: 'Fix the CSS grid breakpoint',
             screenshot: 'I2-UXR-001.png',
@@ -435,7 +432,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
 
       const checkpoint: ConsolidationCheckpoint = {
         completedSteps: ['dedup'],
-        dedupOutput: JSON.stringify(dedupResult),
+        dedupOutput: dedupResult,
         reassignOutput: null,
         hierarchyOutput: null,
         formatReportOutput: null,
@@ -475,7 +472,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
             id: 'I1-UXR-001',
             title: 'Hover states',
             uiArea: 'Navigation',
-            severity: 'major',
+            severity: 'major' as const,
             description: 'Inconsistent hover effects',
             suggestion: 'Standardize hover styles',
             screenshot: 'I1-UXR-001.png',
@@ -484,7 +481,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
             id: 'I2-UXR-001',
             title: 'Card layout',
             uiArea: 'Dashboard',
-            severity: 'major',
+            severity: 'major' as const,
             description: 'Card grid collapses incorrectly',
             suggestion: 'Fix breakpoint',
             screenshot: 'I2-UXR-001.png',
@@ -499,7 +496,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
           id: 'UXR-001',
           title: 'Hover states',
           uiArea: 'Navigation',
-          severity: 'major',
+          severity: 'major' as const,
           description: 'Inconsistent hover effects',
           suggestion: 'Standardize hover styles',
           screenshot: 'UXR-001.png',
@@ -508,7 +505,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
           id: 'UXR-002',
           title: 'Card layout',
           uiArea: 'Dashboard',
-          severity: 'major',
+          severity: 'major' as const,
           description: 'Card grid collapses incorrectly',
           suggestion: 'Fix breakpoint',
           screenshot: 'UXR-002.png',
@@ -532,9 +529,9 @@ describe('Integration: Consolidation checkpoint resumability', () => {
 
       const checkpoint: ConsolidationCheckpoint = {
         completedSteps: ['dedup', 'reassign', 'hierarchy'],
-        dedupOutput: JSON.stringify(dedupResult),
-        reassignOutput: JSON.stringify(reassignedFindings),
-        hierarchyOutput: JSON.stringify(hierarchyGroups),
+        dedupOutput: dedupResult,
+        reassignOutput: reassignedFindings,
+        hierarchyOutput: hierarchyGroups,
         formatReportOutput: null,
         discoveryMergeOutput: null,
         timestamp: new Date().toISOString(),
@@ -572,7 +569,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
           id: 'UXR-001',
           title: 'Hover states',
           uiArea: 'Navigation',
-          severity: 'major',
+          severity: 'major' as const,
           description: 'Inconsistent hover effects',
           suggestion: 'Standardize hover styles',
           screenshot: 'UXR-001.png',
@@ -588,9 +585,9 @@ describe('Integration: Consolidation checkpoint resumability', () => {
 
       const checkpoint: ConsolidationCheckpoint = {
         completedSteps: ['dedup', 'reassign', 'hierarchy', 'format-report', 'discovery-merge'],
-        dedupOutput: JSON.stringify({ findings: reassignedFindings, duplicateGroups: [], usedClaude: false }),
-        reassignOutput: JSON.stringify(reassignedFindings),
-        hierarchyOutput: JSON.stringify(hierarchyGroups),
+        dedupOutput: { findings: reassignedFindings, duplicateGroups: [], usedClaude: false },
+        reassignOutput: reassignedFindings,
+        hierarchyOutput: hierarchyGroups,
         formatReportOutput: '# UX Analysis Report\n\n## Navigation\n\n### UXR-001: Hover states\n',
         discoveryMergeOutput: MOCK_CONSOLIDATED_DISCOVERY,
         timestamp: new Date().toISOString(),
@@ -618,7 +615,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
           id: 'UXR-001',
           title: 'Hover states',
           uiArea: 'Navigation',
-          severity: 'major',
+          severity: 'major' as const,
           description: 'Inconsistent hover effects',
           suggestion: 'Standardize hover styles',
           screenshot: 'UXR-001.png',
@@ -635,9 +632,9 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       // All steps completed including write-discovery
       const checkpoint: ConsolidationCheckpoint = {
         completedSteps: [...CONSOLIDATION_STEPS],
-        dedupOutput: JSON.stringify({ findings: reassignedFindings, duplicateGroups: [], usedClaude: false }),
-        reassignOutput: JSON.stringify(reassignedFindings),
-        hierarchyOutput: JSON.stringify(hierarchyGroups),
+        dedupOutput: { findings: reassignedFindings, duplicateGroups: [], usedClaude: false },
+        reassignOutput: reassignedFindings,
+        hierarchyOutput: hierarchyGroups,
         formatReportOutput: '# UX Analysis Report\n\n## Navigation\n\n### UXR-001: Hover states\n',
         discoveryMergeOutput: MOCK_CONSOLIDATED_DISCOVERY,
         timestamp: new Date().toISOString(),
@@ -795,7 +792,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       // Write a consolidation checkpoint (simulating interrupted run after dedup)
       const checkpoint: ConsolidationCheckpoint = {
         completedSteps: ['dedup'],
-        dedupOutput: JSON.stringify({ findings: [], duplicateGroups: [], usedClaude: true }),
+        dedupOutput: { findings: [], duplicateGroups: [], usedClaude: true },
         reassignOutput: null,
         hierarchyOutput: null,
         formatReportOutput: null,
@@ -880,7 +877,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
             id: 'I1-UXR-001',
             title: 'Hover states',
             uiArea: 'Navigation',
-            severity: 'major',
+            severity: 'major' as const,
             description: 'Inconsistent hover effects',
             suggestion: 'Standardize',
             screenshot: 'I1-UXR-001.png',
@@ -892,7 +889,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
 
       const checkpoint: ConsolidationCheckpoint = {
         completedSteps: ['dedup'],
-        dedupOutput: JSON.stringify(dedupResult),
+        dedupOutput: dedupResult,
         reassignOutput: null,
         hierarchyOutput: null,
         formatReportOutput: null,
