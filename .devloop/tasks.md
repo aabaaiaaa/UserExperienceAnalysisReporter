@@ -19,7 +19,7 @@
 - **Verification**: `npx vitest run tests/file-manager.test.ts`
 
 ### TASK-002b: Add integration test for cross-run resume
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002a
 - **Description**: Add an integration test that simulates an interrupted run followed by a restart. The test should: (1) Set up a `.uxreview-temp/` directory with a consolidation checkpoint indicating partial completion (e.g., dedup done, hierarchy not started). (2) Call `initTempDir()` / `initWorkspace()`. (3) Verify the consolidation checkpoint file survives. (4) Verify consolidation resumes from the correct step. See requirements.md change #2 for full context.
 - **Verification**: `npx vitest run tests/consolidation-resume.test.ts`

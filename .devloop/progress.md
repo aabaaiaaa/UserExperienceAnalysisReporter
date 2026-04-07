@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 13
-- **Completed**: 3
-- **Remaining**: 10
-- **Last Updated**: 2026-04-07T11:41:16.827Z
+- **Completed**: 4
+- **Remaining**: 9
+- **Last Updated**: 2026-04-07T11:46:53.283Z
 
 ## Iteration Log
 
@@ -34,4 +34,13 @@
 - **Exit Status**: success
 - **Tokens**: 536,032 total (2,409 in, 5,728 out, 39,626 cache-create, 488,269 cache-read)
 - **Cost**: $0.6470
+
+### Iteration 4 - 2026-04-07T11:46:53.281Z
+- **Task Attempted**: TASK-002b
+- **Task Completed**: TASK-002b
+- **Summary**: Completed Add integration test for cross-run resume
+- **Duration**: 5m 35s
+- **Exit Status**: success
+- **Tokens**: 886,489 total (377 in, 17,836 out, 64,297 cache-create, 803,979 cache-read)
+- **Cost**: $1.2516
 

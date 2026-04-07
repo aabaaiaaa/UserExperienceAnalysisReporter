@@ -196,6 +196,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     append: false,
     dryRun: false,
     verbose: false,
+    format: 'markdown',
     maxRetries: 3,
     instanceTimeout: 30,
     rateLimitRetries: 10,
@@ -761,6 +762,166 @@ describe('Integration: Consolidation checkpoint resumability', () => {
 
       expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(true);
       expect(existsSync(join(OUTPUT_DIR, 'discovery.md'))).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 7. Cross-run resume: initTempDir preserves checkpoint data
+  // ---------------------------------------------------------------------------
+
+  describe('cross-run resume: initTempDir preserves checkpoint data', () => {
+    // Use vi.importActual to get the real file-manager functions (bypassing
+    // the mock) so we can verify that TASK-002a's changes to initTempDir
+    // actually preserve checkpoint data when re-initializing the temp dir.
+    async function getRealFileManager() {
+      return vi.importActual<typeof import('../src/file-manager.js')>('../src/file-manager.js');
+    }
+
+    afterEach(async () => {
+      const real = await getRealFileManager();
+      await real.cleanupTempDir();
+    });
+
+    it('preserves consolidation checkpoint when initTempDir is called on existing temp dir', async () => {
+      const real = await getRealFileManager();
+      const tempDir = real.getTempDir();
+
+      // Simulate first run: create temp dir with 2 instances
+      await real.initTempDir(2);
+
+      // Write a consolidation checkpoint (simulating interrupted run after dedup)
+      const checkpoint: ConsolidationCheckpoint = {
+        completedSteps: ['dedup'],
+        dedupOutput: JSON.stringify({ findings: [], duplicateGroups: [], usedClaude: true }),
+        reassignOutput: null,
+        hierarchyOutput: null,
+        formatReportOutput: null,
+        discoveryMergeOutput: null,
+        timestamp: new Date().toISOString(),
+      };
+      const cpPath = join(tempDir, 'consolidation-checkpoint.json');
+      writeFileSync(cpPath, JSON.stringify(checkpoint, null, 2), 'utf-8');
+
+      // Verify checkpoint data is detected
+      expect(real.hasExistingCheckpointData()).toBe(true);
+
+      // Simulate second run (restart): call initTempDir again
+      await real.initTempDir(2);
+
+      // Checkpoint file should survive the re-initialization
+      expect(existsSync(cpPath)).toBe(true);
+
+      // Checkpoint content should be intact
+      const preserved = JSON.parse(readFileSync(cpPath, 'utf-8'));
+      expect(preserved.completedSteps).toEqual(['dedup']);
+      expect(preserved.dedupOutput).not.toBeNull();
+    });
+
+    it('preserves instance checkpoint files when initTempDir is called on existing temp dir', async () => {
+      const real = await getRealFileManager();
+      const tempDir = real.getTempDir();
+
+      // First run: create temp dir with instances
+      await real.initTempDir(2);
+
+      // Write an instance checkpoint (simulating completed instance work)
+      const instanceCpPath = join(tempDir, 'instance-1', 'checkpoint.json');
+      writeFileSync(instanceCpPath, JSON.stringify({ items: ['item-a'], completed: true }), 'utf-8');
+
+      // Checkpoint data should be detected (instance checkpoint counts)
+      expect(real.hasExistingCheckpointData()).toBe(true);
+
+      // Second run: initTempDir again
+      await real.initTempDir(2);
+
+      // Instance checkpoint should survive
+      expect(existsSync(instanceCpPath)).toBe(true);
+      const preserved = JSON.parse(readFileSync(instanceCpPath, 'utf-8'));
+      expect(preserved.items).toEqual(['item-a']);
+      expect(preserved.completed).toBe(true);
+    });
+
+    it('cleans temp dir normally when no checkpoint data exists', async () => {
+      const real = await getRealFileManager();
+      const tempDir = real.getTempDir();
+
+      // First run: create temp dir with a non-checkpoint file
+      await real.initTempDir(2);
+      const stalePath = join(tempDir, 'instance-1', 'stale-file.txt');
+      writeFileSync(stalePath, 'old data', 'utf-8');
+
+      // No checkpoint data exists
+      expect(real.hasExistingCheckpointData()).toBe(false);
+
+      // Second run: should clean the temp dir (no checkpoints to preserve)
+      await real.initTempDir(1);
+
+      // Stale file should be gone (directory was cleaned and recreated)
+      expect(existsSync(stalePath)).toBe(false);
+      // instance-2 should not exist since we only asked for 1 instance
+      expect(existsSync(join(tempDir, 'instance-2'))).toBe(false);
+      // instance-1 should exist (freshly created)
+      expect(existsSync(join(tempDir, 'instance-1'))).toBe(true);
+    });
+
+    it('checkpoint survives initWorkspace and orchestrator resumes from correct step', async () => {
+      const real = await getRealFileManager();
+      const tempDir = real.getTempDir();
+
+      // Simulate first run: create temp dir and write a partial checkpoint
+      await real.initTempDir(2);
+
+      const dedupResult = {
+        findings: [
+          {
+            id: 'I1-UXR-001',
+            title: 'Hover states',
+            uiArea: 'Navigation',
+            severity: 'major',
+            description: 'Inconsistent hover effects',
+            suggestion: 'Standardize',
+            screenshot: 'I1-UXR-001.png',
+          },
+        ],
+        duplicateGroups: [],
+        usedClaude: true,
+      };
+
+      const checkpoint: ConsolidationCheckpoint = {
+        completedSteps: ['dedup'],
+        dedupOutput: JSON.stringify(dedupResult),
+        reassignOutput: null,
+        hierarchyOutput: null,
+        formatReportOutput: null,
+        discoveryMergeOutput: null,
+        timestamp: new Date().toISOString(),
+      };
+      const cpPath = join(tempDir, 'consolidation-checkpoint.json');
+      writeFileSync(cpPath, JSON.stringify(checkpoint, null, 2), 'utf-8');
+
+      // Simulate second run: initTempDir preserves checkpoint
+      await real.initTempDir(2);
+      expect(existsSync(cpPath)).toBe(true);
+
+      // Now configure mocks for orchestrate to use the test directory.
+      // The orchestrator reads the checkpoint via the mocked getTempDir
+      // (which points to TEST_BASE's temp dir), so copy the checkpoint there too.
+      writeFileSync(CHECKPOINT_PATH, readFileSync(cpPath, 'utf-8'), 'utf-8');
+
+      const args = makeArgs();
+      await orchestrate(args);
+
+      // Dedup should be skipped (resumed from checkpoint)
+      expect(countClaudeCallsMatching('deduplication assistant')).toBe(0);
+
+      // Discovery merge should still run (not in checkpoint)
+      expect(countClaudeCallsMatching('document consolidation assistant')).toBe(1);
+
+      // Final report should be produced
+      const reportPath = join(OUTPUT_DIR, 'report.md');
+      expect(existsSync(reportPath)).toBe(true);
+      const report = readFileSync(reportPath, 'utf-8');
+      expect(report).toContain('UXR-001');
     });
   });
 });
