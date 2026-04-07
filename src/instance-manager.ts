@@ -290,6 +290,52 @@ export interface RoundExecutionResult {
 }
 
 /**
+ * Mutable state object that tracks rate-limit retry attempts globally
+ * across an instance's entire execution (all rounds and normal retries).
+ */
+interface RateLimitRetryState {
+  globalAttempts: number;
+}
+
+/**
+ * Handle rate-limit retries for a failed instance spawn.
+ *
+ * If the state represents a rate-limit failure and the global retry budget
+ * hasn't been exhausted, this function will backoff, sleep, respawn, and
+ * repeat until the spawn succeeds, a non-rate-limit error occurs, or the
+ * retry budget is exhausted.
+ *
+ * Rate-limit retries are counted globally via `retryState.globalAttempts`,
+ * so the budget is shared across the initial spawn and any normal retries.
+ */
+async function handleRateLimitRetries(
+  state: InstanceState,
+  retryState: RateLimitRetryState,
+  respawn: () => Promise<InstanceState>,
+  callbacks?: {
+    onRateLimited?: (backoffMs: number) => void;
+    onRateLimitResolved?: () => void;
+  },
+): Promise<InstanceState> {
+  while (
+    state.status === 'failed' &&
+    state.result &&
+    isRateLimitError(state.result) &&
+    retryState.globalAttempts < MAX_RATE_LIMIT_RETRIES
+  ) {
+    retryState.globalAttempts++;
+    const backoffMs = getBackoffDelay(retryState.globalAttempts - 1);
+    callbacks?.onRateLimited?.(backoffMs);
+    await sleep(backoffMs);
+    callbacks?.onRateLimitResolved?.();
+
+    state = await respawn();
+  }
+
+  return state;
+}
+
+/**
  * Run multiple sequential rounds for a single instance.
  *
  * Round 1 uses the plan chunk and scope.
@@ -307,6 +353,8 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retries: RetryInfo[] = [];
   const cb = config.progress;
+  // Global rate-limit retry counter shared across all rounds and normal retries
+  const rateLimitRetryState: RateLimitRetryState = { globalAttempts: 0 };
 
   for (let round = 1; round <= config.totalRounds; round++) {
     // For round 2+, recalibrate the checkpoint areas to use the more granular
@@ -340,29 +388,25 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
 
     let state = await spawnInstance(instanceConfig);
 
-    // If the round failed due to rate limiting, backoff and retry
-    // without counting against the normal retry limit
-    let rateLimitAttempts = 0;
-    while (
-      state.status === 'failed' &&
-      state.result &&
-      isRateLimitError(state.result) &&
-      rateLimitAttempts < MAX_RATE_LIMIT_RETRIES
-    ) {
-      rateLimitAttempts++;
-      const backoffMs = getBackoffDelay(rateLimitAttempts - 1);
-      cb?.onRateLimited?.(config.instanceNumber, round, backoffMs);
-      await sleep(backoffMs);
-      cb?.onRateLimitResolved?.(config.instanceNumber, round);
-
-      // Re-attempt: use checkpoint if available, otherwise fresh start
-      const savedCheckpoint = readCheckpoint(config.instanceNumber);
-      if (savedCheckpoint) {
-        state = await spawnInstanceWithResume(instanceConfig, savedCheckpoint);
-      } else {
-        state = await spawnInstance(instanceConfig);
+    // Helper to respawn using checkpoint if available, otherwise fresh start
+    const respawn = async (): Promise<InstanceState> => {
+      const cp = readCheckpoint(config.instanceNumber);
+      if (cp) {
+        return spawnInstanceWithResume(instanceConfig, cp);
       }
-    }
+      return spawnInstance(instanceConfig);
+    };
+
+    // Rate-limit retry callbacks bound to instance/round
+    const rateLimitCallbacks = {
+      onRateLimited: (backoffMs: number) => cb?.onRateLimited?.(config.instanceNumber, round, backoffMs),
+      onRateLimitResolved: () => cb?.onRateLimitResolved?.(config.instanceNumber, round),
+    };
+
+    // If the round failed due to rate limiting, backoff and retry
+    // without counting against the normal retry limit.
+    // Uses the global rateLimitRetryState shared across all rounds and retries.
+    state = await handleRateLimitRetries(state, rateLimitRetryState, respawn, rateLimitCallbacks);
 
     // If the round failed (non-rate-limit or rate limit retries exhausted),
     // enter the normal retry loop
@@ -393,27 +437,9 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
           state = await spawnInstance(instanceConfig);
         }
 
-        // If the retry itself hits a rate limit, backoff before continuing
-        let retryRateLimitAttempts = 0;
-        while (
-          state.status === 'failed' &&
-          state.result &&
-          isRateLimitError(state.result) &&
-          retryRateLimitAttempts < MAX_RATE_LIMIT_RETRIES
-        ) {
-          retryRateLimitAttempts++;
-          const backoffMs = getBackoffDelay(retryRateLimitAttempts - 1);
-          cb?.onRateLimited?.(config.instanceNumber, round, backoffMs);
-          await sleep(backoffMs);
-          cb?.onRateLimitResolved?.(config.instanceNumber, round);
-
-          const cp = readCheckpoint(config.instanceNumber);
-          if (cp) {
-            state = await spawnInstanceWithResume(instanceConfig, cp);
-          } else {
-            state = await spawnInstance(instanceConfig);
-          }
-        }
+        // If the retry itself hits a rate limit, use the same shared helper
+        // with the global retry budget
+        state = await handleRateLimitRetries(state, rateLimitRetryState, respawn, rateLimitCallbacks);
 
         if (state.status === 'completed') {
           retryInfo.succeeded = true;

@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 8,
+  "lastIteration": 9,
   "startedAt": "2026-04-07T00:34:29.222Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-007",
-    "taskTitle": "Add --keep-temp CLI flag and post-run cleanup",
-    "iterationNumber": 9,
-    "startedAt": "2026-04-07T01:05:44.313Z"
+    "taskId": "TASK-010",
+    "taskTitle": "Refactor duplicated rate-limit retry logic",
+    "iterationNumber": 10,
+    "startedAt": "2026-04-07T01:25:01.736Z"
   }
 }

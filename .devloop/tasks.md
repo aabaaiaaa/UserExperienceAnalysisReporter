@@ -55,7 +55,7 @@
 - **Verification**: `npx vitest run tests/file-manager --reporter=verbose` passes. Grep confirms no `while (Date.now()` spin-wait pattern in `src/file-manager.ts`.
 
 ### TASK-010: Refactor duplicated rate-limit retry logic
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/instance-manager.ts`, extract the rate-limit detection and exponential backoff logic (duplicated at lines ~345-364 and ~396-415) into a shared helper function. Both call sites should use the shared helper. Rate-limit retries should be counted globally across the instance's execution, not reset per normal retry attempt. The helper can live in `src/rate-limit.ts` if that module already has related utilities, or as a private function in `src/instance-manager.ts`. Update tests to cover the refactored logic and verify global retry counting. See requirements.md change #8.
 - **Verification**: `npx vitest run tests/instance-manager tests/rate-limit --reporter=verbose` passes. Grep confirms only one rate-limit retry loop exists (the shared helper), not two duplicate loops.

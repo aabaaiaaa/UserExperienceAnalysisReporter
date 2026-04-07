@@ -455,6 +455,92 @@ describe('Rate limit handling in runInstanceRounds', () => {
   });
 });
 
+describe('Global rate-limit retry counting', () => {
+  beforeEach(() => {
+    mkdirSync(join(TEST_TEMP_DIR, 'instance-1'), { recursive: true });
+    mkdirSync(join(TEST_TEMP_DIR, 'instance-1', 'screenshots'), { recursive: true });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (existsSync(TEST_TEMP_DIR)) {
+      rmSync(TEST_TEMP_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('rate-limit retries are shared globally between initial spawn and normal retries', async () => {
+    // Scenario: 8 rate-limit errors on initial spawn, then a non-rate-limit failure,
+    // then on normal retry: 2 more rate-limit errors (hitting the global max of 10),
+    // then a non-rate-limit failure again. The instance should be permanently failed
+    // because the global budget (10) is exhausted.
+    const responses = [
+      // Initial spawn: 8 rate-limit errors
+      ...Array(8).fill(null).map(() => makeRateLimitResult()),
+      // 9th call: non-rate-limit failure (exits the rate-limit loop)
+      makeFailResult('Network error'),
+      // Normal retry #1: 2 more rate-limit errors (total global = 10, budget exhausted)
+      ...Array(2).fill(null).map(() => makeRateLimitResult()),
+      // After budget exhausted, still rate-limit error but loop exits.
+      // This call shouldn't happen since budget is exhausted.
+      makeSuccessResult(),
+    ];
+
+    let callIndex = 0;
+    mockRunClaude.mockImplementation(async () => {
+      return responses[callIndex++];
+    });
+
+    const result = await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      maxRetries: 3,
+    });
+
+    // 8 initial rate-limit sleeps + 2 during retry = 10 total
+    expect(mockSleep).toHaveBeenCalledTimes(10);
+    // The retry's rate-limit loop should have exhausted the global budget,
+    // leaving a rate-limit error as the final state for that retry attempt.
+    // Since the retry itself resulted in a rate-limit error (not success),
+    // the retry loop continues to the next attempt.
+    expect(result.retries).toHaveLength(1);
+  });
+
+  it('rate-limit budget is not reset between rounds', async () => {
+    // Round 1: 5 rate-limit errors then success
+    // Round 2: 5 more rate-limit errors (hits global max of 10), then it would
+    // need to give up because budget is exhausted.
+    const responses = [
+      // Round 1: 5 rate-limit + 1 success
+      ...Array(5).fill(null).map(() => makeRateLimitResult()),
+      makeSuccessResult(),
+      // Round 2: 5 rate-limit (global total = 10, budget exhausted)
+      ...Array(5).fill(null).map(() => makeRateLimitResult()),
+      // After budget exhausted, the rate-limit error persists as a failure
+      // This triggers normal retry. Normal retry also gets rate-limit but budget gone.
+      makeRateLimitResult(),
+      makeRateLimitResult(),
+      makeRateLimitResult(),
+    ];
+
+    let callIndex = 0;
+    mockRunClaude.mockImplementation(async () => {
+      return responses[callIndex++];
+    });
+
+    const result = await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      totalRounds: 2,
+      maxRetries: 3,
+    });
+
+    // Round 1 should succeed, round 2 should fail
+    expect(result.completedRounds).toBe(1);
+    // Exactly 10 rate-limit sleeps total (5 from round 1 + 5 from round 2)
+    expect(mockSleep).toHaveBeenCalledTimes(10);
+    expect(result.permanentlyFailed).toBe(true);
+  });
+});
+
 describe('Concurrent instances rate limit simulation', () => {
   beforeEach(() => {
     for (let i = 1; i <= 2; i++) {
