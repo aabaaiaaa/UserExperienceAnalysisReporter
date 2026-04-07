@@ -133,7 +133,7 @@
 - **Verification**: `npx vitest run tests/html-report.test.ts 2>&1 | tail -5`
 
 ### TASK-014b: Add screenshot base64 embedding to HTML report
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-014a
 - **Description**: Extend the HTML report generator to embed screenshots as base64 `<img>` tags. Read screenshot files from the output directory's screenshots folder, encode as base64 with the appropriate MIME type (image/png). Insert `<img>` tags at the appropriate positions next to their associated findings. Handle missing screenshots gracefully (skip the image, don't error). Add tests for base64 encoding, correct placement, and missing screenshot handling. Reference requirements.md change #14.
 - **Verification**: `npx vitest run tests/html-report.test.ts 2>&1 | tail -5`

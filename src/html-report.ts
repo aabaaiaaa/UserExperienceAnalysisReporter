@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { UIAreaGroup, HierarchicalFinding } from './consolidation.js';
 import { Finding, Severity } from './report.js';
 
@@ -47,9 +49,61 @@ function escapeHtml(text: string): string {
 }
 
 /**
+ * Read a screenshot file and return it as a base64 data URI.
+ * Returns null if the file does not exist or cannot be read.
+ */
+export function encodeScreenshotBase64(screenshotsDir: string, filename: string): string | null {
+  const filePath = join(screenshotsDir, filename);
+  if (!existsSync(filePath)) {
+    return null;
+  }
+  try {
+    const buffer = readFileSync(filePath);
+    const base64 = buffer.toString('base64');
+    return `data:image/png;base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Render embedded screenshot `<img>` tags for a finding's screenshot references.
+ * Parses comma-separated screenshot filenames, encodes each as base64, and
+ * returns the HTML. Missing screenshots are silently skipped.
+ */
+function renderScreenshots(screenshotField: string, screenshotsDir: string | undefined): string {
+  if (!screenshotsDir || !screenshotField) {
+    return `<dd>${escapeHtml(screenshotField)}</dd>`;
+  }
+
+  const refs = screenshotField
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  if (refs.length === 0) {
+    return `<dd>${escapeHtml(screenshotField)}</dd>`;
+  }
+
+  const images: string[] = [];
+  for (const ref of refs) {
+    const dataUri = encodeScreenshotBase64(screenshotsDir, ref);
+    if (dataUri) {
+      images.push(`<img src="${dataUri}" alt="${escapeHtml(ref)}" class="screenshot" />`);
+    }
+  }
+
+  if (images.length === 0) {
+    return `<dd>${escapeHtml(screenshotField)}</dd>`;
+  }
+
+  return `<dd>${images.join('\n')}</dd>`;
+}
+
+/**
  * Render a single finding as HTML.
  */
-function renderFinding(finding: Finding, headingLevel: number): string {
+function renderFinding(finding: Finding, headingLevel: number, screenshotsDir?: string): string {
   const tag = `h${Math.min(headingLevel, 6)}`;
   const color = SEVERITY_COLORS[finding.severity] || SEVERITY_COLORS.suggestion;
   const anchorId = toAnchorId(finding.id);
@@ -63,7 +117,7 @@ function renderFinding(finding: Finding, headingLevel: number): string {
     <dt>Suggestion</dt>
     <dd>${escapeHtml(finding.suggestion)}</dd>
     <dt>Screenshot</dt>
-    <dd>${escapeHtml(finding.screenshot)}</dd>
+    ${renderScreenshots(finding.screenshot, screenshotsDir)}
   </dl>
 </div>`;
 }
@@ -71,11 +125,11 @@ function renderFinding(finding: Finding, headingLevel: number): string {
 /**
  * Render a hierarchical finding (parent + children) as HTML.
  */
-function renderHierarchicalFinding(hf: HierarchicalFinding): string {
-  let html = renderFinding(hf.finding, 3);
+function renderHierarchicalFinding(hf: HierarchicalFinding, screenshotsDir?: string): string {
+  let html = renderFinding(hf.finding, 3, screenshotsDir);
 
   for (const child of hf.children) {
-    html += '\n' + `<div class="child-finding">\n${renderFinding(child, 4)}\n</div>`;
+    html += '\n' + `<div class="child-finding">\n${renderFinding(child, 4, screenshotsDir)}\n</div>`;
   }
 
   return html;
@@ -140,6 +194,7 @@ function getStyles(): string {
   dl { margin: 0.5rem 0; }
   dt { font-weight: 600; margin-top: 0.5rem; }
   dd { margin: 0 0 0.25rem 0; }
+  .screenshot { max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 4px; margin: 0.5rem 0; }
 </style>`;
 }
 
@@ -149,14 +204,18 @@ function getStyles(): string {
  * Produces a self-contained HTML string with inline CSS, a table of contents,
  * severity color coding, and collapsible sections per UI area.
  * No external dependencies — the file is fully standalone.
+ *
+ * @param screenshotsDir - Optional path to the screenshots directory. When provided,
+ *   screenshot files are read and embedded as base64 `<img>` tags. Missing screenshots
+ *   are silently skipped.
  */
-export function formatHtmlReport(groups: UIAreaGroup[], metadata: ReportMetadata): string {
+export function formatHtmlReport(groups: UIAreaGroup[], metadata: ReportMetadata, screenshotsDir?: string): string {
   const toc = buildTableOfContents(groups);
 
   const sections: string[] = [];
   for (const group of groups) {
     const areaAnchor = toAnchorId(group.area);
-    const findingsHtml = group.findings.map(renderHierarchicalFinding).join('\n');
+    const findingsHtml = group.findings.map((hf) => renderHierarchicalFinding(hf, screenshotsDir)).join('\n');
 
     sections.push(
       `<details open id="${areaAnchor}">

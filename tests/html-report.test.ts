@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { formatHtmlReport, ReportMetadata } from '../src/html-report.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { formatHtmlReport, ReportMetadata, encodeScreenshotBase64 } from '../src/html-report.js';
 import { UIAreaGroup } from '../src/consolidation.js';
 import { Finding } from '../src/report.js';
 
@@ -292,5 +294,169 @@ describe('formatHtmlReport', () => {
     expect(childFindingMatches).toHaveLength(2);
     expect(html).toContain('Child A');
     expect(html).toContain('Child B');
+  });
+
+  it('renders screenshot text when no screenshotsDir is provided', () => {
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [{ finding: makeFinding({ screenshot: 'UXR-001.png' }), children: [] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata());
+
+    // Without screenshotsDir, screenshot field is rendered as text
+    expect(html).toContain('UXR-001.png');
+    expect(html).not.toContain('<img');
+  });
+});
+
+describe('screenshot base64 embedding', () => {
+  const screenshotsDir = join(process.cwd(), '.uxreview-html-test-screenshots');
+  // Minimal valid 1x1 red PNG
+  const PNG_HEADER = Buffer.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+    0x0c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
+    0x00, 0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc, 0x33, 0x00, 0x00, 0x00,
+    0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+  ]);
+
+  beforeEach(() => {
+    mkdirSync(screenshotsDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(screenshotsDir)) {
+      rmSync(screenshotsDir, { recursive: true, force: true });
+    }
+  });
+
+  it('encodeScreenshotBase64 returns data URI for existing file', () => {
+    writeFileSync(join(screenshotsDir, 'UXR-001.png'), PNG_HEADER);
+
+    const result = encodeScreenshotBase64(screenshotsDir, 'UXR-001.png');
+
+    expect(result).not.toBeNull();
+    expect(result).toMatch(/^data:image\/png;base64,/);
+    // Verify round-trip: decode the base64 and check it matches original
+    const base64Part = result!.replace('data:image/png;base64,', '');
+    const decoded = Buffer.from(base64Part, 'base64');
+    expect(decoded).toEqual(PNG_HEADER);
+  });
+
+  it('encodeScreenshotBase64 returns null for missing file', () => {
+    const result = encodeScreenshotBase64(screenshotsDir, 'nonexistent.png');
+
+    expect(result).toBeNull();
+  });
+
+  it('embeds screenshot as base64 img tag when screenshotsDir is provided', () => {
+    writeFileSync(join(screenshotsDir, 'UXR-001.png'), PNG_HEADER);
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [{ finding: makeFinding({ screenshot: 'UXR-001.png' }), children: [] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata(), screenshotsDir);
+
+    expect(html).toContain('<img src="data:image/png;base64,');
+    expect(html).toContain('alt="UXR-001.png"');
+    expect(html).toContain('class="screenshot"');
+  });
+
+  it('embeds multiple screenshots for a finding with comma-separated refs', () => {
+    writeFileSync(join(screenshotsDir, 'UXR-001.png'), PNG_HEADER);
+    writeFileSync(join(screenshotsDir, 'UXR-001-a.png'), PNG_HEADER);
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [
+          { finding: makeFinding({ screenshot: 'UXR-001.png, UXR-001-a.png' }), children: [] },
+        ],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata(), screenshotsDir);
+
+    const imgMatches = html.match(/<img src="data:image\/png;base64,/g);
+    expect(imgMatches).toHaveLength(2);
+    expect(html).toContain('alt="UXR-001.png"');
+    expect(html).toContain('alt="UXR-001-a.png"');
+  });
+
+  it('skips missing screenshots gracefully without erroring', () => {
+    // Only create one of two referenced screenshots
+    writeFileSync(join(screenshotsDir, 'UXR-001.png'), PNG_HEADER);
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [
+          { finding: makeFinding({ screenshot: 'UXR-001.png, UXR-001-a.png' }), children: [] },
+        ],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata(), screenshotsDir);
+
+    // Only the existing screenshot is embedded
+    const imgMatches = html.match(/<img src="data:image\/png;base64,/g);
+    expect(imgMatches).toHaveLength(1);
+    expect(html).toContain('alt="UXR-001.png"');
+    // Missing file is not embedded
+    expect(html).not.toContain('alt="UXR-001-a.png"');
+  });
+
+  it('falls back to text when all screenshots are missing', () => {
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [
+          { finding: makeFinding({ screenshot: 'missing.png' }), children: [] },
+        ],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata(), screenshotsDir);
+
+    // No img tags — falls back to plain text
+    expect(html).not.toContain('<img');
+    expect(html).toContain('missing.png');
+  });
+
+  it('embeds screenshots for child findings', () => {
+    writeFileSync(join(screenshotsDir, 'UXR-001.png'), PNG_HEADER);
+    writeFileSync(join(screenshotsDir, 'UXR-002.png'), PNG_HEADER);
+
+    const parent = makeFinding({ id: 'UXR-001', screenshot: 'UXR-001.png' });
+    const child = makeFinding({ id: 'UXR-002', screenshot: 'UXR-002.png' });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [{ finding: parent, children: [child] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata(), screenshotsDir);
+
+    const imgMatches = html.match(/<img src="data:image\/png;base64,/g);
+    expect(imgMatches).toHaveLength(2);
+    expect(html).toContain('alt="UXR-001.png"');
+    expect(html).toContain('alt="UXR-002.png"');
+  });
+
+  it('includes screenshot CSS class in styles', () => {
+    const html = formatHtmlReport([], makeMetadata());
+
+    expect(html).toContain('.screenshot');
+    expect(html).toContain('max-width: 100%');
   });
 });
