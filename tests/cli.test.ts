@@ -63,6 +63,27 @@ describe('cli parseArgs', () => {
     expect(result.append).toBe(true);
   });
 
+  // --format
+  it('defaults format to markdown when omitted', () => {
+    const result = parseArgs(requiredArgs);
+    expect(result.format).toBe('markdown');
+  });
+
+  it('accepts --format markdown', () => {
+    const result = parseArgs([...requiredArgs, '--format', 'markdown']);
+    expect(result.format).toBe('markdown');
+  });
+
+  it('accepts --format html', () => {
+    const result = parseArgs([...requiredArgs, '--format', 'html']);
+    expect(result.format).toBe('html');
+  });
+
+  it('rejects unknown format values', () => {
+    expect(() => parseArgs([...requiredArgs, '--format', 'pdf'])).toThrow();
+    expect(() => parseArgs([...requiredArgs, '--format', 'json'])).toThrow();
+  });
+
   // --verbose
   it('defaults verbose to false when omitted', () => {
     const result = parseArgs(requiredArgs);

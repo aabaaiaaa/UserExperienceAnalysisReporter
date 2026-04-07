@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 27
-- **Completed**: 23
-- **Remaining**: 4
-- **Last Updated**: 2026-04-07T10:34:03.797Z
+- **Completed**: 24
+- **Remaining**: 3
+- **Last Updated**: 2026-04-07T10:38:09.656Z
 
 ## Iteration Log
 
@@ -256,4 +256,15 @@
 - **Verification Duration**: ~20s
 - **Tokens**: 999,822 total (5,109 in, 8,901 out, 56,114 cache-create, 929,698 cache-read)
 - **Cost**: $1.0636
+
+### Iteration 24 - 2026-04-07T10:38:09.654Z
+- **Task Attempted**: TASK-014c
+- **Task Completed**: TASK-014c
+- **Summary**: Completed Add --format CLI flag and wire HTML output into orchestrator
+- **Duration**: 4m 4s
+- **Exit Status**: success
+- **Work Duration**: ~3m 39s
+- **Verification Duration**: ~25s
+- **Tokens**: 2,289,895 total (35 in, 10,589 out, 75,110 cache-create, 2,204,161 cache-read)
+- **Cost**: $1.8364
 

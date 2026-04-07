@@ -139,7 +139,7 @@
 - **Verification**: `npx vitest run tests/html-report.test.ts 2>&1 | tail -5`
 
 ### TASK-014c: Add --format CLI flag and wire HTML output into orchestrator
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-014b
 - **Description**: Add `--format <markdown|html>` CLI option to `src/cli.ts` (default: `markdown`). Add `format` to `ParsedArgs`. In the orchestrator, after consolidation, call either `formatConsolidatedReport` (existing markdown) or `formatHtmlReport` (new) based on the format flag. Write to `report.md` or `report.html` accordingly. Update the USAGE string and README. Add tests for flag parsing, validation (reject unknown formats), and correct output filename. Reference requirements.md change #14.
 - **Verification**: `npx vitest run tests/cli.test.ts tests/orchestrator.test.ts 2>&1 | tail -5`

@@ -26,6 +26,7 @@ import {
   Finding,
 } from './consolidation.js';
 import { ProgressDisplay } from './progress-display.js';
+import { formatHtmlReport, ReportMetadata } from './html-report.js';
 import { setVerbose, debug } from './logger.js';
 import {
   readConsolidationCheckpoint,
@@ -300,11 +301,24 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     }
 
     // Step 4: Format and write the consolidated report (full report with all findings)
-    const reportPath = join(workspace.outputDir, 'report.md');
+    const reportFilename = args.format === 'html' ? 'report.html' : 'report.md';
+    const reportPath = join(workspace.outputDir, reportFilename);
     if (isStepCompleted(checkpoint, 'format-report') && checkpoint.formatReportOutput) {
       debug('Resuming consolidation: skipping format-report (already completed)');
     } else {
-      const reportContent = formatConsolidatedReport(groups);
+      let reportContent: string;
+      if (args.format === 'html') {
+        const metadata: ReportMetadata = {
+          url: args.url,
+          date: new Date().toISOString().split('T')[0],
+          instanceCount: args.instances,
+          roundCount: args.rounds,
+        };
+        const screenshotsDir = join(workspace.outputDir, 'screenshots');
+        reportContent = formatHtmlReport(groups, metadata, screenshotsDir);
+      } else {
+        reportContent = formatConsolidatedReport(groups);
+      }
       writeFileSync(reportPath, reportContent, 'utf-8');
       checkpoint.formatReportOutput = reportContent;
       checkpoint.completedSteps = [...checkpoint.completedSteps, 'format-report'];

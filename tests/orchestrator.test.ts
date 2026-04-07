@@ -83,6 +83,11 @@ vi.mock('../src/consolidation-checkpoint.js', () => ({
   isStepCompleted: vi.fn(),
 }));
 
+// Mock html-report
+vi.mock('../src/html-report.js', () => ({
+  formatHtmlReport: vi.fn(),
+}));
+
 // Import mocked modules
 import { distributePlan } from '../src/work-distribution.js';
 import { runInstanceRounds, RoundExecutionResult, killAllChildProcesses } from '../src/instance-manager.js';
@@ -96,6 +101,7 @@ import {
 } from '../src/consolidation.js';
 import { initWorkspace, cleanupTempDir } from '../src/file-manager.js';
 import { ProgressDisplay } from '../src/progress-display.js';
+import { formatHtmlReport } from '../src/html-report.js';
 import { orchestrate } from '../src/orchestrator.js';
 import { ParsedArgs } from '../src/cli.js';
 import {
@@ -117,6 +123,7 @@ const mockConsolidateDiscoveryDocs = vi.mocked(consolidateDiscoveryDocs);
 const mockWriteConsolidatedDiscovery = vi.mocked(writeConsolidatedDiscovery);
 const mockInitWorkspace = vi.mocked(initWorkspace);
 const mockCleanupTempDir = vi.mocked(cleanupTempDir);
+const mockFormatHtmlReport = vi.mocked(formatHtmlReport);
 const mockReadConsolidationCheckpoint = vi.mocked(readConsolidationCheckpoint);
 const mockWriteConsolidationCheckpoint = vi.mocked(writeConsolidationCheckpoint);
 const mockCreateEmptyConsolidationCheckpoint = vi.mocked(createEmptyConsolidationCheckpoint);
@@ -133,6 +140,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     instances: 3,
     rounds: 2,
     output: OUTPUT_DIR,
+    format: 'markdown',
     keepTemp: false,
     append: false,
     verbose: false,
@@ -1241,7 +1249,7 @@ describe('orchestrate', () => {
       expect(mockConsolidateReports).not.toHaveBeenCalled();
 
       // But reassign was called with the cached dedup result (startId=1 for non-append mode)
-      expect(mockReassignAndRemap).toHaveBeenCalledWith(dedupResult, OUTPUT_DIR, 1);
+      expect(mockReassignAndRemap).toHaveBeenCalledWith(dedupResult, OUTPUT_DIR, 1, false);
 
       // Remaining steps ran
       expect(mockOrganizeHierarchically).toHaveBeenCalled();
@@ -1357,6 +1365,110 @@ describe('orchestrate', () => {
       expect(mockFormatConsolidatedReport).toHaveBeenCalledTimes(1);
       expect(mockConsolidateDiscoveryDocs).toHaveBeenCalledTimes(1);
       expect(mockWriteConsolidatedDiscovery).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('--format flag', () => {
+    function setupSimpleMocksForFormat() {
+      mockDistributePlan.mockResolvedValue({
+        chunks: ['## A'],
+        usedClaude: false,
+      });
+      mockInitWorkspace.mockReturnValue({
+        tempDir: resolve('.uxreview-temp-orch-test'),
+        instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+        outputDir: OUTPUT_DIR,
+      });
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+      mockConsolidateReports.mockResolvedValue({
+        findings: [],
+        duplicateGroups: [],
+        usedClaude: false,
+      });
+      mockReassignAndRemap.mockReturnValue({
+        findings: [],
+        idMapping: new Map(),
+        screenshotOps: [],
+      });
+      mockOrganizeHierarchically.mockResolvedValue([]);
+      mockFormatConsolidatedReport.mockReturnValue('# UX Analysis Report\n');
+      mockFormatHtmlReport.mockReturnValue('<!DOCTYPE html><html><body>Report</body></html>');
+      mockConsolidateDiscoveryDocs.mockResolvedValue({
+        content: '',
+        instanceCount: 1,
+        usedClaude: false,
+      });
+    }
+
+    it('writes report.md when format is markdown (default)', async () => {
+      const args = makeArgs({ instances: 1, format: 'markdown' });
+      setupSimpleMocksForFormat();
+
+      await orchestrate(args);
+
+      expect(mockFormatConsolidatedReport).toHaveBeenCalled();
+      expect(mockFormatHtmlReport).not.toHaveBeenCalled();
+
+      const reportPath = join(OUTPUT_DIR, 'report.md');
+      expect(existsSync(reportPath)).toBe(true);
+      expect(readFileSync(reportPath, 'utf-8')).toBe('# UX Analysis Report\n');
+
+      // report.html should not exist
+      expect(existsSync(join(OUTPUT_DIR, 'report.html'))).toBe(false);
+    });
+
+    it('writes report.html when format is html', async () => {
+      const args = makeArgs({ instances: 1, format: 'html' });
+      setupSimpleMocksForFormat();
+
+      await orchestrate(args);
+
+      expect(mockFormatHtmlReport).toHaveBeenCalled();
+      expect(mockFormatConsolidatedReport).not.toHaveBeenCalled();
+
+      const reportPath = join(OUTPUT_DIR, 'report.html');
+      expect(existsSync(reportPath)).toBe(true);
+      expect(readFileSync(reportPath, 'utf-8')).toBe('<!DOCTYPE html><html><body>Report</body></html>');
+
+      // report.md should not exist
+      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(false);
+    });
+
+    it('passes correct metadata and screenshots dir to formatHtmlReport', async () => {
+      const args = makeArgs({ instances: 2, rounds: 3, format: 'html' });
+      setupSimpleMocksForFormat();
+      mockInitWorkspace.mockReturnValue({
+        tempDir: resolve('.uxreview-temp-orch-test'),
+        instanceDirs: [
+          join(resolve('.uxreview-temp-orch-test'), 'instance-1'),
+          join(resolve('.uxreview-temp-orch-test'), 'instance-2'),
+        ],
+        outputDir: OUTPUT_DIR,
+      });
+
+      await orchestrate(args);
+
+      expect(mockFormatHtmlReport).toHaveBeenCalledTimes(1);
+      const [groups, metadata, screenshotsDir] = mockFormatHtmlReport.mock.calls[0];
+      expect(groups).toEqual([]);
+      expect(metadata.url).toBe('https://example.com/app');
+      expect(metadata.instanceCount).toBe(2);
+      expect(metadata.roundCount).toBe(3);
+      expect(metadata.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(screenshotsDir).toBe(join(OUTPUT_DIR, 'screenshots'));
+    });
+
+    it('completeConsolidation receives report.html path for html format', async () => {
+      const args = makeArgs({ instances: 1, format: 'html' });
+      setupSimpleMocksForFormat();
+
+      await orchestrate(args);
+
+      const completeCall = mockProgressDisplay.completeConsolidation.mock.calls[0];
+      expect(completeCall[0]).toContain('report.html');
     });
   });
 });
