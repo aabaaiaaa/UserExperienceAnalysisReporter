@@ -85,7 +85,7 @@
 - **Verification**: `npx vitest run tests/orchestrator.test.ts 2>&1 | tail -5`
 
 ### TASK-010c: Add consolidation checkpoint integration tests
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-010b
 - **Description**: Add integration tests for consolidation resumability. Test scenarios: (1) full consolidation produces checkpoints at each step, (2) resume after dedup skips dedup and runs remaining steps, (3) resume after hierarchy skips dedup+hierarchy, (4) resume after discovery merge writes final output, (5) corrupted checkpoint triggers full reconsolidation, (6) missing checkpoint triggers full consolidation. Reference requirements.md change #10.
 - **Verification**: `npx vitest run tests/consolidation-resume.test.ts 2>&1 | tail -5`
