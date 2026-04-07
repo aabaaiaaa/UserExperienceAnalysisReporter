@@ -13,7 +13,7 @@
 - **Verification**: `npx vitest run tests/html-report.test.ts` — all tests pass, including a test that asserts `escapeHtml("it's")` produces `it&#39;s`.
 
 ### TASK-003: Add parseConsolidatedReport unit tests
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a new test file `tests/parse-consolidated-report.test.ts` with dedicated unit tests for `parseConsolidatedReport()` from `src/consolidation.ts`. Cover these cases: (1) empty input → empty array, (2) no finding headings → empty array, (3) single finding with all fields → correctly parsed, (4) missing severity line → still parsed, (5) multiple findings across multiple areas → correct area assignment, (6) deeply nested findings (####, #####, ######) → all heading levels recognized, (7) malformed heading without `UXR-` prefix → skipped, (8) area heading starting with `## UXR-` → treated as finding context not area heading, (9) multi-line description → full description captured. See requirements.md section 3.
 - **Verification**: `npx vitest run tests/parse-consolidated-report.test.ts` — all new tests pass.
