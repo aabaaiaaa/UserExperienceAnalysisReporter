@@ -108,7 +108,7 @@ function buildProgressCallback(display: ProgressDisplay): ProgressCallback {
  */
 export async function orchestrate(args: ParsedArgs): Promise<void> {
   // 1. Initialize workspace
-  const workspace = initWorkspace(args.instances, args.output);
+  const workspace = await initWorkspace(args.instances, args.output);
 
   // 2. Distribute work across instances
   const distribution = await distributePlan(args.plan, args.instances);

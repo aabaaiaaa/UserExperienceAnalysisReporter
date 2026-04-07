@@ -12,9 +12,9 @@ import {
   initWorkspace,
 } from '../src/file-manager.js';
 
-afterEach(() => {
+afterEach(async () => {
   // Clean up temp dir after each test
-  cleanupTempDir();
+  await cleanupTempDir();
   // Clean up any output dirs created during tests
   const defaultOutput = resolve('./uxreview-output');
   const customOutput = resolve('./test-output-custom');
@@ -61,29 +61,29 @@ describe('file-manager', () => {
   });
 
   describe('cleanupTempDir', () => {
-    it('removes the temp directory if it exists', () => {
-      initTempDir(1);
+    it('removes the temp directory if it exists', async () => {
+      await initTempDir(1);
       expect(existsSync(getTempDir())).toBe(true);
-      cleanupTempDir();
+      await cleanupTempDir();
       expect(existsSync(getTempDir())).toBe(false);
     });
 
-    it('does not throw if temp directory does not exist', () => {
-      cleanupTempDir(); // ensure clean
-      expect(() => cleanupTempDir()).not.toThrow();
+    it('does not throw if temp directory does not exist', async () => {
+      await cleanupTempDir(); // ensure clean
+      await expect(cleanupTempDir()).resolves.toBeUndefined();
     });
   });
 
   describe('initTempDir', () => {
-    it('creates the temp directory structure for 1 instance', () => {
-      const tempDir = initTempDir(1);
+    it('creates the temp directory structure for 1 instance', async () => {
+      const tempDir = await initTempDir(1);
       expect(existsSync(tempDir)).toBe(true);
       expect(existsSync(join(tempDir, 'instance-1'))).toBe(true);
       expect(existsSync(join(tempDir, 'instance-1', 'screenshots'))).toBe(true);
     });
 
-    it('creates the temp directory structure for 3 instances', () => {
-      const tempDir = initTempDir(3);
+    it('creates the temp directory structure for 3 instances', async () => {
+      const tempDir = await initTempDir(3);
       for (let i = 1; i <= 3; i++) {
         const instanceDir = join(tempDir, `instance-${i}`);
         expect(existsSync(instanceDir)).toBe(true);
@@ -92,13 +92,13 @@ describe('file-manager', () => {
       }
     });
 
-    it('cleans up existing temp dir before creating new one', () => {
+    it('cleans up existing temp dir before creating new one', async () => {
       // First init with 2 instances
-      initTempDir(2);
+      await initTempDir(2);
       expect(existsSync(getInstanceDir(2))).toBe(true);
 
       // Re-init with 1 instance — instance-2 should be gone
-      initTempDir(1);
+      await initTempDir(1);
       expect(existsSync(getInstanceDir(1))).toBe(true);
       expect(existsSync(getInstanceDir(2))).toBe(false);
     });
@@ -134,8 +134,8 @@ describe('file-manager', () => {
   });
 
   describe('initWorkspace', () => {
-    it('initializes both temp and output directories', () => {
-      const layout = initWorkspace(2);
+    it('initializes both temp and output directories', async () => {
+      const layout = await initWorkspace(2);
       expect(existsSync(layout.tempDir)).toBe(true);
       expect(existsSync(layout.outputDir)).toBe(true);
       expect(layout.instanceDirs).toHaveLength(2);
@@ -144,8 +144,8 @@ describe('file-manager', () => {
       }
     });
 
-    it('uses custom output path when provided', () => {
-      const layout = initWorkspace(1, './test-output-custom');
+    it('uses custom output path when provided', async () => {
+      const layout = await initWorkspace(1, './test-output-custom');
       expect(layout.outputDir).toBe(resolve('./test-output-custom'));
       expect(existsSync(layout.outputDir)).toBe(true);
     });

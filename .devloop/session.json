@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 6,
+  "lastIteration": 7,
   "startedAt": "2026-04-07T00:34:29.222Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-008",
-    "taskTitle": "Remove placeholder.test.ts",
-    "iterationNumber": 7,
-    "startedAt": "2026-04-07T00:57:44.458Z"
+    "taskId": "TASK-009",
+    "taskTitle": "Make cleanupTempDir async and fix spin-wait busy loop",
+    "iterationNumber": 8,
+    "startedAt": "2026-04-07T01:00:05.458Z"
   }
 }

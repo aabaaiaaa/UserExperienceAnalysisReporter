@@ -53,7 +53,7 @@ export function getWorkDistributionPath(): string {
  * haven't fully released handles (e.g., Playwright browser instances).
  * Retries a few times with short delays to handle this.
  */
-export function cleanupTempDir(): void {
+export async function cleanupTempDir(): Promise<void> {
   const tempDir = getTempDir();
   if (!existsSync(tempDir)) return;
 
@@ -69,9 +69,8 @@ export function cleanupTempDir(): void {
       if (!isLockError || attempt === maxAttempts) {
         throw err;
       }
-      // Brief synchronous delay before retry (100ms * attempt)
-      const start = Date.now();
-      while (Date.now() - start < 100 * attempt) { /* spin */ }
+      // Non-blocking delay before retry (100ms * attempt)
+      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
     }
   }
 }
@@ -80,11 +79,11 @@ export function cleanupTempDir(): void {
  * Initialize the temp working directory with per-instance subdirectories.
  * Cleans up any existing temp directory first to avoid stale state.
  */
-export function initTempDir(instanceCount: number): string {
+export async function initTempDir(instanceCount: number): Promise<string> {
   const tempDir = getTempDir();
 
   // Clean up stale state from previous runs
-  cleanupTempDir();
+  await cleanupTempDir();
 
   // Create temp root
   mkdirSync(tempDir, { recursive: true });
@@ -120,8 +119,8 @@ export function initOutputDir(outputPath?: string): string {
  * Initialize the full workspace: temp directory and output directory.
  * Returns the layout with all resolved paths.
  */
-export function initWorkspace(instanceCount: number, outputPath?: string): WorkspaceLayout {
-  const tempDir = initTempDir(instanceCount);
+export async function initWorkspace(instanceCount: number, outputPath?: string): Promise<WorkspaceLayout> {
+  const tempDir = await initTempDir(instanceCount);
   const outputDir = initOutputDir(outputPath);
 
   const instanceDirs: string[] = [];

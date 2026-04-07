@@ -49,7 +49,7 @@
 - **Verification**: Glob confirms no file matching `**/placeholder.test.*` exists in the project.
 
 ### TASK-009: Make cleanupTempDir async and fix spin-wait busy loop
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/file-manager.ts`, make `cleanupTempDir` an async function. Replace the synchronous busy-wait loop (lines ~73-74) with `await new Promise(resolve => setTimeout(resolve, delay))`. Update all callers throughout the codebase to await the now-async function. Update tests accordingly. See requirements.md change #9.
 - **Verification**: `npx vitest run tests/file-manager --reporter=verbose` passes. Grep confirms no `while (Date.now()` spin-wait pattern in `src/file-manager.ts`.
