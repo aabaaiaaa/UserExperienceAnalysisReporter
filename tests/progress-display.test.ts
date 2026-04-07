@@ -4,7 +4,6 @@ import {
   formatDuration,
   calculateEta,
   renderProgressBar,
-  countFindings,
   getProgressFromCheckpoint,
   formatProgressLine,
   formatConsolidationLine,
@@ -15,6 +14,7 @@ import {
   ANSI_RED,
   ANSI_GREEN,
 } from '../src/progress-display.js';
+import { countFindings } from '../src/report.js';
 import { Checkpoint } from '../src/checkpoint.js';
 
 describe('formatDuration', () => {

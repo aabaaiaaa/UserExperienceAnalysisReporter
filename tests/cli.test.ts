@@ -138,11 +138,15 @@ describe('cli parseArgs', () => {
 });
 
 describe('cli --version flag', () => {
-  const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
-    throw new Error('process.exit called');
-  }) as never);
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let consoleSpy: ReturnType<typeof vi.spyOn>;
 
-  const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  beforeEach(() => {
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('process.exit called');
+    }) as never);
+    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
 
   afterEach(() => {
     vi.restoreAllMocks();

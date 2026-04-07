@@ -1286,7 +1286,7 @@ describe('orchestrate', () => {
       // Return a checkpoint with dedup already completed
       const existingCheckpoint: ConsolidationCheckpoint = {
         completedSteps: ['dedup'],
-        dedupOutput: JSON.stringify(dedupResult),
+        dedupOutput: dedupResult,
         reassignOutput: null,
         hierarchyOutput: null,
         formatReportOutput: null,
@@ -1325,9 +1325,9 @@ describe('orchestrate', () => {
 
       const existingCheckpoint: ConsolidationCheckpoint = {
         completedSteps: ['dedup', 'reassign', 'hierarchy'],
-        dedupOutput: JSON.stringify({ findings: [], duplicateGroups: [], usedClaude: false }),
-        reassignOutput: JSON.stringify(cachedFindings),
-        hierarchyOutput: JSON.stringify(cachedGroups),
+        dedupOutput: { findings: [], duplicateGroups: [], usedClaude: false },
+        reassignOutput: cachedFindings,
+        hierarchyOutput: cachedGroups,
         formatReportOutput: null,
         discoveryMergeOutput: null,
         timestamp: new Date().toISOString(),
@@ -1358,9 +1358,9 @@ describe('orchestrate', () => {
 
       const existingCheckpoint: ConsolidationCheckpoint = {
         completedSteps: ['dedup', 'reassign', 'hierarchy', 'format-report', 'discovery-merge'],
-        dedupOutput: JSON.stringify({ findings: [], duplicateGroups: [], usedClaude: false }),
-        reassignOutput: JSON.stringify([]),
-        hierarchyOutput: JSON.stringify([]),
+        dedupOutput: { findings: [], duplicateGroups: [], usedClaude: false },
+        reassignOutput: [],
+        hierarchyOutput: [],
         formatReportOutput: '# Report',
         discoveryMergeOutput: '# Discovery Content',
         timestamp: new Date().toISOString(),

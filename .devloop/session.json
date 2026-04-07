@@ -1,14 +1,9 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 8,
+  "lastIteration": 9,
   "startedAt": "2026-04-07T16:23:52.580Z",
   "iteration": 3,
   "devloopVersion": "3.5.0",
-  "activeTask": {
-    "taskId": "TASK-007",
-    "taskTitle": "Add --version CLI flag",
-    "iterationNumber": 9,
-    "startedAt": "2026-04-07T16:37:20.735Z"
-  }
+  "activeTask": null
 }
