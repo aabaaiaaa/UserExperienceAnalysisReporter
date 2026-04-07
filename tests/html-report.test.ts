@@ -254,6 +254,29 @@ describe('formatHtmlReport', () => {
     expect(html).not.toContain('onclick="..."');
   });
 
+  it('escapes single quotes to &#39;', () => {
+    const finding = makeFinding({
+      title: "it's a problem",
+      description: "don't click the button",
+      suggestion: "use aria-label='submit'",
+    });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Accessibility',
+        findings: [{ finding, children: [] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata());
+
+    expect(html).toContain('it&#39;s a problem');
+    expect(html).toContain('don&#39;t click the button');
+    expect(html).toContain('aria-label=&#39;submit&#39;');
+    // Raw single quotes must not appear in escaped content
+    expect(html).not.toContain("it's a problem");
+  });
+
   it('pluralizes finding count in summary correctly', () => {
     const groups: UIAreaGroup[] = [
       {

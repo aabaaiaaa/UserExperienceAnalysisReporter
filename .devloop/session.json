@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 0,
+  "lastIteration": 1,
   "startedAt": "2026-04-07T16:23:52.580Z",
   "iteration": 3,
   "devloopVersion": "3.5.0",
   "activeTask": {
-    "taskId": "TASK-001",
-    "taskTitle": "Fix flaky cross-run resume test timeouts",
-    "iterationNumber": 1,
-    "startedAt": "2026-04-07T16:23:52.600Z"
+    "taskId": "TASK-002",
+    "taskTitle": "Add single-quote escaping to escapeHtml",
+    "iterationNumber": 2,
+    "startedAt": "2026-04-07T16:24:23.812Z"
   }
 }

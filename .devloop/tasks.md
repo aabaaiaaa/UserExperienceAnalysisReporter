@@ -7,7 +7,7 @@
 - **Verification**: `npx vitest run tests/consolidation-resume.test.ts` — all tests pass. Confirm the four tests at lines 788, 823, 847, 870 now have `{ timeout: 30000 }`.
 
 ### TASK-002: Add single-quote escaping to escapeHtml
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/html-report.ts:43-48`, add `.replace(/'/g, '&#39;')` to the `escapeHtml()` function's escape chain, after the existing `&quot;` replacement. Then add or update a test in the HTML report test file to verify that single quotes are escaped to `&#39;`. See requirements.md section 2.
 - **Verification**: `npx vitest run tests/html-report.test.ts` — all tests pass, including a test that asserts `escapeHtml("it's")` produces `it&#39;s`.
