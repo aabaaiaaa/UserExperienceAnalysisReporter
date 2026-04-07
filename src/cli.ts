@@ -16,6 +16,7 @@ export interface ParsedArgs {
   format: OutputFormat;
   keepTemp: boolean;
   append: boolean;
+  dryRun: boolean;
   verbose: boolean;
   maxRetries: number;
   instanceTimeout: number;
@@ -43,6 +44,8 @@ Options:
                            (default: false — temp directory is deleted on completion)
   --append                 Append new findings to existing output directory instead of
                            overwriting (default: false — output directory is recreated)
+  --dry-run                Preview work distribution without running instances. Shows
+                           instance count, plan chunks, areas, and scope, then exits.
   --verbose                Enable debug logging to stderr
   --max-retries <n>        Maximum normal retry attempts per instance (default: 3)
   --instance-timeout <min> Timeout per Claude instance in minutes (default: 30)
@@ -110,7 +113,7 @@ function parseRawArgs(argv: string[]): Map<string, string | true> {
     const key = arg.slice(2);
 
     // Boolean flags (no value)
-    if (key === 'show-default-scope' || key === 'help' || key === 'keep-temp' || key === 'append' || key === 'verbose') {
+    if (key === 'show-default-scope' || key === 'help' || key === 'keep-temp' || key === 'append' || key === 'dry-run' || key === 'verbose') {
       args.set(key, true);
       continue;
     }
@@ -142,7 +145,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   // Check for unknown flags
-  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'format', 'keep-temp', 'append', 'verbose', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
+  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'format', 'keep-temp', 'append', 'dry-run', 'verbose', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
   for (const key of raw.keys()) {
     if (!knownFlags.has(key)) {
       printUsageAndExit(`Unknown option: --${key}`);
@@ -236,6 +239,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     format: (formatRaw === 'html' ? 'html' : 'markdown') as OutputFormat,
     keepTemp: raw.has('keep-temp'),
     append: raw.has('append'),
+    dryRun: raw.has('dry-run'),
     verbose: raw.has('verbose'),
     maxRetries: maxRetriesRaw !== undefined && maxRetriesRaw !== true ? Number(maxRetriesRaw) : MAX_RETRIES,
     instanceTimeout: instanceTimeoutRaw !== undefined && instanceTimeoutRaw !== true ? Number(instanceTimeoutRaw) : INSTANCE_TIMEOUT_MS / 60_000,

@@ -160,6 +160,28 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     const distribution = await distributePlan(args.plan, args.instances);
     debug(`Distribution phase completed in ${Date.now() - distributionStart}ms`);
 
+    // 3a. Dry-run mode: print distribution info and exit
+    if (args.dryRun) {
+      display.stop();
+      console.log('=== Dry Run ===\n');
+      console.log(`Instances: ${args.instances}`);
+      console.log(`Rounds per instance: ${args.rounds}`);
+      console.log(`Total rounds: ${args.instances * args.rounds}\n`);
+
+      for (let i = 0; i < distribution.chunks.length; i++) {
+        const chunk = distribution.chunks[i];
+        const areas = extractAreasFromPlanChunk(chunk);
+        console.log(`--- Instance ${i + 1} ---`);
+        console.log(`Areas: ${areas.join(', ')}`);
+        console.log(`Plan chunk:\n${chunk}\n`);
+      }
+
+      console.log('--- Evaluation Scope ---');
+      console.log(args.scope);
+      console.log('\nNote: Actual API cost and duration depend on app complexity.');
+      return;
+    }
+
     // 4. Spawn all instances in parallel — each runs all its rounds
     const configs: RoundExecutionConfig[] = distribution.chunks.map((chunk, i) => ({
       instanceNumber: i + 1,

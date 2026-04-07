@@ -84,6 +84,17 @@ describe('cli parseArgs', () => {
     expect(() => parseArgs([...requiredArgs, '--format', 'json'])).toThrow();
   });
 
+  // --dry-run
+  it('defaults dryRun to false when omitted', () => {
+    const result = parseArgs(requiredArgs);
+    expect(result.dryRun).toBe(false);
+  });
+
+  it('sets dryRun to true when --dry-run is provided', () => {
+    const result = parseArgs([...requiredArgs, '--dry-run']);
+    expect(result.dryRun).toBe(true);
+  });
+
   // --verbose
   it('defaults verbose to false when omitted', () => {
     const result = parseArgs(requiredArgs);

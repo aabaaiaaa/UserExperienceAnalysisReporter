@@ -145,7 +145,7 @@
 - **Verification**: `npx vitest run tests/cli.test.ts tests/orchestrator.test.ts 2>&1 | tail -5`
 
 ### TASK-015: Add --dry-run mode
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007a
 - **Description**: Add `--dry-run` boolean CLI flag to `src/cli.ts`. Add `dryRun` to `ParsedArgs`. In the orchestrator, when dry-run is true: call `distributePlan` normally (one Claude call), then print to stdout the instance count, round count, plan chunks per instance, extracted areas per instance, and the evaluation scope. Skip instance spawning and consolidation. Clean up any temp directory or skip creating it. Exit cleanly with code 0. Update the USAGE string and README. Add tests verifying distribution runs, instances don't spawn, and output contains expected content. Reference requirements.md change #15.
 - **Verification**: `npx vitest run tests/cli.test.ts tests/orchestrator.test.ts 2>&1 | tail -5`

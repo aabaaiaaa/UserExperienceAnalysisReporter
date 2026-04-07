@@ -56,6 +56,7 @@ uxreview --show-default-scope
 | `--rate-limit-retries <n>` | `10` | Maximum rate-limit retry attempts globally across all rounds and retries. Rate-limit retries use exponential backoff. |
 | `--format <format>` | `markdown` | Output report format: `markdown` or `html`. HTML reports are self-contained with inline CSS, embedded base64 screenshots, severity color coding, and collapsible sections. |
 | `--append` | `false` | Append new findings to the existing output directory instead of overwriting. New findings are deduplicated against previous results, screenshots are preserved, and the report is regenerated with all findings. |
+| `--dry-run` | `false` | Preview work distribution without running analysis instances. Shows instance count, plan chunks, assigned areas, and evaluation scope, then exits. Only the distribution Claude call runs (or none for single-instance). |
 | `--verbose` | `false` | Enable debug logging to stderr. Logs subprocess spawn/exit, file operations, retry decisions, and phase timing. |
 | `--help` | — | Show usage information and exit. |
 

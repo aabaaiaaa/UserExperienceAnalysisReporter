@@ -143,6 +143,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     format: 'markdown',
     keepTemp: false,
     append: false,
+    dryRun: false,
     verbose: false,
     maxRetries: 3,
     instanceTimeout: 30,
@@ -1469,6 +1470,115 @@ describe('orchestrate', () => {
 
       const completeCall = mockProgressDisplay.completeConsolidation.mock.calls[0];
       expect(completeCall[0]).toContain('report.html');
+    });
+  });
+
+  describe('dry-run mode', () => {
+    it('calls distributePlan but does not spawn instances', async () => {
+      const args = makeArgs({ dryRun: true });
+
+      mockDistributePlan.mockResolvedValue({
+        chunks: [
+          '## Navigation\n- Review nav bar',
+          '## Dashboard\n- Check widgets',
+          '## Settings\n- Check form fields',
+        ],
+        usedClaude: true,
+      });
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await orchestrate(args);
+
+      // distributePlan was called
+      expect(mockDistributePlan).toHaveBeenCalledWith(args.plan, 3);
+
+      // instances were NOT spawned
+      expect(mockRunInstanceRounds).not.toHaveBeenCalled();
+
+      // consolidation was NOT run
+      expect(mockConsolidateReports).not.toHaveBeenCalled();
+      expect(mockReassignAndRemap).not.toHaveBeenCalled();
+      expect(mockOrganizeHierarchically).not.toHaveBeenCalled();
+      expect(mockConsolidateDiscoveryDocs).not.toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('outputs instance count, rounds, areas, plan chunks, and scope', async () => {
+      const args = makeArgs({ dryRun: true, instances: 2, rounds: 3, scope: 'Custom eval scope' });
+
+      mockDistributePlan.mockResolvedValue({
+        chunks: [
+          '## Navigation\n- Review nav bar',
+          '## Dashboard\n- Check widgets',
+        ],
+        usedClaude: true,
+      });
+
+      const logCalls: string[] = [];
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+        logCalls.push(String(args[0]));
+      });
+
+      await orchestrate(args);
+
+      const output = logCalls.join('\n');
+
+      // Instance and round info
+      expect(output).toContain('Instances: 2');
+      expect(output).toContain('Rounds per instance: 3');
+      expect(output).toContain('Total rounds: 6');
+
+      // Per-instance areas
+      expect(output).toContain('Instance 1');
+      expect(output).toContain('Navigation');
+      expect(output).toContain('Instance 2');
+      expect(output).toContain('Dashboard');
+
+      // Plan chunks present
+      expect(output).toContain('Review nav bar');
+      expect(output).toContain('Check widgets');
+
+      // Scope present
+      expect(output).toContain('Custom eval scope');
+
+      consoleSpy.mockRestore();
+    });
+
+    it('cleans up temp directory after dry run', async () => {
+      const args = makeArgs({ dryRun: true, keepTemp: false });
+
+      mockDistributePlan.mockResolvedValue({
+        chunks: ['## A\n- Review A'],
+        usedClaude: false,
+      });
+
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await orchestrate(args);
+
+      // Temp dir cleanup should run in the finally block
+      expect(mockCleanupTempDir).toHaveBeenCalled();
+    });
+
+    it('stops progress display during dry run', async () => {
+      const args = makeArgs({ dryRun: true });
+
+      mockDistributePlan.mockResolvedValue({
+        chunks: ['## A\n- Review A', '## B\n- Review B', '## C\n- Review C'],
+        usedClaude: true,
+      });
+
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await orchestrate(args);
+
+      // Display should be stopped
+      expect(mockProgressDisplay.stop).toHaveBeenCalled();
+
+      // Consolidation should never start
+      expect(mockProgressDisplay.startConsolidation).not.toHaveBeenCalled();
     });
   });
 });

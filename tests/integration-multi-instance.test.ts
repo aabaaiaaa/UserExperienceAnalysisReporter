@@ -366,6 +366,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     output: OUTPUT_DIR,
     keepTemp: false,
     append: false,
+    dryRun: false,
     verbose: false,
     maxRetries: 3,
     instanceTimeout: 30,

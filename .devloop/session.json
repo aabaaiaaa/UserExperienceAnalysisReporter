@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 23,
+  "lastIteration": 24,
   "startedAt": "2026-04-07T09:10:37.667Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-014c",
-    "taskTitle": "Add --format CLI flag and wire HTML output into orchestrator",
-    "iterationNumber": 24,
-    "startedAt": "2026-04-07T10:34:05.677Z"
+    "taskId": "TASK-015",
+    "taskTitle": "Add --dry-run mode",
+    "iterationNumber": 25,
+    "startedAt": "2026-04-07T10:38:11.557Z"
   }
 }
