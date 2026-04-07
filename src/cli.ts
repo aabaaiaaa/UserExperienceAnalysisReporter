@@ -3,8 +3,6 @@ import { resolve } from 'node:path';
 import { DEFAULT_SCOPE } from './default-scope.js';
 import { MAX_RETRIES, INSTANCE_TIMEOUT_MS, MAX_RATE_LIMIT_RETRIES } from './config.js';
 
-export type OutputFormat = 'markdown' | 'html';
-
 export interface ParsedArgs {
   url: string;
   intro: string;
@@ -13,7 +11,6 @@ export interface ParsedArgs {
   instances: number;
   rounds: number;
   output: string;
-  format: OutputFormat;
   keepTemp: boolean;
   append: boolean;
   dryRun: boolean;
@@ -36,10 +33,10 @@ Options:
   --scope <text|filepath>  Custom evaluation scope (inline text or file path)
                            Defaults to the built-in scope if not provided
   --show-default-scope     Print the built-in default evaluation scope and exit
-  --instances <n>          Number of parallel Claude Code instances (default: 1)
+  --instances <n>          Number of parallel Claude Code instances (default: auto,
+                           based on areas in the plan, max 5)
   --rounds <n>             Number of review rounds per instance (default: 1)
   --output <dir>           Output directory for deliverables (default: ./uxreview-output)
-  --format <format>        Output report format: markdown or html (default: markdown)
   --keep-temp              Preserve the .uxreview-temp/ working directory after the run
                            (default: false — temp directory is deleted on completion)
   --append                 Append new findings to existing output directory instead of
@@ -145,7 +142,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   // Check for unknown flags
-  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'format', 'keep-temp', 'append', 'dry-run', 'verbose', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
+  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'append', 'dry-run', 'verbose', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
   for (const key of raw.keys()) {
     if (!knownFlags.has(key)) {
       printUsageAndExit(`Unknown option: --${key}`);
@@ -209,13 +206,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  const formatRaw = raw.get('format');
-  if (formatRaw !== undefined && formatRaw !== true) {
-    if (formatRaw !== 'markdown' && formatRaw !== 'html') {
-      printUsageAndExit(`Invalid format: ${formatRaw} (must be "markdown" or "html")`);
-    }
-  }
-
   // Resolve text-or-file params
   const resolvedIntro = resolveTextOrFile(intro);
   const resolvedPlan = resolveTextOrFile(plan);
@@ -230,13 +220,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
     intro: resolvedIntro,
     plan: resolvedPlan,
     scope: resolvedScope,
-    instances: instancesRaw !== undefined && instancesRaw !== true ? Number(instancesRaw) : 1,
+    instances: instancesRaw !== undefined && instancesRaw !== true ? Number(instancesRaw) : 0,
     rounds: roundsRaw !== undefined && roundsRaw !== true ? Number(roundsRaw) : 1,
     output: (() => {
       const outputRaw = raw.get('output');
       return typeof outputRaw === 'string' ? outputRaw : './uxreview-output';
     })(),
-    format: (formatRaw === 'html' ? 'html' : 'markdown') as OutputFormat,
     keepTemp: raw.has('keep-temp'),
     append: raw.has('append'),
     dryRun: raw.has('dry-run'),

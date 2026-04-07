@@ -32,9 +32,9 @@ describe('cli parseArgs', () => {
     expect(result.output).toBe('./custom-output');
   });
 
-  it('defaults instances to 1 when omitted', () => {
+  it('defaults instances to 0 (auto) when omitted', () => {
     const result = parseArgs(requiredArgs);
-    expect(result.instances).toBe(1);
+    expect(result.instances).toBe(0);
   });
 
   it('defaults rounds to 1 when omitted', () => {
@@ -61,27 +61,6 @@ describe('cli parseArgs', () => {
   it('sets append to true when --append is provided', () => {
     const result = parseArgs([...requiredArgs, '--append']);
     expect(result.append).toBe(true);
-  });
-
-  // --format
-  it('defaults format to markdown when omitted', () => {
-    const result = parseArgs(requiredArgs);
-    expect(result.format).toBe('markdown');
-  });
-
-  it('accepts --format markdown', () => {
-    const result = parseArgs([...requiredArgs, '--format', 'markdown']);
-    expect(result.format).toBe('markdown');
-  });
-
-  it('accepts --format html', () => {
-    const result = parseArgs([...requiredArgs, '--format', 'html']);
-    expect(result.format).toBe('html');
-  });
-
-  it('rejects unknown format values', () => {
-    expect(() => parseArgs([...requiredArgs, '--format', 'pdf'])).toThrow();
-    expect(() => parseArgs([...requiredArgs, '--format', 'json'])).toThrow();
   });
 
   // --dry-run

@@ -282,7 +282,7 @@ describe('Integration: Happy path — single instance, single round', () => {
       expect(args.url).toBe('https://example.com/app');
       expect(args.intro).toBe('Some intro text');
       expect(args.plan).toBe('Some plan text');
-      expect(args.instances).toBe(1);
+      expect(args.instances).toBe(0);
       expect(args.rounds).toBe(1);
       expect(args.output).toBe('./uxreview-output');
     });
@@ -377,9 +377,9 @@ describe('Integration: Happy path — single instance, single round', () => {
 
       // --- Verify runClaude calls ---
       // Call 1: instance analysis
-      // Call 2: hierarchy determination for Navigation (2 findings)
-      // Call 3: discovery consolidation
-      expect(mockRunClaude).toHaveBeenCalledTimes(3);
+      // Call 2: discovery consolidation
+      // (hierarchy is skipped for single instance — no Claude call needed)
+      expect(mockRunClaude).toHaveBeenCalledTimes(2);
 
       // --- Verify instance prompt ---
       const instanceCall = mockRunClaude.mock.calls[0][0];
@@ -414,10 +414,9 @@ describe('Integration: Happy path — single instance, single round', () => {
       expect(reportContent).toContain('## Navigation');
       expect(reportContent).toContain('## Dashboard');
 
-      // Hierarchical: UXR-001 is top-level (###), UXR-002 is child (####)
+      // Single instance: all findings are flat (###), no hierarchy Claude call
       expect(reportContent).toMatch(/### UXR-001:/);
-      expect(reportContent).toMatch(/#### UXR-002:/);
-      // UXR-003 is top-level in Dashboard
+      expect(reportContent).toMatch(/### UXR-002:/);
       expect(reportContent).toMatch(/### UXR-003:/);
 
       // Screenshots referenced with new IDs
@@ -442,14 +441,14 @@ describe('Integration: Happy path — single instance, single round', () => {
       // --- Verify progress display lifecycle ---
       expect(ProgressDisplay).toHaveBeenCalledWith([1], 1);
       expect(mockProgressDisplay.start).toHaveBeenCalledTimes(1);
-      expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(1);
+      expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(2);
       expect(mockProgressDisplay.markCompleted).toHaveBeenCalledWith(1);
-      expect(mockProgressDisplay.startConsolidation).toHaveBeenCalledTimes(1);
+      // Single instance skips consolidation display (no startConsolidation call)
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
 
       // Final paths passed to completeConsolidation
       const completeArgs = mockProgressDisplay.completeConsolidation.mock.calls[0];
-      expect(completeArgs[0]).toContain('report.md');
+      expect(completeArgs[0]).toContain('report.html');
       expect(completeArgs[1]).toContain('discovery.md');
     });
 
@@ -599,21 +598,21 @@ describe('Integration: Happy path — single instance, single round', () => {
       expect(reportContent).toContain('inconsistent spacing');
     });
 
-    it('groups findings by UI area with correct hierarchy', async () => {
+    it('groups findings by UI area (flat for single instance)', async () => {
       const args = makeArgs();
       await orchestrate(args);
 
       const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
-      // Navigation section comes first with parent-child structure
+      // Navigation section comes first
       const navIdx = reportContent.indexOf('## Navigation');
       const dashIdx = reportContent.indexOf('## Dashboard');
       expect(navIdx).toBeGreaterThan(-1);
       expect(dashIdx).toBeGreaterThan(navIdx);
 
-      // UXR-001 is parent (###), UXR-002 is child (####) in Navigation
+      // Single instance: all findings are flat (###), no hierarchy Claude call
       const uxr001Idx = reportContent.indexOf('### UXR-001:');
-      const uxr002Idx = reportContent.indexOf('#### UXR-002:');
+      const uxr002Idx = reportContent.indexOf('### UXR-002:');
       expect(uxr001Idx).toBeGreaterThan(-1);
       expect(uxr002Idx).toBeGreaterThan(uxr001Idx);
       // Both should be within Navigation section (before Dashboard)

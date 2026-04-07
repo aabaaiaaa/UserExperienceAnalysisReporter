@@ -349,8 +349,7 @@ describe('Integration: Failure, retry, and resume', () => {
       // markCompleted should have been called at the end
       expect(mockProgressDisplay.markCompleted).toHaveBeenCalledWith(1);
 
-      // Consolidation should still happen
-      expect(mockProgressDisplay.startConsolidation).toHaveBeenCalledTimes(1);
+      // Output should still be produced (single instance skips consolidation display)
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
     });
   });
@@ -531,8 +530,7 @@ describe('Integration: Failure, retry, and resume', () => {
       // markCompleted should NOT have been called
       expect(mockProgressDisplay.markCompleted).not.toHaveBeenCalled();
 
-      // Consolidation should still run (with empty/partial output)
-      expect(mockProgressDisplay.startConsolidation).toHaveBeenCalledTimes(1);
+      // Output should still be produced (single instance skips consolidation display)
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
     });
 

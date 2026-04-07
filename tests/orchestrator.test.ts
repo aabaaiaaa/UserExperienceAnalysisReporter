@@ -29,6 +29,10 @@ vi.mock('../src/consolidation.js', () => ({
   consolidateDiscoveryDocs: vi.fn(),
   writeConsolidatedDiscovery: vi.fn(),
   parseExistingReportIds: vi.fn().mockReturnValue({ maxId: 0, success: true }),
+  parseConsolidatedReport: vi.fn().mockReturnValue([]),
+  detectCrossRunDuplicates: vi.fn().mockResolvedValue({ duplicateGroups: [], usedClaude: false }),
+  filterCrossRunDuplicates: vi.fn().mockReturnValue([]),
+  groupFindingsByArea: vi.fn().mockReturnValue(new Map()),
 }));
 
 // Mock file-manager
@@ -140,7 +144,6 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     instances: 3,
     rounds: 2,
     output: OUTPUT_DIR,
-    format: 'markdown',
     keepTemp: false,
     append: false,
     dryRun: false,
@@ -227,6 +230,10 @@ describe('orchestrate', () => {
       timestamp: new Date().toISOString(),
     });
     mockIsStepCompleted.mockReturnValue(false);
+
+    // Default: both report formats are always generated
+    mockFormatConsolidatedReport.mockReturnValue('# UX Analysis Report\n');
+    mockFormatHtmlReport.mockReturnValue('<!DOCTYPE html><html><body>Report</body></html>');
 
     // Default mock setup
     mockInitWorkspace.mockReturnValue({
@@ -316,9 +323,9 @@ describe('orchestrate', () => {
     expect(callOrder).toContain(2);
     expect(callOrder).toContain(3);
 
-    // Verify progress display was started and stopped
+    // Verify progress display was started and stopped (stop called before summary + in finally)
     expect(mockProgressDisplay.start).toHaveBeenCalledTimes(1);
-    expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(1);
+    expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(2);
 
     // Verify progress callbacks were invoked (3 instances x completed)
     expect(mockProgressDisplay.markCompleted).toHaveBeenCalledTimes(3);
@@ -464,7 +471,7 @@ describe('orchestrate', () => {
 
     // Verify final paths were passed
     const completeCall = mockProgressDisplay.completeConsolidation.mock.calls[0];
-    expect(completeCall[0]).toContain('report.md');
+    expect(completeCall[0]).toContain('report.html');
     expect(completeCall[1]).toContain('discovery.md');
   });
 
@@ -1188,12 +1195,15 @@ describe('orchestrate', () => {
   describe('consolidation checkpointing', () => {
     function setupConsolidationMocks() {
       mockDistributePlan.mockResolvedValue({
-        chunks: ['## A'],
-        usedClaude: false,
+        chunks: ['## A', '## B'],
+        usedClaude: true,
       });
       mockInitWorkspace.mockReturnValue({
         tempDir: resolve('.uxreview-temp-orch-test'),
-        instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+        instanceDirs: [
+          join(resolve('.uxreview-temp-orch-test'), 'instance-1'),
+          join(resolve('.uxreview-temp-orch-test'), 'instance-2'),
+        ],
         outputDir: OUTPUT_DIR,
       });
       mockRunInstanceRounds.mockImplementation(async (config) => {
@@ -1223,7 +1233,7 @@ describe('orchestrate', () => {
     }
 
     it('writes checkpoint after each consolidation step in a fresh run', async () => {
-      const args = makeArgs({ instances: 1 });
+      const args = makeArgs({ instances: 2 });
       setupConsolidationMocks();
 
       // Capture checkpoint snapshots since the object is mutated in place
@@ -1264,7 +1274,7 @@ describe('orchestrate', () => {
     });
 
     it('resumes after dedup — skips dedup, runs remaining steps', async () => {
-      const args = makeArgs({ instances: 1 });
+      const args = makeArgs({ instances: 2 });
       setupConsolidationMocks();
 
       const dedupResult = {
@@ -1304,7 +1314,7 @@ describe('orchestrate', () => {
     });
 
     it('resumes after hierarchy — skips dedup, reassign, and hierarchy', async () => {
-      const args = makeArgs({ instances: 1 });
+      const args = makeArgs({ instances: 2 });
       setupConsolidationMocks();
 
       const cachedFindings = [{ id: 'UXR-001', title: 'Test', uiArea: 'Nav', severity: 'minor', description: 'desc', suggestion: 'fix', screenshot: '' }];
@@ -1343,7 +1353,7 @@ describe('orchestrate', () => {
     });
 
     it('resumes after discovery-merge — only runs write-discovery', async () => {
-      const args = makeArgs({ instances: 1 });
+      const args = makeArgs({ instances: 2 });
       setupConsolidationMocks();
 
       const existingCheckpoint: ConsolidationCheckpoint = {
@@ -1374,7 +1384,7 @@ describe('orchestrate', () => {
     });
 
     it('corrupted checkpoint triggers full reconsolidation', async () => {
-      const args = makeArgs({ instances: 1 });
+      const args = makeArgs({ instances: 2 });
       setupConsolidationMocks();
 
       // readConsolidationCheckpoint returns null for corrupted checkpoint
@@ -1395,7 +1405,7 @@ describe('orchestrate', () => {
     });
 
     it('missing checkpoint triggers full consolidation', async () => {
-      const args = makeArgs({ instances: 1 });
+      const args = makeArgs({ instances: 2 });
       setupConsolidationMocks();
 
       // No checkpoint exists (default behavior)
@@ -1413,8 +1423,8 @@ describe('orchestrate', () => {
     });
   });
 
-  describe('--format flag', () => {
-    function setupSimpleMocksForFormat() {
+  describe('report output', () => {
+    function setupSimpleMocksForReport() {
       mockDistributePlan.mockResolvedValue({
         chunks: ['## A'],
         usedClaude: false,
@@ -1448,43 +1458,24 @@ describe('orchestrate', () => {
       });
     }
 
-    it('writes report.md when format is markdown (default)', async () => {
-      const args = makeArgs({ instances: 1, format: 'markdown' });
-      setupSimpleMocksForFormat();
+    it('writes both report.md and report.html', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupSimpleMocksForReport();
 
       await orchestrate(args);
 
       expect(mockFormatConsolidatedReport).toHaveBeenCalled();
-      expect(mockFormatHtmlReport).not.toHaveBeenCalled();
-
-      const reportPath = join(OUTPUT_DIR, 'report.md');
-      expect(existsSync(reportPath)).toBe(true);
-      expect(readFileSync(reportPath, 'utf-8')).toBe('# UX Analysis Report\n');
-
-      // report.html should not exist
-      expect(existsSync(join(OUTPUT_DIR, 'report.html'))).toBe(false);
-    });
-
-    it('writes report.html when format is html', async () => {
-      const args = makeArgs({ instances: 1, format: 'html' });
-      setupSimpleMocksForFormat();
-
-      await orchestrate(args);
-
       expect(mockFormatHtmlReport).toHaveBeenCalled();
-      expect(mockFormatConsolidatedReport).not.toHaveBeenCalled();
 
-      const reportPath = join(OUTPUT_DIR, 'report.html');
-      expect(existsSync(reportPath)).toBe(true);
-      expect(readFileSync(reportPath, 'utf-8')).toBe('<!DOCTYPE html><html><body>Report</body></html>');
-
-      // report.md should not exist
-      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(false);
+      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(true);
+      expect(readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8')).toBe('# UX Analysis Report\n');
+      expect(existsSync(join(OUTPUT_DIR, 'report.html'))).toBe(true);
+      expect(readFileSync(join(OUTPUT_DIR, 'report.html'), 'utf-8')).toBe('<!DOCTYPE html><html><body>Report</body></html>');
     });
 
     it('passes correct metadata and screenshots dir to formatHtmlReport', async () => {
-      const args = makeArgs({ instances: 2, rounds: 3, format: 'html' });
-      setupSimpleMocksForFormat();
+      const args = makeArgs({ instances: 2, rounds: 3 });
+      setupSimpleMocksForReport();
       mockInitWorkspace.mockReturnValue({
         tempDir: resolve('.uxreview-temp-orch-test'),
         instanceDirs: [
@@ -1506,9 +1497,9 @@ describe('orchestrate', () => {
       expect(screenshotsDir).toBe(join(OUTPUT_DIR, 'screenshots'));
     });
 
-    it('completeConsolidation receives report.html path for html format', async () => {
-      const args = makeArgs({ instances: 1, format: 'html' });
-      setupSimpleMocksForFormat();
+    it('completeConsolidation receives report.html path', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupSimpleMocksForReport();
 
       await orchestrate(args);
 

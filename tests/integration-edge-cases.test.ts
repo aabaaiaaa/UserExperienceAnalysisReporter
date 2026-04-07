@@ -513,11 +513,10 @@ describe('Integration: Edge cases and input handling', () => {
       expect(mockProgressDisplay.markPermanentlyFailed).toHaveBeenCalledWith(1, 'Total failure');
       expect(mockProgressDisplay.markCompleted).not.toHaveBeenCalled();
 
-      // Consolidation should still run
-      expect(mockProgressDisplay.startConsolidation).toHaveBeenCalledTimes(1);
+      // Output should still be written (even if empty)
+      // Single instance skips consolidation display but still produces output
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
 
-      // Report should still be written (even if empty)
       const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
     });
@@ -577,7 +576,7 @@ describe('Integration: Edge cases and input handling', () => {
         '--plan', 'plan',
       ]);
 
-      expect(args.instances).toBe(1);
+      expect(args.instances).toBe(0);
     });
 
     it('rounds defaults to 1 when not provided', () => {
@@ -624,8 +623,8 @@ describe('Integration: Edge cases and input handling', () => {
       await orchestrate(args);
 
       expect(mockProgressDisplay.start).toHaveBeenCalledTimes(1);
-      expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(1);
-      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(true);
+      expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(2);
+      expect(existsSync(join(OUTPUT_DIR, 'report.html'))).toBe(true);
     });
   });
 

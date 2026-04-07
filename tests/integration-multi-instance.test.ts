@@ -611,7 +611,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       // --- Verify progress display lifecycle ---
       expect(ProgressDisplay).toHaveBeenCalledWith([1, 2, 3], 2);
       expect(mockProgressDisplay.start).toHaveBeenCalledTimes(1);
-      expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(1);
+      expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(2);
       expect(mockProgressDisplay.markCompleted).toHaveBeenCalledWith(1);
       expect(mockProgressDisplay.markCompleted).toHaveBeenCalledWith(2);
       expect(mockProgressDisplay.markCompleted).toHaveBeenCalledWith(3);
@@ -619,7 +619,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
 
       const completeArgs = mockProgressDisplay.completeConsolidation.mock.calls[0];
-      expect(completeArgs[0]).toContain('report.md');
+      expect(completeArgs[0]).toContain('report.html');
       expect(completeArgs[1]).toContain('discovery.md');
     });
   });

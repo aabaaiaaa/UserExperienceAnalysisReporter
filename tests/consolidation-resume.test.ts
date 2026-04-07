@@ -196,7 +196,6 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     append: false,
     dryRun: false,
     verbose: false,
-    format: 'markdown',
     maxRetries: 3,
     instanceTimeout: 30,
     rateLimitRetries: 10,
@@ -377,7 +376,7 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       const checkpoint = readConsolidationCheckpoint();
       expect(checkpoint).not.toBeNull();
       expect(checkpoint!.formatReportOutput).not.toBeNull();
-      expect(checkpoint!.formatReportOutput).toContain('# UX Analysis Report');
+      expect(checkpoint!.formatReportOutput).toContain('UX Analysis Report');
     });
 
     it('checkpoint contains discovery-merge output after discovery step', async () => {

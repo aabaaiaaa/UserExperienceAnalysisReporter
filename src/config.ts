@@ -22,6 +22,11 @@ export const MAX_RETRIES = 3;
 /** Maximum rate-limit retries before giving up (global budget). */
 export const MAX_RATE_LIMIT_RETRIES = 10;
 
+// ─── Instances ──────────────────────────────────────────────────────
+
+/** Maximum number of instances when auto-detecting from the plan. */
+export const MAX_AUTO_INSTANCES = 5;
+
 // ─── Rate-limit backoff ──────────────────────────────────────────────
 
 /** Base delay for exponential backoff (10 seconds). */
