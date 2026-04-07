@@ -33,6 +33,7 @@ vi.mock('../src/consolidation.js', () => ({
 // Mock file-manager
 vi.mock('../src/file-manager.js', () => ({
   initWorkspace: vi.fn(),
+  cleanupTempDir: vi.fn().mockResolvedValue(undefined),
   getInstancePaths: vi.fn((n: number) => {
     const dir = join(resolve('.uxreview-temp-orch-test'), `instance-${n}`);
     return {
@@ -76,7 +77,7 @@ import {
   consolidateDiscoveryDocs,
   writeConsolidatedDiscovery,
 } from '../src/consolidation.js';
-import { initWorkspace } from '../src/file-manager.js';
+import { initWorkspace, cleanupTempDir } from '../src/file-manager.js';
 import { ProgressDisplay } from '../src/progress-display.js';
 import { orchestrate } from '../src/orchestrator.js';
 import { ParsedArgs } from '../src/cli.js';
@@ -91,6 +92,7 @@ const mockFormatConsolidatedReport = vi.mocked(formatConsolidatedReport);
 const mockConsolidateDiscoveryDocs = vi.mocked(consolidateDiscoveryDocs);
 const mockWriteConsolidatedDiscovery = vi.mocked(writeConsolidatedDiscovery);
 const mockInitWorkspace = vi.mocked(initWorkspace);
+const mockCleanupTempDir = vi.mocked(cleanupTempDir);
 
 const OUTPUT_DIR = resolve('.uxreview-output-orch-test');
 
@@ -103,6 +105,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     instances: 3,
     rounds: 2,
     output: OUTPUT_DIR,
+    keepTemp: false,
     ...overrides,
   };
 }
@@ -712,6 +715,69 @@ describe('orchestrate', () => {
     await orchestrate(args);
 
     expect(ProgressDisplay).toHaveBeenCalledWith([1, 2, 3], 2);
+  });
+
+  describe('--keep-temp flag', () => {
+    function setupSimpleMocks() {
+      mockDistributePlan.mockResolvedValue({
+        chunks: ['## A'],
+        usedClaude: false,
+      });
+      mockInitWorkspace.mockReturnValue({
+        tempDir: resolve('.uxreview-temp-orch-test'),
+        instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+        outputDir: OUTPUT_DIR,
+      });
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+      mockConsolidateReports.mockResolvedValue({
+        findings: [],
+        duplicateGroups: [],
+        usedClaude: false,
+      });
+      mockReassignAndRemap.mockReturnValue({
+        findings: [],
+        idMapping: new Map(),
+        screenshotOps: [],
+      });
+      mockOrganizeHierarchically.mockResolvedValue([]);
+      mockFormatConsolidatedReport.mockReturnValue('');
+      mockConsolidateDiscoveryDocs.mockResolvedValue({
+        content: '',
+        instanceCount: 1,
+        usedClaude: false,
+      });
+    }
+
+    it('cleans up temp directory by default (keepTemp: false)', async () => {
+      const args = makeArgs({ instances: 1, keepTemp: false });
+      setupSimpleMocks();
+
+      await orchestrate(args);
+
+      expect(mockCleanupTempDir).toHaveBeenCalledTimes(1);
+    });
+
+    it('preserves temp directory when keepTemp is true', async () => {
+      const args = makeArgs({ instances: 1, keepTemp: true });
+      setupSimpleMocks();
+
+      await orchestrate(args);
+
+      expect(mockCleanupTempDir).not.toHaveBeenCalled();
+    });
+
+    it('cleans up temp directory even when consolidation fails (keepTemp: false)', async () => {
+      const args = makeArgs({ instances: 1, keepTemp: false });
+      setupSimpleMocks();
+      mockConsolidateReports.mockRejectedValue(new Error('Consolidation failed'));
+
+      await expect(orchestrate(args)).rejects.toThrow('Consolidation failed');
+
+      expect(mockCleanupTempDir).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('signal handling', () => {

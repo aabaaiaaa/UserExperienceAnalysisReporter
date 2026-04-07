@@ -36,7 +36,7 @@ vi.mock('../src/file-manager.js', () => ({
   initWorkspace: vi.fn(),
   initTempDir: vi.fn(),
   initOutputDir: vi.fn(),
-  cleanupTempDir: vi.fn(),
+  cleanupTempDir: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockProgressDisplay = {
@@ -152,6 +152,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     instances: 1,
     rounds: 1,
     output: OUTPUT_DIR,
+    keepTemp: false,
     ...overrides,
   };
 }
@@ -959,6 +960,44 @@ describe('Integration: Edge cases and input handling', () => {
 
       exitSpy.mockRestore();
       errorSpy.mockRestore();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // --keep-temp flag
+  // ---------------------------------------------------------------------------
+
+  describe('--keep-temp flag', () => {
+    it('parseArgs defaults keepTemp to false when --keep-temp is not provided', () => {
+      const args = parseArgs([
+        '--url', 'https://example.com',
+        '--intro', 'intro',
+        '--plan', 'plan',
+      ]);
+
+      expect(args.keepTemp).toBe(false);
+    });
+
+    it('parseArgs sets keepTemp to true when --keep-temp is provided', () => {
+      const args = parseArgs([
+        '--url', 'https://example.com',
+        '--intro', 'intro',
+        '--plan', 'plan',
+        '--keep-temp',
+      ]);
+
+      expect(args.keepTemp).toBe(true);
+    });
+
+    it('--keep-temp can appear anywhere in the argument list', () => {
+      const args = parseArgs([
+        '--keep-temp',
+        '--url', 'https://example.com',
+        '--intro', 'intro',
+        '--plan', 'plan',
+      ]);
+
+      expect(args.keepTemp).toBe(true);
     });
   });
 });

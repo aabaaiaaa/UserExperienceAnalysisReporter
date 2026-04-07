@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ParsedArgs } from './cli.js';
-import { initWorkspace } from './file-manager.js';
+import { initWorkspace, cleanupTempDir } from './file-manager.js';
 import { distributePlan } from './work-distribution.js';
 import {
   runInstanceRounds,
@@ -196,5 +196,8 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     process.removeListener('SIGINT', signalHandler);
     process.removeListener('SIGTERM', signalHandler);
     display.stop();
+    if (!args.keepTemp) {
+      await cleanupTempDir();
+    }
   }
 }

@@ -50,6 +50,7 @@ uxreview --show-default-scope
 | `--instances <n>` | `1` | Number of parallel Claude Code instances to run. |
 | `--rounds <n>` | `1` | Number of review rounds per instance. Additional rounds use findings from prior rounds to go deeper. |
 | `--output <dir>` | `./uxreview-output` | Output directory for final deliverables. |
+| `--keep-temp` | `false` | Preserve the `.uxreview-temp/` working directory after the run. Useful for debugging. By default, the temp directory is deleted on completion. |
 | `--help` | — | Show usage information and exit. |
 
 ## Examples

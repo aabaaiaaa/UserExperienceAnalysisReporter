@@ -37,7 +37,7 @@
 - **Verification**: `npx vitest run --coverage` passes with thresholds at 95%.
 
 ### TASK-007: Add --keep-temp CLI flag and post-run cleanup
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-009
 - **Description**: (1) Add `--keep-temp` boolean flag to CLI argument parsing in `src/cli.ts` (default: false). (2) Pass the flag value through to the orchestrator. (3) In the `finally` block of `orchestrate` in `src/orchestrator.ts`, call `cleanupTempDir()` when `--keep-temp` is false. (4) Update the README to document the new flag. (5) Add tests for both `--keep-temp true` (temp dir preserved) and default (temp dir cleaned up). See requirements.md change #6.
 - **Verification**: `npx vitest run tests/cli tests/orchestrator --reporter=verbose` passes, including new --keep-temp tests.

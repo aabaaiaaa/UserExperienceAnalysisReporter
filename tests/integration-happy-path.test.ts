@@ -38,7 +38,7 @@ vi.mock('../src/file-manager.js', () => ({
   initWorkspace: vi.fn(),
   initTempDir: vi.fn(),
   initOutputDir: vi.fn(),
-  cleanupTempDir: vi.fn(),
+  cleanupTempDir: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock progress display to avoid terminal output
@@ -185,6 +185,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     instances: 1,
     rounds: 1,
     output: OUTPUT_DIR,
+    keepTemp: false,
     ...overrides,
   };
 }

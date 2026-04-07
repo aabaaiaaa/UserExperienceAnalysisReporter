@@ -10,6 +10,7 @@ export interface ParsedArgs {
   instances: number;
   rounds: number;
   output: string;
+  keepTemp: boolean;
 }
 
 const USAGE = `Usage:
@@ -28,6 +29,8 @@ Options:
   --instances <n>          Number of parallel Claude Code instances (default: 1)
   --rounds <n>             Number of review rounds per instance (default: 1)
   --output <dir>           Output directory for deliverables (default: ./uxreview-output)
+  --keep-temp              Preserve the .uxreview-temp/ working directory after the run
+                           (default: false — temp directory is deleted on completion)
   --help                   Show this help message`;
 
 /**
@@ -80,7 +83,7 @@ function parseRawArgs(argv: string[]): Map<string, string | true> {
     const key = arg.slice(2);
 
     // Boolean flags (no value)
-    if (key === 'show-default-scope' || key === 'help') {
+    if (key === 'show-default-scope' || key === 'help' || key === 'keep-temp') {
       args.set(key, true);
       continue;
     }
@@ -112,7 +115,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   // Check for unknown flags
-  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output']);
+  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp']);
   for (const key of raw.keys()) {
     if (!knownFlags.has(key)) {
       printUsageAndExit(`Unknown option: --${key}`);
@@ -172,5 +175,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
     instances: instancesRaw !== undefined && instancesRaw !== true ? Number(instancesRaw) : 1,
     rounds: roundsRaw !== undefined && roundsRaw !== true ? Number(roundsRaw) : 1,
     output: (raw.get('output') as string) || './uxreview-output',
+    keepTemp: raw.has('keep-temp'),
   };
 }

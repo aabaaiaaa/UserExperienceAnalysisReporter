@@ -36,7 +36,7 @@ vi.mock('../src/file-manager.js', () => ({
   initWorkspace: vi.fn(),
   initTempDir: vi.fn(),
   initOutputDir: vi.fn(),
-  cleanupTempDir: vi.fn(),
+  cleanupTempDir: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockProgressDisplay = {
@@ -364,6 +364,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     instances: 3,
     rounds: 2,
     output: OUTPUT_DIR,
+    keepTemp: false,
     ...overrides,
   };
 }

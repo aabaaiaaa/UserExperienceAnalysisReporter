@@ -94,6 +94,7 @@ describe('E2E: Full tool run with real Claude instances', () => {
       instances: 2,
       rounds: 1,
       output: E2E_OUTPUT_DIR,
+      keepTemp: false,
     };
 
     // Run the full orchestration — no mocks, real Claude instances

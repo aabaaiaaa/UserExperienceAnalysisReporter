@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 7,
+  "lastIteration": 8,
   "startedAt": "2026-04-07T00:34:29.222Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-009",
-    "taskTitle": "Make cleanupTempDir async and fix spin-wait busy loop",
-    "iterationNumber": 8,
-    "startedAt": "2026-04-07T01:00:05.458Z"
+    "taskId": "TASK-007",
+    "taskTitle": "Add --keep-temp CLI flag and post-run cleanup",
+    "iterationNumber": 9,
+    "startedAt": "2026-04-07T01:05:44.313Z"
   }
 }
