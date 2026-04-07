@@ -1,389 +1,160 @@
-# UX Analysis Reporter — Requirements
+# UX Analysis Reporter — Iteration 2 Requirements
 
 ## Overview
 
-A TypeScript CLI tool that orchestrates multiple Claude Code instances to autonomously explore and review a web application's user experience via Playwright MCP. The tool produces a consolidated markdown report of UX findings, each uniquely identified and grouped by UI area in a hierarchical structure suitable for parallel work planning.
+This iteration addresses bugs, code quality issues, and configuration mismatches identified in the post-iteration-1 code review. No new features are added. The goal is to harden the existing codebase for production readiness.
 
-The tool runs unattended. The user provides a URL, context about the app, and a review plan. The tool handles everything else — splitting work, managing Claude instances, tracking progress, retrying failures, and consolidating results.
-
----
-
-## User Inputs
-
-### CLI Interface
-
-Invocation follows this pattern:
-
-```
-uxreview --url <url> --intro <text|filepath> --plan <text|filepath> [--scope <text|filepath>] [--instances <n>] [--rounds <n>] [--output <dir>]
-uxreview --show-default-scope
-```
-
-**Required parameters:**
-- `--url` — The URL of the web application to review
-- `--intro` — Free-form introduction/context about the app. Accepts either inline text (quoted string) or a file path. The tool detects which by checking if the value is a path to an existing file.
-- `--plan` — Free-form review plan describing areas to review or skip. Accepts either inline text or a file path (same detection logic as `--intro`).
-
-**Optional parameters:**
-- `--scope` — UX evaluation criteria defining what Claude should look for and what to ignore. Accepts inline text or a file path (same detection logic as `--intro`). If not provided, the built-in default scope is used. See "Evaluation Scope" section below.
-- `--show-default-scope` — Prints the built-in default evaluation scope to stdout and exits. The user can redirect this to a file, edit it, and feed it back via `--scope` to customize the criteria.
-- `--instances` — Number of parallel Claude Code instances to run (default: 1)
-- `--rounds` — Number of review rounds per instance (default: 1)
-- `--output` — Output directory for final deliverables (default: `./uxreview-output`)
-
-### Introduction Document
-
-Free-form text or file. Provides Claude with the context needed to access and understand the app:
-
-- How to access the app (login credentials, auth flows, specific steps to reach the main interface)
-- What the app does and who uses it
-- Key terminology, structures, or concepts Claude needs to understand
-- Any specific UI patterns or frameworks in use
-
-### Review Plan Document
-
-Free-form text or file, but expected to follow a logical structure. Describes:
-
-- Specific areas/pages/flows to review
-- Areas to explicitly skip or ignore
-- Any focus areas or specific concerns (e.g., "pay attention to form validation in settings")
-
-The logical structure matters because the tool uses Claude to divide this plan across multiple instances. Clear sections and groupings lead to better work distribution.
-
-### Evaluation Scope
-
-Defines the UX evaluation criteria — what Claude should look for and what to ignore when analyzing the app. This controls the lens through which all findings are generated.
-
-**Default scope**: The tool ships with a built-in default scope covering common UX evaluation criteria such as:
-- Layout consistency and spacing
-- Navigation flow and discoverability
-- Form usability and validation feedback
-- Error messaging and empty states
-- Loading states and transitions
-- Accessibility basics (contrast, labels, focus management)
-- Responsiveness and viewport behavior
-- Interactive element consistency (buttons, links, hover states)
-- Content hierarchy and readability
-- Terminology and labeling consistency
-
-The default scope is embedded in the tool's source code as a string constant, so it's always available and versionable.
-
-**Custom scope**: The user can override the default entirely by providing `--scope`. For example, a user who only cares about form validation and navigation could supply a scope that excludes everything else. Or a user who wants to add "check for dark mode support" on top of the defaults can copy the default via `--show-default-scope`, append their additions, and pass the modified file back.
-
-**`--show-default-scope`**: Prints the full default scope text to stdout and exits. Typical usage:
-```
-uxreview --show-default-scope > my-scope.md
-# edit my-scope.md
-uxreview --url ... --intro ... --plan ... --scope my-scope.md
-```
-
-The scope is provided to every Claude instance alongside its plan chunk and intro doc, so all instances evaluate against the same criteria.
+All changes build on the existing codebase. The prior iteration produced a fully functional tool with 628 tests and 96.54% coverage. This iteration fixes specific issues without altering the tool's architecture or behavior.
 
 ---
 
-## Architecture
+## Changes
 
-### Orchestration Flow
+### 1. Rename output report file
 
-1. **Parse inputs** — Resolve intro, plan, and scope parameters (inline text vs file path, defaulting scope to the built-in default if not provided), validate URL, set defaults for optional params.
+**Problem:** `src/orchestrator.ts` (line ~175) writes the final consolidated report as `consolidated-report.md`. The requirements specification and README both document the output filename as `report.md`. Users following the docs will look for `report.md` and not find it.
 
-2. **Work distribution** — If more than one instance is requested, use Claude to analyze the review plan and divide it into logical chunks, one per requested instance. Each chunk should be a self-contained set of areas/flows to review. The division should minimize overlap while ensuring full coverage. If only one instance is requested, skip this step and pass the full plan through directly to avoid a wasted API call.
+**Fix:** Change the output filename string from `consolidated-report.md` to `report.md` in the orchestrator. Update any tests that assert on the old filename.
 
-3. **Instance launch** — Spawn N Claude Code subprocesses, each configured with Playwright MCP. Each instance receives:
-   - The full intro document
-   - Its assigned chunk of the review plan
-   - The evaluation scope (custom or default) defining what to look for
-   - Instructions for how to write to its discovery doc, checkpoint file, and report doc
-
-4. **Round execution** — Each instance runs its assigned number of rounds sequentially:
-   - **Round 1**: Works from the assigned plan chunk and the evaluation scope
-   - **Round 2+**: Works from the plan chunk, the evaluation scope, AND the accumulated discovery doc from previous rounds, using all three to identify missed areas and go deeper
-
-5. **Progress monitoring** — The orchestrator watches checkpoint and discovery files to update the CLI progress display in real time.
-
-6. **Failure handling** — If an instance crashes or errors, the orchestrator detects this, displays the failure in the progress UI, and retries the instance. The instance reads its checkpoint file on restart to resume from where it left off rather than restarting the round. There is a maximum retry count per instance (default: 3). If an instance exceeds the retry limit, it is marked as failed, its progress bar stays red with a final error message, and the tool continues with the remaining instances. The final consolidation uses whatever output the failed instance produced (if any).
-
-7. **Consolidation** — Once all instances complete all rounds or are permanently failed:
-   - Merge individual reports into a single final report
-   - Detect and deduplicate findings that multiple instances identified independently
-   - Assign clean sequential IDs (`UXR-001`, `UXR-002`, ...) to all findings
-   - Remap screenshot references to the new IDs
-   - Merge individual discovery docs into a consolidated human-readable discovery doc
-   - Write final deliverables to the output directory
-
-### Claude Code Instances
-
-Each instance is a spawned Claude Code CLI subprocess. Claude Code natively supports Playwright MCP for browser interaction and can read/write files directly.
-
-Each instance is instructed to:
-- Navigate the web app according to its assigned plan areas
-- Evaluate the UI against the provided evaluation scope criteria
-- Observe UX issues, inconsistencies, and improvement opportunities within scope
-- Capture screenshots as evidence for each finding
-- Continuously write findings to its report doc with instance-scoped IDs (e.g., `I1-UXR-001`, `I2-UXR-003`)
-- Continuously update its discovery doc with explored areas and elements
-- Update its checkpoint file with execution state after each significant step
-
-### File Organization
-
-**Working directory** (temporary, internal):
-```
-.uxreview-temp/
-  instance-1/
-    discovery.md        # What this instance has explored and found
-    checkpoint.json     # Execution state for resume-on-failure
-    report.md           # This instance's findings
-    screenshots/        # Screenshots captured during analysis
-  instance-2/
-    ...
-  work-distribution.md  # How the plan was split across instances
-```
-
-**Output directory** (final deliverables for the user):
-```
-uxreview-output/        # or user-specified --output path
-  report.md             # Final consolidated report
-  discovery.md          # Final consolidated discovery doc
-  screenshots/          # All screenshots, renamed to match final UXR IDs
-```
-
-The working directory is cleaned up between runs of the tool to avoid stale state. The output directory is overwritten on each run.
+**Scope:** `src/orchestrator.ts`, affected test files.
 
 ---
 
-## Discovery Document
+### 2. Add `files` field to `package.json`
 
-### Per-Instance Discovery Doc
+**Problem:** Without a `files` field or `.npmignore`, running `npm publish` ships everything in the repo — test fixtures, `.devloop/`, internal docs, debug logs. This bloats the published package and could expose internal files.
 
-Each Claude instance continuously writes to its own discovery doc during analysis. This document tracks:
+**Fix:** Add a `files` array to `package.json` that restricts published contents to:
+- `dist/`
+- `README.md`
+- `LICENSE`
 
-- UI areas visited and when
-- Specific UI elements, components, and features observed within each area
-- What was checked in each area (layout, accessibility, consistency, etc.)
-- Notes on navigation paths taken
-
-The discovery doc accumulates across rounds within an instance. In round 2+, Claude reads the discovery doc to understand what has already been covered and focus on gaps.
-
-### Consolidated Discovery Doc (Final Output)
-
-After all instances complete, the tool consolidates all per-instance discovery docs into a single human-readable document. This document:
-
-- Is structured as an indented hierarchy of UI areas and specific UI features/elements
-- Is deduplicated where multiple instances explored the same areas
-- Is formatted so it can be reused as a review plan document for a future run of the tool — creating a feedback loop where each run can refine and deepen the scope
+**Scope:** `package.json` only.
 
 ---
 
-## Checkpoint File
+### 3. Remove `shell: true` from Claude CLI spawn
 
-Each Claude instance maintains a checkpoint file (`checkpoint.json`) separate from the discovery doc. The checkpoint tracks execution state:
+**Problem:** `src/claude-cli.ts` (line ~40) spawns the Claude CLI subprocess with `shell: true`. This routes the subprocess through the system shell, which is unnecessary since `claude` can be invoked directly. The `shell: true` option introduces a theoretical command injection surface (though the actual risk is minimal since prompts go via stdin). More importantly, `shell: true` prevents direct PID control over the child process, which is needed for the signal handling work in change #4.
 
-- Instance ID and assigned plan areas
-- Current round number
-- Which assigned areas are complete, in-progress, or not started
-- Last completed action/step within the current area
-- Timestamp of last update
+**Fix:** Remove the `shell: true` option from the `spawn`/`execFile` call. Ensure the `claude` command is resolved correctly without a shell wrapper on both Windows and Unix. Update tests if they depend on shell behavior.
 
-On failure and retry, Claude reads the checkpoint to resume exactly where it left off — preserving all progress from the current round rather than restarting it.
+**Scope:** `src/claude-cli.ts`, affected test files.
 
 ---
 
-## Report Format
+### 4. Add SIGINT/SIGTERM handler for child process cleanup
 
-### Per-Instance Reports
+**Problem:** If the user hits Ctrl+C while the tool is running, spawned Claude Code subprocesses become orphaned and continue consuming API quota. The `finally` block in the orchestrator's `orchestrate` function only stops the progress display timer — it does not terminate child processes.
 
-Each instance writes findings to its own report doc during analysis. Each finding includes:
+**Fix:** Register process signal handlers (`SIGINT`, `SIGTERM`) in the orchestrator that:
+1. Kill all tracked child processes (using the PIDs now available after removing `shell: true` in change #3)
+2. Stop the progress display
+3. Clean up gracefully before exiting
 
-- **Instance-scoped ID** (e.g., `I1-UXR-001`) — unique within the instance, prefixed to avoid collisions across instances
-- **UI area** — which part of the app this relates to
-- **Finding title** — concise description of the issue
-- **Description** — detailed observation of the UX issue or inconsistency
-- **Suggestion** — recommended change or improvement
-- **Screenshot reference(s)** — linked by the finding ID
-- **Severity/priority** — assessment of impact
+The orchestrator or instance manager needs to maintain a registry of active child process references so the signal handler can iterate and kill them. On Windows, use `process.kill(pid)` or `child.kill()`. Ensure the handler runs before the process exits.
 
-### Final Consolidated Report
-
-The consolidated report is a single markdown file that:
-
-- Groups findings by logical UI area
-- Uses indentation to show hierarchy — dependent changes are indented under their parent finding
-- Top-level (root) items are independent and can be worked on in parallel with all other top-level items
-- Each finding has a clean, sequential unique ID (`UXR-001`, `UXR-002`, ...)
-- Duplicate findings (same issue spotted by different instances) are merged into a single entry
-- Screenshots are referenced by final IDs and stored in the output screenshots folder
-
-Example structure:
-```markdown
-## Navigation
-
-### UXR-001: Inconsistent hover states on main nav items
-...
-  #### UXR-002: Mobile hamburger menu animation is janky
-  ...
-  #### UXR-003: Breadcrumb trail missing on sub-pages
-  ...
-
-## Dashboard
-
-### UXR-004: Card grid spacing inconsistent at medium breakpoints
-...
-  #### UXR-005: Loading skeleton doesn't match final card layout
-  ...
-
-### UXR-006: Empty state message is generic and unhelpful
-...
-```
+**Scope:** `src/orchestrator.ts`, `src/instance-manager.ts` (or `src/claude-cli.ts` depending on where process refs are tracked), new tests for signal handling behavior.
 
 ---
 
-## CLI Progress Display
+### 5. Raise coverage thresholds to 95%
 
-The tool provides real-time progress feedback on the command line while running.
+**Problem:** `vitest.config.ts` sets all coverage thresholds (statements, branches, functions, lines) to 80%, which is the hard minimum from the original requirements. The actual coverage is 96.54%. The user wants the threshold raised to 95% to prevent regression.
 
-### Progress Bars
+**Fix:** Change all four threshold values in `vitest.config.ts` from 80 to 95.
 
-One progress bar per Claude instance, showing:
-
-- Instance identifier
-- Current round number (e.g., "Round 2/3")
-- Visual progress bar
-- Percentage complete
-- Stats: items checked, findings so far, round duration
-- Estimated time remaining (calculated from prior round durations)
-
-### Progress Scale
-
-- **Round 1**: Progress is based on the number of plan items assigned to the instance. As each area is marked complete in the checkpoint, the bar advances.
-- **Round 2+**: The discovery doc from previous rounds provides a more detailed picture of what needs to be checked. The progress scale recalibrates to use the discovery doc's more granular list of areas and elements.
-
-### Color States
-
-- **White** — Instance is actively running
-- **Red** — Failure detected. The bar shows in red with a description of the error. When retry begins, a message indicates the retry attempt. On successful retry resume, the bar returns to white. If the instance exceeds the maximum retry limit, the bar stays red permanently with a final error message.
-- **Green** — All rounds complete for this instance. Bar stays green.
-
-### Completion
-
-Once all instances are green or permanently failed (all rounds complete or retry limit exceeded for all instances), the tool shows a consolidation phase progress indicator (e.g., a spinner or status line showing "Consolidating reports..."), then outputs the path to the final report and discovery doc.
+**Scope:** `vitest.config.ts` only.
 
 ---
 
-## Screenshots
+### 6. Post-run temp directory cleanup with `--keep-temp` flag
 
-Screenshots are captured by each Claude instance via Playwright MCP as evidence for UX findings.
+**Problem:** The `.uxreview-temp/` working directory persists after a run completes. It is only cleaned up at the start of the *next* run. This leaves intermediate data (discovery docs, checkpoints, instance reports, screenshots) on disk between runs.
 
-- Each screenshot is named using the finding's instance-scoped ID (e.g., `I1-UXR-001.png`)
-- Screenshots are stored in the instance's working directory during analysis
-- During consolidation, screenshots are copied to the output directory and renamed to match the final sequential IDs (e.g., `UXR-001.png`)
-- A finding may have multiple screenshots if needed (e.g., `UXR-001-a.png`, `UXR-001-b.png`)
-- Screenshots are referenced in the report via relative paths
+**Fix:**
+1. Add a `--keep-temp` CLI flag (boolean, default `false`). When false (the default), the temp directory is deleted after the run completes. When true, the temp directory is preserved for debugging.
+2. Add `cleanupTempDir()` to the `finally` block in the orchestrator's `orchestrate` function, gated on the `--keep-temp` flag.
+3. Update CLI argument parsing to accept `--keep-temp`.
+4. Update the README to document the new flag.
+5. Update tests to cover both behaviors.
+
+**Scope:** `src/cli.ts`, `src/orchestrator.ts`, `src/file-manager.ts`, README, affected test files.
+
+---
+
+### 7. Remove `placeholder.test.ts`
+
+**Problem:** A no-op placeholder test file still exists from initial project scaffolding. It serves no purpose now that 628 real tests exist.
+
+**Fix:** Delete the file.
+
+**Scope:** The placeholder test file (likely `tests/placeholder.test.ts` or similar).
+
+---
+
+### 8. Refactor duplicated rate-limit retry logic
+
+**Problem:** `src/instance-manager.ts` contains two nearly identical rate-limit retry loops (lines ~345-364 and ~396-415). This duplication means:
+- The two paths could diverge in behavior if one is updated and the other isn't
+- In the worst case, the nested loops can produce up to 30 retry attempts (10 rate-limit retries x 3 normal retries)
+- The code is harder to reason about
+
+**Fix:** Extract the rate-limit detection and exponential backoff logic into a shared helper function (either in `src/rate-limit.ts` or as a private function in `src/instance-manager.ts`). Both call sites should use the shared helper. The total retry behavior should be well-defined: rate-limit retries should be counted globally across the instance's execution, not reset per normal retry attempt.
+
+**Scope:** `src/instance-manager.ts`, possibly `src/rate-limit.ts`, affected test files.
+
+---
+
+### 9. Fix spin-wait busy loop in file-manager.ts
+
+**Problem:** `src/file-manager.ts` (lines ~73-74) uses a synchronous busy-wait loop (`while (Date.now() - start < delay) { /* spin */ }`) for Windows file lock retry during temp directory cleanup. This blocks the Node.js event loop entirely during the wait, preventing any async work from progressing.
+
+**Fix:** Make `cleanupTempDir` async and replace the spin-wait with an async delay (e.g., `await new Promise(resolve => setTimeout(resolve, delay))`). Update all callers to await the async function. If `cleanupTempDir` is called in contexts where it must be synchronous (e.g., a `finally` block that can't be async), evaluate whether those contexts can be made async or whether a different approach is needed.
+
+**Scope:** `src/file-manager.ts`, callers of `cleanupTempDir`, affected test files.
+
+---
+
+### 10. Fix child finding indentation bug in consolidation
+
+**Problem:** `src/consolidation.ts` (lines ~698-699) uses `split('\n').map(l => l ? '  ' + l : l).join('\n')` to indent child finding metadata in the hierarchical report. The truthy check on `l` skips blank lines, so the empty line between the heading and metadata block is not indented. This produces inconsistent indentation in the final report where child findings have some lines indented and some not.
+
+**Fix:** Change the indentation logic to indent all lines uniformly, including blank lines. For example: `.map(l => '  ' + l)` or handle the blank-line case explicitly if trailing whitespace on blank lines is undesirable.
+
+**Scope:** `src/consolidation.ts`, affected test files.
 
 ---
 
 ## Testing Strategy
 
-### Framework
+All changes must maintain or improve the existing 96.54% coverage. The new enforced threshold is 95%.
 
-Vitest for test running and coverage reporting.
+- Changes #1, #2, #5, #7, #10 are small/trivial and primarily require updating existing tests to match new behavior.
+- Changes #3, #4 require new tests for subprocess spawning without shell and signal handling behavior.
+- Change #6 requires tests for both `--keep-temp true` and default (false) paths.
+- Change #8 requires updating rate-limit retry tests to use the refactored helper and verify global retry counting.
+- Change #9 requires updating file-manager tests for async cleanup behavior.
 
-### Approach
-
-Integration tests that mock the Claude Code CLI subprocess responses. The mocks simulate:
-
-- Claude's work distribution analysis (dividing the plan)
-- Claude instance output (discovery doc writes, checkpoint updates, report writes, screenshot captures)
-- Multi-round behavior (discovery doc feeding into subsequent rounds)
-- Failure scenarios (instance crashes, partial progress, retry and resume)
-- Consolidation logic (deduplication, ID reassignment, screenshot remapping)
-
-### Coverage
-
-All code paths through the codebase must be covered by integration tests:
-
-- Happy path: single instance, single round
-- Happy path: multiple instances, multiple rounds
-- Work distribution across instances
-- Plan, intro, and scope as inline text vs file paths
-- Default scope used when --scope not provided
-- Custom scope passed through to instances
-- Progress bar updates and scale recalibration
-- Instance failure, checkpoint resume, and retry
-- Report consolidation with duplicate detection
-- Discovery doc consolidation and hierarchy building
-- Screenshot capture, renaming, and remapping
-- CLI argument parsing and validation
-- Max retry limit exceeded, instance permanently failed
-- Consolidation with partial output from failed instances
-- Edge cases: single area plan, single instance skips work distribution, overlapping instance findings, all instances fail
-
-**Coverage threshold**: 90% target, 80% hard minimum. The Vitest coverage reporter enforces this — builds fail below 80%.
-
-### End-to-End Test
-
-A real e2e test that exercises the full tool against a live test web app with real Claude instances (no mocks). This serves as the final validation that the tool works end-to-end before human testing.
-
-**Test web app**: A simple static HTML web app included in the test fixtures, served locally (e.g., via a lightweight HTTP server). The app is intentionally built with known UX issues that Claude should detect, such as:
-- Inconsistent button styling (different colors/sizes for same-level actions)
-- Missing form validation feedback
-- Broken navigation flow (dead-end page with no back link)
-- Poor contrast text
-- Inconsistent terminology (e.g., "Save" vs "Submit" vs "Confirm" for similar actions)
-- Missing loading/empty states
-- Misaligned elements or inconsistent spacing
-
-The issues should be spread across at least 3-4 distinct UI areas so that work distribution across multiple instances is meaningful.
-
-**Test execution**: The e2e test runs the tool with multiple Claude instances (e.g., 2-3), each assigned a subset of the test app's areas. Each instance runs 1-2 rounds. The test verifies:
-- The tool completes without crashing
-- The final report contains findings (actual UX issues from the test app)
-- Each finding has a unique `UXR-` ID, a description, and a screenshot reference
-- Screenshots exist in the output directory
-- The consolidated discovery doc is present and structured hierarchically
-- The report groups findings by UI area
-
-This test is slower and requires real Claude API access, so it should be tagged/configured to run separately from the fast integration test suite (e.g., via a `--e2e` flag or a separate Vitest config).
+All existing tests must continue to pass after the changes.
 
 ---
 
-## README
+## Out of Scope
 
-The project README provides:
+The following item from the review was explicitly excluded from this iteration:
 
-- Brief description of what the tool does
-- Prerequisites (Node.js version, Claude Code CLI installed, Playwright MCP configured)
-- Installation instructions via npm (`npm install -g uxreview` or local install)
-- CLI usage with all parameters documented
-- Examples:
-  - Basic single-instance run with inline text
-  - Multi-instance run with file references
-  - Custom output directory and multiple rounds
-  - Exporting and customizing the default scope
-- Explanation of output files (report, discovery doc, screenshots)
-- How to customize evaluation scope (export default, edit, pass back)
-- How to reuse the discovery doc as a plan for subsequent runs
+- **Rate-limit handling in consolidation phase** — Skipped per user decision. The consolidation phase runs after instances complete, when API load is typically lower.
 
----
+The following review recommendations are deferred to a future iteration:
 
-## Technical Decisions Summary
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Language | TypeScript | Good async support, CLI tooling ecosystem, works with Claude SDK |
-| Package manager | npm | Standard, widely supported |
-| Claude integration | Claude Code CLI subprocesses | Each instance gets Playwright MCP natively, can read/write files |
-| Browser automation | Playwright MCP (via Claude Code) | Already available in Claude Code, purpose-built for this |
-| Report format | Markdown | Simple, readable, easy to convert |
-| Test framework | Vitest | Fast, native TS support, built-in coverage |
-| Coverage target | 90% (80% minimum) | High confidence in all code paths |
-
----
-
-## Constraints and Edge Cases
-
-- **Large apps**: If the review plan is extensive, the work distribution step must produce balanced chunks. Uneven distribution means some instances finish much earlier than others.
-- **Auth complexity**: Some apps may require complex auth flows (MFA, SSO). The intro doc needs to cover this, and Claude needs to be able to follow the instructions. This is a known limitation — highly complex auth may need manual setup before running the tool.
-- **Playwright MCP limits**: Claude's ability to interact with certain UI elements (canvas, complex drag-and-drop, iframes) may be limited by Playwright MCP capabilities.
-- **Rate limiting**: Multiple Claude Code instances running simultaneously may hit API rate limits. The orchestrator should handle backoff gracefully if this occurs.
-- **Screenshot volume**: For large reviews, the number of screenshots could be significant. The tool should not attempt to store screenshots in memory — they stay on disk.
-- **Duplicate detection accuracy**: The consolidation step uses Claude to detect duplicate findings across instances. This is heuristic — some near-duplicates may not be caught, and some similar-but-distinct findings may be incorrectly merged. The final report should err on the side of keeping findings separate rather than over-merging.
+- Streaming progress from Claude instances
+- Incremental output (append to existing output directory)
+- Configurable retry limits and timeouts as CLI options
+- HTML report output
+- Finding severity filtering
+- Claude Agent SDK migration
+- Structured IPC (replacing file-based communication)
+- Parallel hierarchy determination
+- Async file I/O throughout
+- Structured logging / `--verbose` flag

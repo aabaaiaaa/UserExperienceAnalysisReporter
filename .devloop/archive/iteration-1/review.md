@@ -1,155 +1,222 @@
-# Code Review Report — UX Analysis Reporter
+# Code Review Report — UX Analysis Reporter (Iteration 2)
 
-**Date**: 2026-04-02
+**Date**: 2026-04-07
 **Reviewer**: Claude (automated review)
-**Commit**: d4420c2 (master branch)
+**Branch**: master
+**Scope**: Full codebase review after iteration 2 completion (all 11 tasks done)
 
 ---
 
 ## Requirements vs Implementation
 
-### Requirements Fully Met
+### Iteration 2 Requirements — All Met
 
-The following requirements are implemented and verified by tests:
+All 10 changes from the iteration 2 requirements document have been implemented and verified:
 
-- **CLI argument parsing** (TASK-002): All parameters (`--url`, `--intro`, `--plan`, `--scope`, `--show-default-scope`, `--instances`, `--rounds`, `--output`, `--help`) are parsed correctly. File-vs-inline-text detection works. Validation covers URL format, required params, and positive integer checks.
-- **Default evaluation scope** (TASK-003): All 10 UX criteria from requirements are present as a string constant in `src/default-scope.ts`.
-- **File organization** (TASK-004): Temp directory (`.uxreview-temp/`) and output directory structures match the requirements spec exactly. Cleanup between runs works.
-- **Claude Code CLI utility** (TASK-005): Subprocess spawning via `claude -p --output-format text` with stdin prompt passing, stdout/stderr capture, exit code detection, timeout handling, and extra args support.
-- **Work distribution** (TASK-006): Single-instance skips Claude call; multi-instance uses Claude with `---CHUNK---` delimiter parsing. Distribution saved to `work-distribution.md`.
-- **Instance spawning and management** (TASK-007): Instances receive intro, plan chunk, scope, and file instructions. 30-minute timeout. `--allowedTools` restricts tools to Bash, Read, Write, Edit, and mcp__playwright.
-- **Checkpoint file** (TASK-008): Full checkpoint schema with read/write, corruption handling (returns null), resume prompt generation.
-- **Discovery document** (TASK-009): Structured markdown format, accumulates across rounds, parsed and formatted correctly.
-- **Per-instance report** (TASK-010): Instance-scoped IDs (`I{N}-UXR-{NNN}`), severity validation, markdown format.
-- **Screenshot integration** (TASK-011): Naming convention with alphabetic suffixes for multiple screenshots per finding.
-- **Multi-round execution** (TASK-012): Round 2+ includes discovery doc context. Progress scale recalibration from discovery items.
-- **Failure detection, retry, resume** (TASK-013): Checkpoint-based resume, corrupted checkpoint fallback, max retry limit (default 3), permanent failure marking.
-- **Progress display** (TASK-014-017): Per-instance progress bars with round tracking, percentage, stats, ETA. Color states (white/red/green/yellow). Consolidation spinner and final path output.
-- **Report consolidation** (TASK-018-021): Deduplication via Claude, ID reassignment (`UXR-{NNN}`), screenshot remapping/copying, hierarchical grouping by UI area, discovery doc consolidation.
-- **Parallel orchestration** (TASK-022): `Promise.allSettled` for parallel instance execution. Independent failure handling.
-- **Rate limit handling** (TASK-023): Pattern-based detection, exponential backoff with jitter, separate from normal retry count.
-- **All test tasks** (TASK-024-031): 628 tests passing, 96.54% statement coverage (exceeds 90% target).
-- **README** (TASK-032): Comprehensive with examples, prerequisites, installation, usage, scope customization, discovery reuse workflow.
+| # | Requirement | Status | Notes |
+|---|------------|--------|-------|
+| 1 | Rename output report file to `report.md` | **Done** | `orchestrator.ts:185` writes `report.md`. No references to `consolidated-report.md` remain. |
+| 2 | Add `files` field to `package.json` | **Done** | `["dist/", "README.md", "LICENSE"]` restricts published contents. |
+| 3 | Remove `shell: true` from Claude CLI spawn | **Done** | `claude-cli.ts:63` spawns directly with `spawn(command, args, ...)`. Platform detection uses `claude.cmd` on Windows. |
+| 4 | Add SIGINT/SIGTERM handler for child process cleanup | **Done** | `orchestrator.ts:122-128` registers handlers; `claude-cli.ts:4-19` maintains active process registry with `killAllChildProcesses()`. Handlers removed in `finally` block. |
+| 5 | Raise coverage thresholds to 95% | **Done** | `vitest.config.ts` sets all four thresholds to 95. |
+| 6 | Post-run temp directory cleanup with `--keep-temp` | **Done** | `cli.ts:86,178` parses the flag; `orchestrator.ts:199-201` conditionally cleans up in `finally`. README documents the flag. |
+| 7 | Remove `placeholder.test.ts` | **Done** | No placeholder test file exists in the project. |
+| 8 | Refactor duplicated rate-limit retry logic | **Done** | `instance-manager.ts:311-336` contains the shared `handleRateLimitRetries()` helper. Both the initial spawn and normal retry paths use it with a shared `RateLimitRetryState` for global retry counting. |
+| 9 | Fix spin-wait busy loop in `file-manager.ts` | **Done** | `cleanupTempDir()` is now `async`, uses `await new Promise(resolve => setTimeout(resolve, delay))` for retry delays. All callers (`initTempDir`, `orchestrate` finally block) properly `await` it. |
+| 10 | Fix child finding indentation bug in consolidation | **Done** | `consolidation.ts:699` uses `.map(l => \`  \${l}\`)` which uniformly indents all lines including blank separators. |
 
-### Gaps and Partial Implementations
+### Original Requirements (Iteration 1) — Verified
 
-| # | Issue | Severity | Details |
-|---|-------|----------|---------|
-| 1 | **Output report filename mismatch** | Medium | The orchestrator (`src/orchestrator.ts:175`) writes the final report as `consolidated-report.md`, but the requirements (File Organization section) and README both specify it should be `report.md`. The output directory structure in the requirements is: `uxreview-output/report.md`. |
-| 2 | **Coverage threshold config vs requirements** | Low | `vitest.config.ts` sets all thresholds to 80% (the hard minimum). The requirements specify 90% as the target. The actual coverage (96.54%) exceeds both, but the config should enforce 90% to prevent regression. |
-| 3 | **No post-run temp directory cleanup** | Low | Requirements: "The working directory is cleaned up between runs." The implementation cleans up stale temp dirs at the *start* of a new run (`initTempDir` calls `cleanupTempDir`), but does not clean up after completion. The `.uxreview-temp/` directory persists after a run, potentially exposing intermediate data. |
-| 4 | **Rate limiting not handled in consolidation** | Low | The consolidation phase makes up to 3 Claude CLI calls (deduplication, hierarchy, discovery consolidation) but has no rate-limit retry logic. Only the instance analysis phase has rate-limit backoff. Under heavy API load, consolidation can fail. |
+All original requirements from the iteration 1 spec remain correctly implemented:
+
+- **CLI argument parsing**: All parameters parsed, validated, and documented. File-vs-inline detection works via `resolveTextOrFile()`. Unknown flags rejected.
+- **Default evaluation scope**: All 10 UX criteria present in `src/default-scope.ts`.
+- **File organization**: `.uxreview-temp/` and output directory structures match spec.
+- **Claude Code CLI utility**: Subprocess spawning without shell, stdin prompt passing, stdout/stderr capture, timeout handling, process registry.
+- **Work distribution**: Single-instance bypass, multi-instance Claude-based splitting with `---CHUNK---` delimiter.
+- **Instance spawning**: 30-minute timeout, `--allowedTools` restriction, per-instance working directories.
+- **Checkpoint system**: JSON schema with validation, corruption handling (returns null), resume prompt generation.
+- **Discovery documents**: Structured markdown format, round accumulation, parsing, extraction for progress recalibration.
+- **Per-instance reports**: Instance-scoped IDs (`I{N}-UXR-{NNN}`), severity validation, markdown format.
+- **Screenshot integration**: Naming convention with alphabetic suffixes, capture instructions for Claude.
+- **Multi-round execution**: Round 2+ includes discovery context, progress scale recalibration from discovery items.
+- **Failure detection, retry, resume**: Checkpoint-based resume, corrupted checkpoint fallback, max retry limit (default 3), permanent failure marking.
+- **Progress display**: Per-instance progress bars with round tracking, percentage, stats, ETA, color states (white/red/green/yellow), consolidation spinner.
+- **Report consolidation**: Deduplication via Claude, ID reassignment (`UXR-{NNN}`), screenshot remapping/copying, hierarchical grouping by UI area.
+- **Discovery consolidation**: Merging via Claude, hierarchical restructuring, single-doc fallback.
+- **Parallel orchestration**: `Promise.allSettled` for independent failure handling.
+- **Rate limit handling**: Pattern-based detection, exponential backoff with jitter, global retry budget across rounds.
+- **README**: Comprehensive with examples, prerequisites, installation, scope customization, discovery reuse workflow, `--keep-temp` documentation.
 
 ### Scope Creep
 
-No significant scope creep detected. The implementation closely follows the requirements without adding unnecessary features.
+No scope creep detected. The iteration 2 changes are strictly limited to the 10 items in the requirements document. No unnecessary features, refactors, or abstractions were added.
+
+### Explicitly Excluded Items (Documented)
+
+The following were intentionally excluded from iteration 2 per the requirements document:
+
+- Streaming progress from Claude instances
+- Incremental output / append-to-existing mode
+- Configurable retry limits and timeouts as CLI options
+- HTML report output
+- Finding severity filtering
+- Claude Agent SDK migration
+- Structured IPC (replacing file-based communication)
+- Full async file I/O
+- Structured logging / `--verbose` flag
 
 ---
 
 ## Code Quality
 
+### Architecture
+
+The codebase is well-structured with clean separation of concerns across 15 focused source modules:
+
+| Module | Responsibility | Lines |
+|--------|---------------|-------|
+| `index.ts` | Entry point, arg parsing, error handling | ~12 |
+| `cli.ts` | CLI argument parsing and validation | ~181 |
+| `claude-cli.ts` | Claude Code subprocess management | ~115 |
+| `orchestrator.ts` | Top-level orchestration flow | ~203 |
+| `instance-manager.ts` | Instance spawning, rounds, retries | ~487 |
+| `work-distribution.ts` | Plan splitting across instances | ~126 |
+| `file-manager.ts` | Directory management, cleanup | ~133 |
+| `checkpoint.ts` | Checkpoint read/write/resume | ~125 |
+| `discovery.ts` | Discovery document management | ~349 |
+| `report.ts` | Finding report management | ~254 |
+| `consolidation.ts` | Dedup, ID reassignment, hierarchy | ~848 |
+| `screenshots.ts` | Screenshot naming and listing | ~119 |
+| `rate-limit.ts` | Rate limit detection and backoff | ~64 |
+| `progress-display.ts` | Terminal progress UI | ~379 |
+| `default-scope.ts` | Built-in evaluation criteria | ~78 |
+
+The data flow is clear: CLI -> orchestrator -> work distribution -> parallel instance execution -> consolidation -> output. Each module has a well-defined interface. The `Promise.allSettled` pattern in the orchestrator ensures one instance failure doesn't cascade.
+
 ### Bugs and Logic Issues
 
-| # | File:Line | Issue | Severity |
-|---|-----------|-------|----------|
-| 1 | `orchestrator.ts:175` | Report filename is `consolidated-report.md` instead of `report.md` per requirements. Users following the README's output docs will look for `report.md` and not find it. | Medium |
-| 2 | `file-manager.ts:73-74` | **Spin-wait busy loop** for Windows file lock retry: `while (Date.now() - start < 100 * attempt) { /* spin */ }`. This blocks the Node.js event loop entirely during the wait, preventing any async work from progressing. Since `cleanupTempDir` is synchronous this is technically functional, but it's an anti-pattern that could cause issues in larger contexts. | Low |
-| 3 | `instance-manager.ts:401-415` | Rate-limit retry logic inside the normal retry loop duplicates the outer rate-limit handling (lines 345-364). This creates two separate rate-limit retry paths with potentially different behaviors. The inner loop retries against `MAX_RATE_LIMIT_RETRIES` independently for each normal retry attempt, which could lead to very long total backoff times (up to 10 rate-limit retries * 3 normal retries = 30 attempts). | Low |
-| 4 | `consolidation.ts:698-699` | Child finding metadata indentation uses `split('\n').map(l => l ? '  ' + l : l).join('\n')`, which produces inconsistent indentation — the first empty line in `formatFindingMetadata` output gets skipped by the truthy check on `l`, so the blank line between the heading and metadata is not indented. Minor formatting inconsistency in the final report. | Low |
+| # | Location | Issue | Severity |
+|---|----------|-------|----------|
+| 1 | `package.json:9` | **Missing LICENSE file**: The `files` field includes `"LICENSE"` but no LICENSE file exists at the project root. `npm pack --dry-run` will list it, but the published package will be missing the license file. | Medium |
+| 2 | `orchestrator.ts:110-114` | **Workspace leak on early failure**: `initWorkspace()` and `distributePlan()` are called before the `try` block (line 132). If `distributePlan()` throws (e.g., Claude CLI failure), the created workspace directories are never cleaned up because the `finally` block only runs for code inside `try`. | Medium |
+| 3 | `consolidation.ts:699` | **Trailing whitespace on blank lines**: The indentation fix `formatFindingMetadata(child).split('\n').map(l => \`  \${l}\`).join('\n')` produces `"  "` (two spaces) on blank separator lines in the hierarchical report. This is cosmetically fine in markdown rendering, but some linters or editors will flag trailing whitespace. | Info |
+| 4 | `consolidation.ts:650-659` | **Sequential hierarchy determination**: `organizeHierarchically()` calls Claude once per UI area group in a sequential `for...of` loop. With many UI areas, this creates a serial bottleneck. These calls are independent and could be parallelized with `Promise.all`. | Low |
+| 5 | `consolidation.ts:372-379` | **Screenshot suffix limited to 26**: `buildNewScreenshotFilenames()` uses `String.fromCharCode(96 + i)` for suffixes, which only supports 26 screenshots per finding (a-z). A finding with 27+ screenshots would produce non-alphabetic characters. Extremely unlikely in practice, but undocumented. | Info |
+| 6 | `cli.ts:177` | **Output flag cast**: `(raw.get('output') as string)` — the `as string` cast is safe because `parseRawArgs` ensures non-boolean flags have string values, but the cast obscures this safety guarantee. A runtime check would be clearer. | Info |
 
 ### Error Handling
 
-Error handling is generally adequate:
+Error handling is thorough and well-considered:
 
-- **Checkpoint corruption**: Returns `null`, triggers round restart — good.
-- **Claude CLI failures**: Throw descriptive errors with exit codes and stderr content.
-- **File I/O**: Discovery and report reads use try/catch, return null on failure.
-- **Promise rejections**: `Promise.allSettled` prevents one instance crash from killing others.
-- **Hierarchy determination**: Falls back to flat structure if Claude fails — good graceful degradation.
+- **Checkpoint corruption**: Returns `null`, triggering round restart from scratch. Tested with both invalid JSON and valid JSON with missing fields.
+- **Claude CLI failures**: Throw descriptive errors with exit codes and stderr content. Work distribution and deduplication failures propagate with context.
+- **File I/O**: Discovery and report reads use try/catch, return null on failure. Checkpoint reads validate field types.
+- **Promise rejections**: `Promise.allSettled` prevents one instance crash from killing others. Rejected promises are caught and converted to permanent failure results.
+- **Hierarchy determination**: Falls back to flat structure (all top-level) if Claude fails — good graceful degradation.
+- **Signal handling**: SIGINT/SIGTERM handlers kill all child processes, stop the progress display, and exit with correct codes (130/143). Handlers are properly deregistered in the `finally` block to avoid leaks.
+- **Rate limit handling**: Global retry budget shared across rounds and normal retries. Clear separation between rate-limit retries (don't count against normal limit) and normal retries.
 
-One concern: **No signal handling** for SIGINT/SIGTERM in the orchestrator. If the user Ctrl+C's the process, spawned Claude subprocesses may become orphaned since they're spawned with `shell: true`. The `finally` block in `orchestrate` only stops the progress display timer; it doesn't terminate child processes.
+One gap: If `initWorkspace` succeeds but `distributePlan` fails, the `finally` block doesn't execute, leaving stale workspace directories. This would be cleaned up on the next run (since `initTempDir` calls `cleanupTempDir` first), but is a minor leak.
 
-### Security Concerns
+### Security
 
 | # | Issue | Risk | Details |
 |---|-------|------|---------|
-| 1 | `claude-cli.ts:40` — `shell: true` in spawn | Low | The `shell: true` option routes the subprocess through the system shell, which can introduce command injection if arguments are constructed from user input. In this case, the prompt is passed via **stdin** (not as a shell argument), and the only CLI args are hardcoded (`-p`, `--output-format`, `--allowedTools`), so the actual risk is minimal. However, `shell: true` is unnecessary since `claude` can be spawned directly. Removing it would be a defense-in-depth improvement. |
-| 2 | No `files` field in `package.json` | Low | When published to npm, the package will include all files (tests, `.devloop/`, etc.) since there's no `.npmignore` or `files` field. This bloats the package and could accidentally expose internal documentation. |
-| 3 | `resolveTextOrFile` reads any accessible file | Info | The `--intro`, `--plan`, and `--scope` parameters can read any file the user has access to. This is expected for a CLI tool, but worth noting if the tool is ever exposed as a service. |
+| 1 | `shell: true` removed | **Resolved** | The iteration 1 concern about command injection via `shell: true` has been addressed. `claude-cli.ts` now spawns the process directly. |
+| 2 | `resolveTextOrFile` reads any file | Info | The `--intro`, `--plan`, and `--scope` parameters can read any file the user has access to. Expected for a CLI tool, but worth noting if ever exposed as a service. No size limit on file reads. |
+| 3 | `files` field in `package.json` | **Resolved** | Test fixtures, `.devloop/`, and internal files are now excluded from `npm publish`. |
+| 4 | Prompt injection surface | Info | User-provided intro, plan, and scope text are interpolated directly into Claude prompts. A malicious user could craft inputs to manipulate Claude's behavior. This is inherent to the tool's design and acceptable for a CLI tool where the user controls all inputs. |
+
+### Code Style and Consistency
+
+- TypeScript strict mode is enabled with comprehensive compiler options.
+- ESM modules used consistently (`"type": "module"` in package.json, `.js` extensions in imports).
+- Functions are well-documented with JSDoc comments explaining purpose, parameters, and behavior.
+- Consistent error message formatting across modules.
+- No dead code or unused imports observed.
+- The re-export pattern in `instance-manager.ts:2` (`export { killAllChildProcesses, getActiveProcessCount }` from `claude-cli.js`) keeps the orchestrator's import clean but adds an indirect layer. Acceptable given the module boundary design.
 
 ---
 
 ## Testing
 
-### Coverage Summary
+### Coverage
 
-```
-All files:           96.54% Stmts | 94.22% Branch | 96.87% Funcs | 96.54% Lines
-```
+The test suite consists of 26 test files (excluding `e2e.test.ts` from coverage):
 
-| File | Statements | Notes |
-|------|-----------|-------|
-| checkpoint.ts | 100% | Fully covered |
-| claude-cli.ts | 100% | Fully covered |
-| cli.ts | 92.66% | Uncovered: lines ~105-106, 118-119 |
-| consolidation.ts | 99.5% | Uncovered: discovery read error fallback (251-252) |
-| default-scope.ts | 100% | Fully covered |
-| discovery.ts | 97.77% | Uncovered: file read error paths |
-| file-manager.ts | 86.11% | **Lowest**: Windows retry spin loop (66-75, 77) hard to test |
-| instance-manager.ts | 91.96% | Uncovered: nested rate-limit retry path inside normal retries |
-| orchestrator.ts | 95.61% | Uncovered: some progress callback wiring |
-| progress-display.ts | 97.18% | Uncovered: some terminal rendering edge cases |
-| rate-limit.ts | 93.1% | Uncovered: `sleep` function (62-63) |
-| report.ts | 96.69% | Uncovered: file read error paths |
-| screenshots.ts | 100% | Fully covered |
-| work-distribution.ts | 100% | Fully covered |
+| Category | Files | Description |
+|----------|-------|-------------|
+| Unit tests | 12 | Individual module tests (checkpoint, claude-cli, cli, consolidation, discovery, file-manager, progress-display, rate-limit, report, screenshots, work-distribution) |
+| Round execution | 3 | Multi-round, retry, progress recalibration |
+| Integration tests | 5 | Happy path, multi-instance, dedup/consolidation, edge cases, failure/retry |
+| Coverage/verification | 3 | Coverage gaps, task verification |
+| E2E | 1 | Full tool run with real Claude instances |
 
-### Test Quality Assessment
+Coverage thresholds are set to 95% for statements, branches, functions, and lines. The previous iteration measured 96.54% coverage, and the iteration 2 changes (async cleanup, refactored rate-limit logic, signal handling) all have corresponding tests.
 
-**Strengths:**
-- 628 tests across 24 test files — thorough unit and integration coverage
-- Clean mock isolation with `vi.mock()` for all external dependencies
-- Round-trip parsing tests (format -> write -> read -> parse) for data integrity
-- Failure scenario coverage: crashes, timeouts, corrupted checkpoints, rate limits, max retry exhaustion
-- Real file I/O tests with proper temp directory setup/teardown
-- E2E test with intentional UX issues in a fixture web app (4 pages, 10+ distinct issues)
-- TypeScript compiles cleanly with strict mode (`npx tsc --noEmit` passes)
+### Test Quality — Strengths
 
-**Gaps:**
-- `placeholder.test.ts` is a no-op test that can be removed
-- No test verifies the orchestrator cleans up child processes on signal interruption
-- The E2E test (`npm run test:e2e`) requires real Claude API access and cannot run in CI without credentials
-- Integration tests mock the Claude CLI at the module level, which means the actual prompt content sent to Claude is not validated against what Claude would actually understand
-- No negative test for excessively large plan inputs or very high instance counts
-- The `file-manager.ts` Windows retry loop (86.11% coverage) is the weakest point but is genuinely hard to test without simulating OS-level file locks
+1. **Clean mock isolation**: Tests mock `claude-cli.js` at the module level using `vi.mock()`, providing deterministic responses for each prompt type (analysis, hierarchy, discovery consolidation, deduplication).
+
+2. **Realistic mock behavior**: Integration tests write actual files (discovery docs, reports, screenshots) as side effects of mock `runClaude` calls, exercising the full read-write-parse pipeline.
+
+3. **Round-trip parsing tests**: Discovery and report modules have format -> write -> read -> parse tests that verify data integrity through the full cycle.
+
+4. **Failure scenario coverage**: Thorough testing of crashes, timeouts, corrupted checkpoints, missing checkpoints, rate limits, max retry exhaustion, and mixed success/failure across instances.
+
+5. **State transition verification**: Integration tests track the exact sequence of progress display state changes (running -> failed -> retrying -> running -> completed) to verify correct UI behavior.
+
+6. **Global rate-limit budget tests**: Dedicated tests verify that rate-limit retries are counted globally across rounds and normal retries, preventing the 30-attempt worst case from iteration 1.
+
+7. **E2E test**: Real end-to-end test with a fixture web app containing intentional UX issues, verifying the full pipeline produces valid output with real Claude instances.
+
+8. **Test isolation**: Each test suite uses its own isolated temp directory (e.g., `.uxreview-integ-happy-test`, `.uxreview-temp-ratelimit-test`) with proper `beforeEach`/`afterEach` cleanup, preventing cross-test contamination.
+
+### Test Quality — Gaps
+
+| # | Gap | Impact |
+|---|-----|--------|
+| 1 | **No test for workspace leak on `distributePlan` failure** | Low — If `distributePlan` throws after `initWorkspace` but before the `try` block, the workspace isn't cleaned up. No test verifies this edge case. |
+| 2 | **No test for very large plan inputs** | Low — No negative test for extremely large plan text or very high instance counts (e.g., `--instances 100`). The tool would work but might exhaust resources. |
+| 3 | **No test for concurrent file access** | Low — The progress display polls checkpoint/report files on a 1-second interval. No test verifies behavior when a file is being written by a Claude instance while being read by the poll. In practice, partial reads would produce parse failures handled by the null-return paths. |
+| 4 | **E2E test requires real Claude API access** | Expected — Cannot run in CI without credentials. The 45-minute timeout is appropriate but means the test is infrequently exercised. |
+| 5 | **Mock prompt content not validated** | Low — Integration tests verify that mock `runClaude` is called with expected prompt fragments, but don't validate the complete prompt structure against what real Claude would understand. This is inherent to the mock-based testing approach. |
+| 6 | **No test for `--show-default-scope` output** | Info — The `--show-default-scope` path calls `process.exit(0)` which makes it hard to test in-process. The `DEFAULT_SCOPE` constant is used directly, so the risk is minimal. |
+
+### Test Infrastructure
+
+- **Vitest** with V8 coverage provider — fast, native TypeScript support.
+- **Separate E2E config** (`vitest.e2e.config.ts`) with 45-minute timeout, correctly excludes E2E from unit coverage.
+- **E2E fixture server** (`tests/fixtures/e2e-app/server.ts`) — lightweight HTTP server with path traversal protection, random port assignment. 4 HTML pages with intentional UX issues spanning navigation, forms, listings, and detail views.
+- **No external test dependencies** — all mocking uses Vitest's built-in `vi.mock()` and `vi.fn()`.
 
 ---
 
 ## Recommendations
 
-### Must Fix Before Production
+### Must Fix
 
-1. **Rename output report file**: Change `consolidated-report.md` to `report.md` in `src/orchestrator.ts:175` to match the requirements and README documentation.
+1. **Create a LICENSE file**: The `package.json` `files` field references `LICENSE`, but no LICENSE file exists at the project root. Since the package is MIT-licensed (`"license": "MIT"`), create a standard MIT LICENSE file. Without it, `npm publish` will warn about the missing file, and users won't have the actual license text.
 
-2. **Add `files` field to `package.json`**: Restrict published package contents to `dist/`, `README.md`, `LICENSE`, and `package.json`. Prevents leaking test fixtures, `.devloop/`, and other internal files.
+2. **Add checkpoint-based resumability to the consolidation phase**: The three sequential Claude calls in consolidation (deduplication at `consolidation.ts:255`, hierarchy at `consolidation.ts:629`, discovery merge at `consolidation.ts:829`) have no persistence between steps. If any step fails — due to rate limits, crashes, or user interruption (Ctrl+C) — all consolidation progress is lost. The user's analysis results are trapped in raw temp files with instance-scoped IDs and no consolidated report, effectively losing the entire run's output. Consolidation should checkpoint after each successful step so re-running the tool resumes from the last completed consolidation step, consistent with how instance execution already handles interruptions. This requires:
+   - A consolidation checkpoint schema tracking which steps have completed and their outputs
+   - Persistence of intermediate results (dedup output, hierarchy output) between steps
+   - Integration tests verifying checkpoint/resume works for each consolidation step
+   - README documentation on how to recover from tool interruptions (covering both instance execution and consolidation phases)
 
 ### Should Fix
 
-3. **Remove `shell: true` from `claude-cli.ts`**: The shell wrapper is unnecessary since `claude` can be invoked directly. Removing it eliminates a potential command injection vector and improves subprocess management (direct PID control for signal handling).
-
-4. **Add SIGINT/SIGTERM handler in orchestrator**: Register a process signal handler that kills all spawned child processes before exiting. This prevents orphaned Claude instances consuming API quota.
-
-5. **Update coverage thresholds to 90%**: Change `vitest.config.ts` thresholds from 80% to 90% to match the requirements' target and prevent regression from the current 96.54%.
-
-6. **Add rate-limit handling to consolidation phase**: The 3 Claude calls in consolidation (dedup, hierarchy, discovery merge) should have the same backoff-retry logic as the instance analysis phase.
+3. **Move `distributePlan` inside the `try` block**: In `orchestrator.ts`, `distributePlan()` is called before the `try` block (line 114). If it throws, the workspace directories created by `initWorkspace()` won't be cleaned up. Move the call inside the `try` block, or wrap the entire orchestration body in a single `try`/`finally` that ensures cleanup.
 
 ### Nice to Have
 
-7. **Clean up temp directory after successful run**: Add `cleanupTempDir()` to the `finally` block in `orchestrate` (or make it optional with a `--keep-temp` flag for debugging).
+4. **Add `--verbose` flag for debug logging**: The tool has no structured logging. Adding a debug log level would aid troubleshooting without cluttering normal output. Log subprocess spawn/exit, file reads/writes, retry decisions, and timing data.
 
-8. **Remove `placeholder.test.ts`**: It serves no purpose now that real tests exist.
+5. **Validate plan/intro file size**: `resolveTextOrFile()` reads entire files into memory without size limits. A guard (e.g., warn if >1MB, reject if >10MB) would prevent accidental misuse.
 
-9. **Simplify nested rate-limit retry logic**: The duplicated rate-limit backoff inside the normal retry loop (`instance-manager.ts:396-415`) could be extracted into a shared helper to avoid the two separate retry paths.
+6. **Document the 26-screenshot suffix limit**: `buildNewScreenshotFilenames()` only supports 26 suffixes (a-z). Either document this limitation or extend the scheme (e.g., `aa`, `ab`, ...).
 
 ---
 
@@ -157,42 +224,55 @@ All files:           96.54% Stmts | 94.22% Branch | 96.87% Funcs | 96.54% Lines
 
 ### Features and Improvements
 
-- **Streaming progress from Claude instances**: Instead of polling checkpoint files on a 1-second interval, consider having Claude instances signal progress through a more structured channel (e.g., a named pipe or JSON lines on stderr) for more responsive progress updates.
+- **Streaming progress from Claude instances**: Replace the 1-second file-polling interval with a structured channel (e.g., JSON lines on stderr) for more responsive progress updates.
 
-- **Incremental output**: Allow the tool to append to an existing output directory rather than always overwriting. This enables iterative refinement where users run the tool multiple times and accumulate findings.
+- **Incremental output**: Allow appending to an existing output directory instead of always overwriting. This enables iterative refinement across multiple runs.
 
 - **Configurable retry limits and timeouts**: Expose `--max-retries`, `--instance-timeout`, and `--rate-limit-retries` as CLI options. Different apps and API quotas may need different tuning.
 
-- **HTML report output**: Add an optional `--format html` flag that generates a styled HTML report with embedded screenshots, making findings easier to share with non-technical stakeholders.
+- **HTML report output**: Add `--format html` for styled reports with embedded screenshots, making findings easier to share with non-technical stakeholders.
 
-- **Finding severity filtering**: Allow `--min-severity major` to exclude low-severity findings from the final report, reducing noise for teams that want to focus on high-impact issues.
+- **Finding severity filtering**: Add `--min-severity major` to exclude low-severity findings from the final report.
+
+- **`--dry-run` mode**: Show the work distribution and instance prompts without actually running Claude. Useful for validating plans and scopes.
 
 ### Architectural Decisions to Revisit
 
-- **Claude CLI subprocess model**: Each instance is a separate `claude -p` invocation, which means each one bootstraps independently (no shared context, no token reuse). As the tool scales to more instances, this could be replaced with the Claude Agent SDK for more efficient resource sharing and finer-grained control.
+- **Claude CLI subprocess model**: Each instance is a separate `claude -p` invocation with independent bootstrapping. As the tool scales, migrating to the Claude Agent SDK would enable shared context, token reuse, and finer-grained control over instance lifecycle.
 
-- **File-based inter-process communication**: Checkpoints, discovery docs, and reports are communicated between the orchestrator and Claude instances via filesystem writes/reads. This is simple and reliable, but introduces polling latency and potential read-during-write issues. A structured IPC mechanism (e.g., JSON-RPC over stdin/stdout) would be more robust at scale.
+- **File-based IPC**: Checkpoints, discovery docs, and reports are communicated via filesystem writes/reads. This introduces polling latency and potential read-during-write issues. A structured IPC mechanism (e.g., JSON-RPC over stdin/stdout) would be more robust at scale.
 
-- **Sequential hierarchy determination**: `organizeHierarchically` calls Claude once per UI area group (sequentially via `for...of`). With many UI areas, this creates a serial bottleneck. These calls could be parallelized with `Promise.all`.
+- **Synchronous file I/O in progress polling**: The `ProgressDisplay.updateFromFiles()` method does synchronous file reads (`readCheckpoint`, `readReportContent`) on every 1-second poll tick. This blocks the event loop briefly. Converting to async reads would improve responsiveness, especially with many instances.
 
-- **Synchronous file I/O**: All file operations (`readFileSync`, `writeFileSync`, etc.) are synchronous. This is fine for a CLI tool, but could become a bottleneck if the tool is ever embedded in a server context. The progress display's `updateFromFiles` method does synchronous reads on every 1-second poll tick, which blocks the event loop briefly.
+- **Single-level hierarchy constraint**: The current hierarchy model (`consolidation.ts:529`) explicitly limits nesting to one level: "A finding cannot be both a parent and a child." For complex apps, deeper nesting might be valuable (e.g., page -> section -> component issues).
 
 ### Technical Debt
 
-- **Duplicated rate-limit retry logic** in `instance-manager.ts` (lines 345-364 and 396-415) — two nearly identical loops that should be consolidated.
-- **Magic numbers**: Instance timeout (30 min), default CLI timeout (5 min), poll interval (1 sec), and spinner frames are hardcoded constants scattered across modules. These could be centralized in a config module.
-- **No logging**: The tool has no structured logging. Adding a debug log level (e.g., via `--verbose`) would aid troubleshooting without cluttering normal output.
-- **`buildNewScreenshotFilenames` suffix scheme**: Uses `String.fromCharCode(96 + i)` which only supports 26 suffixes (a-z). A finding with 27+ screenshots would produce invalid filenames. This is unlikely in practice but is an undocumented limitation.
+| Item | Location | Description |
+|------|----------|-------------|
+| Magic numbers | Multiple files | Instance timeout (30 min), default CLI timeout (5 min), poll interval (1 sec), max retries (3), rate limit retries (10), spinner frames — all hardcoded. Could be centralized in a config module. |
+| No structured logging | Throughout | `console.error` in `index.ts` is the only error output. No debug-level logging for troubleshooting. |
+| No consolidation checkpointing | `consolidation.ts:255,629,829` | Three sequential Claude calls with no persistence between steps. Failure at any step loses all consolidation progress. Addressed in Must Fix #2. |
+| Synchronous progress polling | `progress-display.ts:291-308` | `updateFromFiles` blocks the event loop with sync reads. |
+| Screenshot suffix limit | `consolidation.ts:372-379` | Only supports 26 screenshots per finding (a-z suffixes). |
+| Missing LICENSE file | Project root | `package.json` references it but it doesn't exist. |
 
 ---
 
 ## Summary
 
-The project is well-implemented with strong test coverage (96.54%, 628 tests) and close adherence to requirements. The architecture is clean, with good separation of concerns across 14 focused modules. The main issues are:
+The project is in strong shape after iteration 2. All 10 iteration 2 requirements were implemented correctly, and the original iteration 1 functionality remains intact. The codebase demonstrates professional patterns:
 
-1. **One naming bug** (output report filename mismatch)
-2. **One missing defense-in-depth** (no signal handler for child process cleanup)
-3. **One config discrepancy** (80% vs 90% coverage threshold)
-4. **Minor code duplication** in rate-limit retry logic
+- **Clean module architecture** with well-defined interfaces between 15 focused modules
+- **Thorough error handling** with graceful degradation (checkpoint corruption, Claude failures, rate limits)
+- **Strong test coverage** (95%+ threshold enforced) across 26 test files with unit, integration, and E2E coverage
+- **Correct signal handling** for child process cleanup on SIGINT/SIGTERM
+- **Refactored rate-limit logic** with global retry budget preventing the 30-attempt worst case
 
-None of these are blocking for an initial release, but items 1 and 2 should be addressed before production use.
+The main items to address before production use:
+
+1. **Add checkpoint-based resumability to consolidation** — any failure during the three consolidation Claude calls loses the entire run's output, with no way for the user to recover without manually reading raw temp files
+2. **Create the missing LICENSE file** (required for npm publish)
+3. **Fix the workspace leak** when `distributePlan` fails before the `try` block
+
+Item 1 is blocking — it means any interruption at the final stage silently discards the user's analysis results. Items 2 and 3 should be addressed before publishing the package.
