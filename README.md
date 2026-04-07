@@ -151,6 +151,8 @@ A hierarchical document of all UI areas, elements, and features explored during 
 
 PNG screenshots captured by Claude via Playwright as evidence for each finding. Named by finding ID (e.g., `UXR-001.png`). Findings with multiple screenshots use suffixes (e.g., `UXR-001-a.png`, `UXR-001-b.png`).
 
+> **Note:** Screenshot suffixes use lowercase letters (a-z), supporting a maximum of 26 screenshots per finding.
+
 ## Customizing the Evaluation Scope
 
 The evaluation scope controls what Claude looks for when analyzing the app. The built-in default covers 10 areas:

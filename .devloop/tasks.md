@@ -31,7 +31,7 @@
 - **Verification**: `npx vitest run tests/cli.test.ts 2>&1 | tail -5`
 
 ### TASK-006: Document 26-screenshot suffix limit in README
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a note in the README under the appropriate section documenting that screenshot suffixes support a maximum of 26 screenshots per finding (a-z). Reference requirements.md change #6.
 - **Verification**: `grep -q "26" README.md && echo "PASS" || echo "FAIL"`
