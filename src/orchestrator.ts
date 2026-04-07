@@ -17,9 +17,18 @@ import {
   formatConsolidatedReport,
   consolidateDiscoveryDocs,
   writeConsolidatedDiscovery,
+  ConsolidationResult,
+  UIAreaGroup,
 } from './consolidation.js';
 import { ProgressDisplay } from './progress-display.js';
 import { setVerbose, debug } from './logger.js';
+import {
+  readConsolidationCheckpoint,
+  writeConsolidationCheckpoint,
+  createEmptyConsolidationCheckpoint,
+  isStepCompleted,
+  ConsolidationCheckpoint,
+} from './consolidation-checkpoint.js';
 
 /**
  * Extract area names from a plan chunk by looking for markdown headings
@@ -184,24 +193,84 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     const consolidationStart = Date.now();
     display.startConsolidation();
 
-    // Consolidate reports (dedup, merge)
-    const consolidation = await consolidateReports(instanceNumbers);
+    // Read existing consolidation checkpoint (for resume)
+    let checkpoint: ConsolidationCheckpoint =
+      readConsolidationCheckpoint() ?? createEmptyConsolidationCheckpoint();
 
-    // Reassign IDs and remap screenshots
-    const { findings } = reassignAndRemapScreenshots(consolidation, workspace.outputDir);
+    // Step 1: Dedup — consolidate reports
+    let consolidation: ConsolidationResult;
+    if (isStepCompleted(checkpoint, 'dedup') && checkpoint.dedupOutput) {
+      consolidation = JSON.parse(checkpoint.dedupOutput);
+      debug('Resuming consolidation: skipping dedup (already completed)');
+    } else {
+      consolidation = await consolidateReports(instanceNumbers);
+      checkpoint.dedupOutput = JSON.stringify(consolidation);
+      checkpoint.completedSteps = [...checkpoint.completedSteps, 'dedup'];
+      checkpoint.timestamp = new Date().toISOString();
+      writeConsolidationCheckpoint(checkpoint);
+    }
 
-    // Organize hierarchically
-    const groups = await organizeHierarchically(findings);
+    // Step 2: Reassign IDs and remap screenshots
+    let findings: ConsolidationResult['findings'];
+    if (isStepCompleted(checkpoint, 'reassign') && checkpoint.reassignOutput) {
+      findings = JSON.parse(checkpoint.reassignOutput);
+      debug('Resuming consolidation: skipping reassign (already completed)');
+    } else {
+      const reassignResult = reassignAndRemapScreenshots(consolidation, workspace.outputDir);
+      findings = reassignResult.findings;
+      checkpoint.reassignOutput = JSON.stringify(findings);
+      checkpoint.completedSteps = [...checkpoint.completedSteps, 'reassign'];
+      checkpoint.timestamp = new Date().toISOString();
+      writeConsolidationCheckpoint(checkpoint);
+    }
 
-    // Format and write the consolidated report
-    const reportContent = formatConsolidatedReport(groups);
+    // Step 3: Organize hierarchically
+    let groups: UIAreaGroup[];
+    if (isStepCompleted(checkpoint, 'hierarchy') && checkpoint.hierarchyOutput) {
+      groups = JSON.parse(checkpoint.hierarchyOutput);
+      debug('Resuming consolidation: skipping hierarchy (already completed)');
+    } else {
+      groups = await organizeHierarchically(findings);
+      checkpoint.hierarchyOutput = JSON.stringify(groups);
+      checkpoint.completedSteps = [...checkpoint.completedSteps, 'hierarchy'];
+      checkpoint.timestamp = new Date().toISOString();
+      writeConsolidationCheckpoint(checkpoint);
+    }
+
+    // Step 4: Format and write the consolidated report
     const reportPath = join(workspace.outputDir, 'report.md');
-    writeFileSync(reportPath, reportContent, 'utf-8');
+    if (isStepCompleted(checkpoint, 'format-report') && checkpoint.formatReportOutput) {
+      debug('Resuming consolidation: skipping format-report (already completed)');
+    } else {
+      const reportContent = formatConsolidatedReport(groups);
+      writeFileSync(reportPath, reportContent, 'utf-8');
+      checkpoint.formatReportOutput = reportContent;
+      checkpoint.completedSteps = [...checkpoint.completedSteps, 'format-report'];
+      checkpoint.timestamp = new Date().toISOString();
+      writeConsolidationCheckpoint(checkpoint);
+    }
 
-    // Consolidate discovery docs
-    const discoveryResult = await consolidateDiscoveryDocs(instanceNumbers);
-    writeConsolidatedDiscovery(workspace.outputDir, discoveryResult.content);
+    // Step 5: Consolidate discovery docs
     const discoveryPath = join(workspace.outputDir, 'discovery.md');
+    if (isStepCompleted(checkpoint, 'discovery-merge') && checkpoint.discoveryMergeOutput) {
+      debug('Resuming consolidation: skipping discovery-merge (already completed)');
+    } else {
+      const discoveryResult = await consolidateDiscoveryDocs(instanceNumbers);
+      checkpoint.discoveryMergeOutput = discoveryResult.content;
+      checkpoint.completedSteps = [...checkpoint.completedSteps, 'discovery-merge'];
+      checkpoint.timestamp = new Date().toISOString();
+      writeConsolidationCheckpoint(checkpoint);
+    }
+
+    // Step 6: Write consolidated discovery
+    if (!isStepCompleted(checkpoint, 'write-discovery')) {
+      writeConsolidatedDiscovery(workspace.outputDir, checkpoint.discoveryMergeOutput ?? '');
+      checkpoint.completedSteps = [...checkpoint.completedSteps, 'write-discovery'];
+      checkpoint.timestamp = new Date().toISOString();
+      writeConsolidationCheckpoint(checkpoint);
+    } else {
+      debug('Resuming consolidation: skipping write-discovery (already completed)');
+    }
 
     debug(`Consolidation phase completed in ${Date.now() - consolidationStart}ms`);
 

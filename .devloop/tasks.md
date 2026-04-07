@@ -79,7 +79,7 @@
 - **Verification**: `npx vitest run tests/consolidation-checkpoint.test.ts 2>&1 | tail -5`
 
 ### TASK-010b: Integrate consolidation checkpointing into orchestrator
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-010a
 - **Description**: Refactor the consolidation section of `src/orchestrator.ts` (lines 171-194) to checkpoint after each step. Before each step, check the consolidation checkpoint — if the step is already marked complete, load the persisted result and skip the Claude call. After each step completes, write the checkpoint with the step's output. The consolidation steps in order: dedup (`consolidateReports`), reassign (`reassignAndRemapScreenshots`), hierarchy (`organizeHierarchically`), format report, discovery merge (`consolidateDiscoveryDocs`), write discovery. Reference requirements.md change #10.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts 2>&1 | tail -5`

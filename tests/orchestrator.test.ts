@@ -74,6 +74,14 @@ vi.mock('../src/logger.js', () => ({
   debug: (...args: unknown[]) => mockDebug(...args),
 }));
 
+// Mock consolidation-checkpoint
+vi.mock('../src/consolidation-checkpoint.js', () => ({
+  readConsolidationCheckpoint: vi.fn(),
+  writeConsolidationCheckpoint: vi.fn(),
+  createEmptyConsolidationCheckpoint: vi.fn(),
+  isStepCompleted: vi.fn(),
+}));
+
 // Import mocked modules
 import { distributePlan } from '../src/work-distribution.js';
 import { runInstanceRounds, RoundExecutionResult, killAllChildProcesses } from '../src/instance-manager.js';
@@ -89,6 +97,13 @@ import { initWorkspace, cleanupTempDir } from '../src/file-manager.js';
 import { ProgressDisplay } from '../src/progress-display.js';
 import { orchestrate } from '../src/orchestrator.js';
 import { ParsedArgs } from '../src/cli.js';
+import {
+  readConsolidationCheckpoint,
+  writeConsolidationCheckpoint,
+  createEmptyConsolidationCheckpoint,
+  isStepCompleted,
+  ConsolidationCheckpoint,
+} from '../src/consolidation-checkpoint.js';
 
 const mockDistributePlan = vi.mocked(distributePlan);
 const mockRunInstanceRounds = vi.mocked(runInstanceRounds);
@@ -101,6 +116,10 @@ const mockConsolidateDiscoveryDocs = vi.mocked(consolidateDiscoveryDocs);
 const mockWriteConsolidatedDiscovery = vi.mocked(writeConsolidatedDiscovery);
 const mockInitWorkspace = vi.mocked(initWorkspace);
 const mockCleanupTempDir = vi.mocked(cleanupTempDir);
+const mockReadConsolidationCheckpoint = vi.mocked(readConsolidationCheckpoint);
+const mockWriteConsolidationCheckpoint = vi.mocked(writeConsolidationCheckpoint);
+const mockCreateEmptyConsolidationCheckpoint = vi.mocked(createEmptyConsolidationCheckpoint);
+const mockIsStepCompleted = vi.mocked(isStepCompleted);
 
 const OUTPUT_DIR = resolve('.uxreview-output-orch-test');
 
@@ -184,6 +203,19 @@ describe('orchestrate', () => {
 
     // Create output directory for writeFileSync
     mkdirSync(OUTPUT_DIR, { recursive: true });
+
+    // Default checkpoint mock: no existing checkpoint, all steps not completed
+    mockReadConsolidationCheckpoint.mockReturnValue(null);
+    mockCreateEmptyConsolidationCheckpoint.mockReturnValue({
+      completedSteps: [],
+      dedupOutput: null,
+      reassignOutput: null,
+      hierarchyOutput: null,
+      formatReportOutput: null,
+      discoveryMergeOutput: null,
+      timestamp: new Date().toISOString(),
+    });
+    mockIsStepCompleted.mockReturnValue(false);
 
     // Default mock setup
     mockInitWorkspace.mockReturnValue({
@@ -1050,6 +1082,234 @@ describe('orchestrate', () => {
       expect(mockKillAllChildProcesses).toHaveBeenCalled();
       expect(mockProgressDisplay.stop).toHaveBeenCalled();
       expect(processExitSpy).toHaveBeenCalledWith(143);
+    });
+  });
+
+  describe('consolidation checkpointing', () => {
+    function setupConsolidationMocks() {
+      mockDistributePlan.mockResolvedValue({
+        chunks: ['## A'],
+        usedClaude: false,
+      });
+      mockInitWorkspace.mockReturnValue({
+        tempDir: resolve('.uxreview-temp-orch-test'),
+        instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+        outputDir: OUTPUT_DIR,
+      });
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+      mockConsolidateReports.mockResolvedValue({
+        findings: [{ id: 'I1-UXR-001', title: 'Test', uiArea: 'Nav', severity: 'minor', description: 'desc', suggestion: 'fix', screenshot: '' }],
+        duplicateGroups: [],
+        usedClaude: false,
+      });
+      mockReassignAndRemap.mockReturnValue({
+        findings: [{ id: 'UXR-001', title: 'Test', uiArea: 'Nav', severity: 'minor', description: 'desc', suggestion: 'fix', screenshot: '' }],
+        idMapping: new Map([['I1-UXR-001', 'UXR-001']]),
+        screenshotOps: [],
+      });
+      mockOrganizeHierarchically.mockResolvedValue([{
+        area: 'Nav',
+        findings: [{ finding: { id: 'UXR-001', title: 'Test', uiArea: 'Nav', severity: 'minor', description: 'desc', suggestion: 'fix', screenshot: '' }, children: [] }],
+      }]);
+      mockFormatConsolidatedReport.mockReturnValue('# UX Analysis Report\n');
+      mockConsolidateDiscoveryDocs.mockResolvedValue({
+        content: '# Discovery\n',
+        instanceCount: 1,
+        usedClaude: true,
+      });
+    }
+
+    it('writes checkpoint after each consolidation step in a fresh run', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupConsolidationMocks();
+
+      // Capture checkpoint snapshots since the object is mutated in place
+      const snapshots: Array<{ completedSteps: string[]; dedupOutput: string | null; reassignOutput: string | null; hierarchyOutput: string | null; formatReportOutput: string | null; discoveryMergeOutput: string | null }> = [];
+      mockWriteConsolidationCheckpoint.mockImplementation((cp) => {
+        snapshots.push({
+          completedSteps: [...cp.completedSteps],
+          dedupOutput: cp.dedupOutput,
+          reassignOutput: cp.reassignOutput,
+          hierarchyOutput: cp.hierarchyOutput,
+          formatReportOutput: cp.formatReportOutput,
+          discoveryMergeOutput: cp.discoveryMergeOutput,
+        });
+      });
+
+      await orchestrate(args);
+
+      // writeConsolidationCheckpoint should be called 6 times (once per step)
+      expect(snapshots).toHaveLength(6);
+
+      // Verify the progression of completed steps
+      expect(snapshots[0].completedSteps).toEqual(['dedup']);
+      expect(snapshots[0].dedupOutput).toBeTruthy();
+
+      expect(snapshots[1].completedSteps).toEqual(['dedup', 'reassign']);
+      expect(snapshots[1].reassignOutput).toBeTruthy();
+
+      expect(snapshots[2].completedSteps).toEqual(['dedup', 'reassign', 'hierarchy']);
+      expect(snapshots[2].hierarchyOutput).toBeTruthy();
+
+      expect(snapshots[3].completedSteps).toEqual(['dedup', 'reassign', 'hierarchy', 'format-report']);
+      expect(snapshots[3].formatReportOutput).toBeTruthy();
+
+      expect(snapshots[4].completedSteps).toEqual(['dedup', 'reassign', 'hierarchy', 'format-report', 'discovery-merge']);
+      expect(snapshots[4].discoveryMergeOutput).toBeTruthy();
+
+      expect(snapshots[5].completedSteps).toEqual(['dedup', 'reassign', 'hierarchy', 'format-report', 'discovery-merge', 'write-discovery']);
+    });
+
+    it('resumes after dedup — skips dedup, runs remaining steps', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupConsolidationMocks();
+
+      const dedupResult = {
+        findings: [{ id: 'I1-UXR-001', title: 'Cached', uiArea: 'Nav', severity: 'minor', description: 'cached desc', suggestion: 'cached fix', screenshot: '' }],
+        duplicateGroups: [],
+        usedClaude: false,
+      };
+
+      // Return a checkpoint with dedup already completed
+      const existingCheckpoint: ConsolidationCheckpoint = {
+        completedSteps: ['dedup'],
+        dedupOutput: JSON.stringify(dedupResult),
+        reassignOutput: null,
+        hierarchyOutput: null,
+        formatReportOutput: null,
+        discoveryMergeOutput: null,
+        timestamp: new Date().toISOString(),
+      };
+      mockReadConsolidationCheckpoint.mockReturnValue(existingCheckpoint);
+      mockIsStepCompleted.mockImplementation(
+        (cp: ConsolidationCheckpoint, step: string) => cp.completedSteps.includes(step as any),
+      );
+
+      await orchestrate(args);
+
+      // Dedup was skipped — consolidateReports should NOT have been called
+      expect(mockConsolidateReports).not.toHaveBeenCalled();
+
+      // But reassign was called with the cached dedup result
+      expect(mockReassignAndRemap).toHaveBeenCalledWith(dedupResult, OUTPUT_DIR);
+
+      // Remaining steps ran
+      expect(mockOrganizeHierarchically).toHaveBeenCalled();
+      expect(mockFormatConsolidatedReport).toHaveBeenCalled();
+      expect(mockConsolidateDiscoveryDocs).toHaveBeenCalled();
+      expect(mockWriteConsolidatedDiscovery).toHaveBeenCalled();
+    });
+
+    it('resumes after hierarchy — skips dedup, reassign, and hierarchy', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupConsolidationMocks();
+
+      const cachedFindings = [{ id: 'UXR-001', title: 'Test', uiArea: 'Nav', severity: 'minor', description: 'desc', suggestion: 'fix', screenshot: '' }];
+      const cachedGroups = [{
+        area: 'Nav',
+        findings: [{ finding: cachedFindings[0], children: [] }],
+      }];
+
+      const existingCheckpoint: ConsolidationCheckpoint = {
+        completedSteps: ['dedup', 'reassign', 'hierarchy'],
+        dedupOutput: JSON.stringify({ findings: [], duplicateGroups: [], usedClaude: false }),
+        reassignOutput: JSON.stringify(cachedFindings),
+        hierarchyOutput: JSON.stringify(cachedGroups),
+        formatReportOutput: null,
+        discoveryMergeOutput: null,
+        timestamp: new Date().toISOString(),
+      };
+      mockReadConsolidationCheckpoint.mockReturnValue(existingCheckpoint);
+      mockIsStepCompleted.mockImplementation(
+        (cp: ConsolidationCheckpoint, step: string) => cp.completedSteps.includes(step as any),
+      );
+
+      await orchestrate(args);
+
+      // First three steps were skipped
+      expect(mockConsolidateReports).not.toHaveBeenCalled();
+      expect(mockReassignAndRemap).not.toHaveBeenCalled();
+      expect(mockOrganizeHierarchically).not.toHaveBeenCalled();
+
+      // Format report was called with the cached groups
+      expect(mockFormatConsolidatedReport).toHaveBeenCalledWith(cachedGroups);
+
+      // Discovery steps still ran
+      expect(mockConsolidateDiscoveryDocs).toHaveBeenCalled();
+      expect(mockWriteConsolidatedDiscovery).toHaveBeenCalled();
+    });
+
+    it('resumes after discovery-merge — only runs write-discovery', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupConsolidationMocks();
+
+      const existingCheckpoint: ConsolidationCheckpoint = {
+        completedSteps: ['dedup', 'reassign', 'hierarchy', 'format-report', 'discovery-merge'],
+        dedupOutput: JSON.stringify({ findings: [], duplicateGroups: [], usedClaude: false }),
+        reassignOutput: JSON.stringify([]),
+        hierarchyOutput: JSON.stringify([]),
+        formatReportOutput: '# Report',
+        discoveryMergeOutput: '# Discovery Content',
+        timestamp: new Date().toISOString(),
+      };
+      mockReadConsolidationCheckpoint.mockReturnValue(existingCheckpoint);
+      mockIsStepCompleted.mockImplementation(
+        (cp: ConsolidationCheckpoint, step: string) => cp.completedSteps.includes(step as any),
+      );
+
+      await orchestrate(args);
+
+      // All steps except write-discovery were skipped
+      expect(mockConsolidateReports).not.toHaveBeenCalled();
+      expect(mockReassignAndRemap).not.toHaveBeenCalled();
+      expect(mockOrganizeHierarchically).not.toHaveBeenCalled();
+      expect(mockFormatConsolidatedReport).not.toHaveBeenCalled();
+      expect(mockConsolidateDiscoveryDocs).not.toHaveBeenCalled();
+
+      // Write discovery was called with the cached content
+      expect(mockWriteConsolidatedDiscovery).toHaveBeenCalledWith(OUTPUT_DIR, '# Discovery Content');
+    });
+
+    it('corrupted checkpoint triggers full reconsolidation', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupConsolidationMocks();
+
+      // readConsolidationCheckpoint returns null for corrupted checkpoint
+      mockReadConsolidationCheckpoint.mockReturnValue(null);
+
+      await orchestrate(args);
+
+      // All steps should have been executed
+      expect(mockConsolidateReports).toHaveBeenCalled();
+      expect(mockReassignAndRemap).toHaveBeenCalled();
+      expect(mockOrganizeHierarchically).toHaveBeenCalled();
+      expect(mockFormatConsolidatedReport).toHaveBeenCalled();
+      expect(mockConsolidateDiscoveryDocs).toHaveBeenCalled();
+      expect(mockWriteConsolidatedDiscovery).toHaveBeenCalled();
+
+      // All 6 checkpoint writes should have occurred
+      expect(mockWriteConsolidationCheckpoint).toHaveBeenCalledTimes(6);
+    });
+
+    it('missing checkpoint triggers full consolidation', async () => {
+      const args = makeArgs({ instances: 1 });
+      setupConsolidationMocks();
+
+      // No checkpoint exists (default behavior)
+      mockReadConsolidationCheckpoint.mockReturnValue(null);
+
+      await orchestrate(args);
+
+      // All steps should have been executed
+      expect(mockConsolidateReports).toHaveBeenCalledTimes(1);
+      expect(mockReassignAndRemap).toHaveBeenCalledTimes(1);
+      expect(mockOrganizeHierarchically).toHaveBeenCalledTimes(1);
+      expect(mockFormatConsolidatedReport).toHaveBeenCalledTimes(1);
+      expect(mockConsolidateDiscoveryDocs).toHaveBeenCalledTimes(1);
+      expect(mockWriteConsolidatedDiscovery).toHaveBeenCalledTimes(1);
     });
   });
 });
