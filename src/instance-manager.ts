@@ -2,7 +2,7 @@ import { runClaude, ClaudeCliResult, killAllChildProcesses, getActiveProcessCoun
 export { killAllChildProcesses, getActiveProcessCount };
 import { getInstancePaths } from './file-manager.js';
 import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryContent, extractDiscoveryItems } from './discovery.js';
-import { buildReportInstructions, readReportContent } from './report.js';
+import { buildReportInstructions, readReportContent, countFindings } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
 import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
 import { isRateLimitError, withRateLimitRetry, RateLimitRetryState } from './rate-limit.js';
@@ -356,15 +356,6 @@ async function handleRateLimitRetries(
   );
 
   return latestState;
-}
-
-/**
- * Count finding headings in a report string.
- * Matches lines like "## I1-UXR-001: ..."
- */
-function countFindings(reportContent: string): number {
-  const matches = reportContent.match(/^## I\d+-UXR-\d+:/gm);
-  return matches ? matches.length : 0;
 }
 
 /**

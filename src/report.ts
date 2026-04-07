@@ -40,6 +40,15 @@ export interface InstanceReport {
 const VALID_SEVERITIES: Severity[] = ['critical', 'major', 'minor', 'suggestion'];
 
 /**
+ * Count finding headings in a report string.
+ * Matches lines like "## I1-UXR-001: ..."
+ */
+export function countFindings(reportContent: string): number {
+  const matches = reportContent.match(/^## I\d+-UXR-\d+:/gm);
+  return matches ? matches.length : 0;
+}
+
+/**
  * Build an instance-scoped finding ID.
  * E.g., buildFindingId(1, 1) => "I1-UXR-001"
  */

@@ -67,7 +67,7 @@
 - **Verification**: `npx vitest run tests/config.test.ts`
 
 ### TASK-007: Deduplicate countFindings function
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Move the `countFindings` function to `src/report.ts` (which already handles finding/report logic) and export it. Update `src/instance-manager.ts:356` and `src/progress-display.ts:95` to import from `report.ts` instead of defining their own copies. Remove both duplicate definitions. The function uses a regex to count `### UXR-` headings in report content. See requirements.md change #7.
 - **Verification**: `npx vitest run tests/report.test.ts && npx vitest run tests/instance-manager.test.ts && npx vitest run tests/progress-display.test.ts`

@@ -92,10 +92,7 @@ export function renderProgressBar(percentage: number): string {
   return '[' + BAR_FILLED.repeat(filled) + BAR_EMPTY.repeat(empty) + ']';
 }
 
-export function countFindings(reportContent: string): number {
-  const matches = reportContent.match(/^## I\d+-UXR-\d+:/gm);
-  return matches ? matches.length : 0;
-}
+export { countFindings } from './report.js';
 
 export function getProgressFromCheckpoint(checkpoint: Checkpoint): {
   completed: number;
