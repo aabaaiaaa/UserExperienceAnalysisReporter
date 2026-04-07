@@ -73,7 +73,7 @@
 - **Verification**: `npx vitest run tests/cli.test.ts tests/orchestrator.test.ts 2>&1 | tail -5`
 
 ### TASK-010a: Define consolidation checkpoint schema and read/write functions
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Create `src/consolidation-checkpoint.ts` with a `ConsolidationCheckpoint` interface tracking step completion and intermediate outputs. Steps: `dedup`, `reassign`, `hierarchy`, `format-report`, `discovery-merge`, `write-discovery`. Include `writeConsolidationCheckpoint()` and `readConsolidationCheckpoint()` functions that persist to `.uxreview-temp/consolidation-checkpoint.json`. Handle corruption (return null) consistent with the existing `checkpoint.ts` pattern. Add unit tests for write, read, corruption handling, and missing file cases. Reference requirements.md change #10.
 - **Verification**: `npx vitest run tests/consolidation-checkpoint.test.ts 2>&1 | tail -5`
