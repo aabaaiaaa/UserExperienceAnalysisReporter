@@ -32,9 +32,6 @@ export const MAX_BACKOFF_DELAY_MS = 5 * 60 * 1000;
 
 // ─── Progress display ────────────────────────────────────────────────
 
-/** @deprecated Use RENDER_INTERVAL_MS instead. Kept for backward compatibility. */
-export const POLL_INTERVAL_MS = 1000;
-
 /** Interval between progress display render cycles (1 second). */
 export const RENDER_INTERVAL_MS = 1000;
 

@@ -61,7 +61,7 @@
 - **Verification**: `npx vitest run tests/consolidation.test.ts`
 
 ### TASK-006: Remove deprecated POLL_INTERVAL_MS from config
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Remove the `POLL_INTERVAL_MS` export from `src/config.ts:36`. No consumer imports it — it is dead code. The `@deprecated` annotation already points to `RENDER_INTERVAL_MS` as the replacement. See requirements.md change #6.
 - **Verification**: `npx vitest run tests/config.test.ts`

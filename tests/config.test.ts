@@ -6,7 +6,7 @@ import {
   MAX_RATE_LIMIT_RETRIES,
   DEFAULT_BASE_DELAY_MS,
   MAX_BACKOFF_DELAY_MS,
-  POLL_INTERVAL_MS,
+  RENDER_INTERVAL_MS,
   SPINNER_INTERVAL_MS,
 } from '../src/config.js';
 
@@ -35,12 +35,12 @@ describe('config', () => {
     expect(MAX_BACKOFF_DELAY_MS).toBe(5 * 60 * 1000);
   });
 
-  it('exports poll interval as 1 second', () => {
-    expect(POLL_INTERVAL_MS).toBe(1000);
+  it('exports render interval as 1 second', () => {
+    expect(RENDER_INTERVAL_MS).toBe(1000);
   });
 
-  it('exports spinner interval matching poll interval', () => {
-    expect(SPINNER_INTERVAL_MS).toBe(POLL_INTERVAL_MS);
+  it('exports spinner interval matching render interval', () => {
+    expect(SPINNER_INTERVAL_MS).toBe(RENDER_INTERVAL_MS);
   });
 
   it('all values are positive numbers', () => {
@@ -51,7 +51,7 @@ describe('config', () => {
       MAX_RATE_LIMIT_RETRIES,
       DEFAULT_BASE_DELAY_MS,
       MAX_BACKOFF_DELAY_MS,
-      POLL_INTERVAL_MS,
+      RENDER_INTERVAL_MS,
       SPINNER_INTERVAL_MS,
     ];
     for (const value of allValues) {
