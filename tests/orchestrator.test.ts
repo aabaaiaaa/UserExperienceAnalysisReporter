@@ -404,7 +404,7 @@ describe('orchestrate', () => {
 
     // Verify final paths were passed
     const completeCall = mockProgressDisplay.completeConsolidation.mock.calls[0];
-    expect(completeCall[0]).toContain('consolidated-report.md');
+    expect(completeCall[0]).toContain('report.md');
     expect(completeCall[1]).toContain('discovery.md');
   });
 
@@ -615,7 +615,7 @@ describe('orchestrate', () => {
     await orchestrate(singleArgs);
 
     // Report was written
-    const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+    const reportPath = join(OUTPUT_DIR, 'report.md');
     expect(existsSync(reportPath)).toBe(true);
     expect(readFileSync(reportPath, 'utf-8')).toBe('# UX Analysis Report\n\nNo findings.\n');
 

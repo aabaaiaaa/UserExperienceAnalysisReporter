@@ -172,7 +172,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
 
     // Format and write the consolidated report
     const reportContent = formatConsolidatedReport(groups);
-    const reportPath = join(workspace.outputDir, 'consolidated-report.md');
+    const reportPath = join(workspace.outputDir, 'report.md');
     writeFileSync(reportPath, reportContent, 'utf-8');
 
     // Consolidate discovery docs

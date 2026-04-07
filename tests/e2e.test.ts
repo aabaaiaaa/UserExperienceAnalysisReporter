@@ -102,7 +102,7 @@ describe('E2E: Full tool run with real Claude instances', () => {
     // ---------------------------------------------------------------
     // Verify: consolidated report exists and has findings with UXR- IDs
     // ---------------------------------------------------------------
-    const reportPath = join(E2E_OUTPUT_DIR, 'consolidated-report.md');
+    const reportPath = join(E2E_OUTPUT_DIR, 'report.md');
     expect(existsSync(reportPath)).toBe(true);
 
     const reportContent = readFileSync(reportPath, 'utf-8');

@@ -519,7 +519,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       const reportContent = readFileSync(reportPath, 'utf-8');
 
       // 9 original findings - 2 removed by 3-way merge = 7 unique findings
@@ -532,7 +532,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       // I2-UXR-002 had the longest description with "disjointed and unpredictable"
       expect(reportContent).toContain('disjointed and unpredictable');
@@ -544,7 +544,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       // UXR-001 is the merged hover states finding — should be critical
       // Find the UXR-001 section and check its severity
@@ -571,7 +571,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       expect(reportContent).toContain('UXR-001.png');
       expect(reportContent).toContain('UXR-001-a.png');
@@ -588,7 +588,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       // Both findings should exist as separate entries
       // I1-UXR-003 becomes UXR-003, I2-UXR-001 becomes UXR-004
@@ -628,7 +628,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       for (let i = 1; i <= 7; i++) {
         const id = `UXR-${String(i).padStart(3, '0')}`;
@@ -644,7 +644,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       expect(reportContent).not.toContain('I1-UXR-');
       expect(reportContent).not.toContain('I2-UXR-');
@@ -655,7 +655,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       expect(reportContent).not.toMatch(/I\d+-UXR-\d+\.png/);
     });
@@ -722,7 +722,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       expect(reportContent).toContain('## Navigation');
       expect(reportContent).toContain('## Dashboard');
@@ -733,7 +733,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       expect(reportContent).toMatch(/### UXR-001:/);
       expect(reportContent).toMatch(/#### UXR-002:/);
@@ -743,7 +743,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       // UXR-004 is parent (###), UXR-003 is child (####)
       expect(reportContent).toMatch(/### UXR-004:/);
@@ -756,7 +756,7 @@ describe('Integration: Deduplication and consolidation', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       expect(reportContent).toMatch(/### UXR-006:/);
       expect(reportContent).toMatch(/#### UXR-007:/);

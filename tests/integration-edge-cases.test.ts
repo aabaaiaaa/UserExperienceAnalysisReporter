@@ -410,7 +410,7 @@ describe('Integration: Edge cases and input handling', () => {
       expect(instanceCall.prompt).toContain('Check form validation');
 
       // Final report should be produced
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
       const reportContent = readFileSync(reportPath, 'utf-8');
       expect(reportContent).toContain('UXR-001');
@@ -511,7 +511,7 @@ describe('Integration: Edge cases and input handling', () => {
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
 
       // Report should still be written (even if empty)
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
     });
 
@@ -554,7 +554,7 @@ describe('Integration: Edge cases and input handling', () => {
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
 
       // Report file should exist
-      expect(existsSync(join(OUTPUT_DIR, 'consolidated-report.md'))).toBe(true);
+      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(true);
     });
   });
 
@@ -618,7 +618,7 @@ describe('Integration: Edge cases and input handling', () => {
 
       expect(mockProgressDisplay.start).toHaveBeenCalledTimes(1);
       expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(1);
-      expect(existsSync(join(OUTPUT_DIR, 'consolidated-report.md'))).toBe(true);
+      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(true);
     });
   });
 

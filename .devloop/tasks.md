@@ -1,7 +1,7 @@
 # Iteration 2 — Tasks
 
 ### TASK-001: Rename output report file from consolidated-report.md to report.md
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/orchestrator.ts` (line ~175), change the output filename from `consolidated-report.md` to `report.md`. Search the codebase for any other references to `consolidated-report.md` (tests, constants, etc.) and update them all. See requirements.md change #1.
 - **Verification**: `npx vitest run tests/orchestrator --reporter=verbose` passes, and grep confirms no remaining references to `consolidated-report.md` in src/ or tests/.

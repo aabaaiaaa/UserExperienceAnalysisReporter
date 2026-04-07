@@ -576,7 +576,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       expect(workDistContent).toContain('split into 3 chunks');
 
       // --- Verify consolidated report ---
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
       const reportContent = readFileSync(reportPath, 'utf-8');
 
@@ -612,7 +612,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
 
       const completeArgs = mockProgressDisplay.completeConsolidation.mock.calls[0];
-      expect(completeArgs[0]).toContain('consolidated-report.md');
+      expect(completeArgs[0]).toContain('report.md');
       expect(completeArgs[1]).toContain('discovery.md');
     });
   });
@@ -822,7 +822,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       const reportContent = readFileSync(reportPath, 'utf-8');
 
       // 8 findings after merging I1-UXR-001 + I2-UXR-002
@@ -842,7 +842,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       const reportContent = readFileSync(reportPath, 'utf-8');
 
       // I2-UXR-002 had the longer description, so the merged UXR-001 should use it
@@ -859,7 +859,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       const reportContent = readFileSync(reportPath, 'utf-8');
 
       for (let i = 1; i <= 8; i++) {
@@ -872,7 +872,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       const navIdx = reportContent.indexOf('## Navigation');
       const dashIdx = reportContent.indexOf('## Dashboard');
@@ -887,7 +887,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       // Navigation: UXR-001 is parent (###), UXR-002 is child (####)
       expect(reportContent).toMatch(/### UXR-001:/);
@@ -929,7 +929,7 @@ describe('Integration: Multi-instance, multi-round (3 instances × 2 rounds)', (
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       // Report should reference the new screenshot filenames
       expect(reportContent).toContain('UXR-001.png');

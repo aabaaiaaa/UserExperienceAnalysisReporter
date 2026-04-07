@@ -278,7 +278,7 @@ describe('Integration: Failure, retry, and resume', () => {
       expect(retryPrompt).toContain('Checked card grid spacing');
 
       // --- Verify final consolidated output was produced ---
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
       const reportContent = readFileSync(reportPath, 'utf-8');
       expect(reportContent).toContain('UXR-001');
@@ -399,7 +399,7 @@ describe('Integration: Failure, retry, and resume', () => {
       expect(checkpoint.areas.every((a: { status: string }) => a.status === 'not-started')).toBe(true);
 
       // Final output should still be produced
-      expect(existsSync(join(OUTPUT_DIR, 'consolidated-report.md'))).toBe(true);
+      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(true);
     });
   });
 
@@ -444,7 +444,7 @@ describe('Integration: Failure, retry, and resume', () => {
       expect(analysisCalls[1][0].prompt).not.toContain('Resume Instructions');
 
       // Final output should still be produced
-      expect(existsSync(join(OUTPUT_DIR, 'consolidated-report.md'))).toBe(true);
+      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(true);
     });
 
     it('restarts round when checkpoint has valid JSON but invalid structure', async () => {
@@ -480,7 +480,7 @@ describe('Integration: Failure, retry, and resume', () => {
       );
       expect(analysisCalls).toHaveLength(2);
       expect(analysisCalls[1][0].prompt).not.toContain('Resume Instructions');
-      expect(existsSync(join(OUTPUT_DIR, 'consolidated-report.md'))).toBe(true);
+      expect(existsSync(join(OUTPUT_DIR, 'report.md'))).toBe(true);
     });
   });
 
@@ -568,7 +568,7 @@ describe('Integration: Failure, retry, and resume', () => {
       await orchestrate(makeArgs());
 
       // The consolidated report should contain findings from the partial output
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
       const reportContent = readFileSync(reportPath, 'utf-8');
       expect(reportContent).toContain('UXR-001');
@@ -619,7 +619,7 @@ describe('Integration: Failure, retry, and resume', () => {
       expect(mockProgressDisplay.completeConsolidation).toHaveBeenCalledTimes(1);
 
       // Report should still be written (even if empty)
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
     });
   });
@@ -838,7 +838,7 @@ describe('Integration: Failure, retry, and resume', () => {
       expect(mockProgressDisplay.markCompleted).toHaveBeenCalledWith(2);
 
       // Consolidation happened with instance 2's output
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
       const reportContent = readFileSync(reportPath, 'utf-8');
       expect(reportContent).toContain('UXR-001');

@@ -392,7 +392,7 @@ describe('Integration: Happy path — single instance, single round', () => {
       expect(workDistContent).toContain('Single instance');
 
       // --- Verify consolidated report ---
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
       const reportContent = readFileSync(reportPath, 'utf-8');
 
@@ -442,7 +442,7 @@ describe('Integration: Happy path — single instance, single round', () => {
 
       // Final paths passed to completeConsolidation
       const completeArgs = mockProgressDisplay.completeConsolidation.mock.calls[0];
-      expect(completeArgs[0]).toContain('consolidated-report.md');
+      expect(completeArgs[0]).toContain('report.md');
       expect(completeArgs[1]).toContain('discovery.md');
     });
 
@@ -518,7 +518,7 @@ describe('Integration: Happy path — single instance, single round', () => {
       const args = makeArgs({ scope: CUSTOM_SCOPE });
       await orchestrate(args);
 
-      const reportPath = join(OUTPUT_DIR, 'consolidated-report.md');
+      const reportPath = join(OUTPUT_DIR, 'report.md');
       expect(existsSync(reportPath)).toBe(true);
 
       const reportContent = readFileSync(reportPath, 'utf-8');
@@ -579,7 +579,7 @@ describe('Integration: Happy path — single instance, single round', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       // All three findings get sequential IDs
       expect(reportContent).toContain('UXR-001:');
@@ -596,7 +596,7 @@ describe('Integration: Happy path — single instance, single round', () => {
       const args = makeArgs();
       await orchestrate(args);
 
-      const reportContent = readFileSync(join(OUTPUT_DIR, 'consolidated-report.md'), 'utf-8');
+      const reportContent = readFileSync(join(OUTPUT_DIR, 'report.md'), 'utf-8');
 
       // Navigation section comes first with parent-child structure
       const navIdx = reportContent.indexOf('## Navigation');
