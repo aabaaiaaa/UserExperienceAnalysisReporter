@@ -61,7 +61,7 @@
 - **Verification**: `npx vitest run tests/instance-manager.test.ts 2>&1 | tail -5`
 
 ### TASK-009a: Create logger utility module
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Create `src/logger.ts` with a simple logging utility. Export a `setVerbose(enabled: boolean)` function and a `debug(message: string, ...args: unknown[])` function that writes to stderr only when verbose mode is enabled. Keep it lightweight — no external dependencies. Add tests verifying debug output appears when verbose is on and is suppressed when off. Reference requirements.md change #9.
 - **Verification**: `npx vitest run tests/logger.test.ts 2>&1 | tail -5`
