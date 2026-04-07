@@ -101,7 +101,8 @@ export function hasExistingCheckpointData(): boolean {
         }
       }
     }
-  } catch {
+  } catch (err) {
+    debug('Failed to read temp directory for checkpoint detection', err);
     return false;
   }
 

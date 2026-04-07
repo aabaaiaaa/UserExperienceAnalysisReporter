@@ -19,7 +19,7 @@
 - **Verification**: `npx vitest run tests/parse-consolidated-report.test.ts` — all new tests pass.
 
 ### TASK-004: Improve file-manager.ts coverage and fix bare catch block
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Two changes in `src/file-manager.ts` plus new tests. (A) Fix the bare `catch` at line 104 in `hasExistingCheckpointData()`: change to `catch (err)` and add a `debug()` call logging the error before returning false. Import `debug` from `./logger.js` if not already imported. (B) Add tests (in a new or existing file-manager test file) that: (1) simulate an `EBUSY` error on the first `rmSync` call, verify `cleanupTempDir()` retries and succeeds on subsequent attempt; (2) simulate `EBUSY` on all 5 attempts, verify `cleanupTempDir()` throws; (3) verify `hasExistingCheckpointData()` returns false when `readdirSync` throws; (4) verify the debug log is called when the catch block fires. See requirements.md sections 4 and 6.
 - **Verification**: `npx vitest run tests/file-manager*.test.ts` — all tests pass. Run `npx vitest run --coverage tests/file-manager*.test.ts` and confirm `file-manager.ts` coverage is above 95% statements.
