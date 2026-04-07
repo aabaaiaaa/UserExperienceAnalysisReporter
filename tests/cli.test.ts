@@ -51,6 +51,57 @@ describe('cli parseArgs', () => {
     const result = parseArgs([...requiredArgs, '--keep-temp']);
     expect(result.keepTemp).toBe(true);
   });
+
+  // --max-retries
+  it('defaults maxRetries to 3 when omitted', () => {
+    const result = parseArgs(requiredArgs);
+    expect(result.maxRetries).toBe(3);
+  });
+
+  it('accepts a custom --max-retries value', () => {
+    const result = parseArgs([...requiredArgs, '--max-retries', '5']);
+    expect(result.maxRetries).toBe(5);
+  });
+
+  it('rejects non-positive --max-retries', () => {
+    expect(() => parseArgs([...requiredArgs, '--max-retries', '0'])).toThrow();
+    expect(() => parseArgs([...requiredArgs, '--max-retries', '-1'])).toThrow();
+    expect(() => parseArgs([...requiredArgs, '--max-retries', 'abc'])).toThrow();
+  });
+
+  // --instance-timeout
+  it('defaults instanceTimeout to 30 when omitted', () => {
+    const result = parseArgs(requiredArgs);
+    expect(result.instanceTimeout).toBe(30);
+  });
+
+  it('accepts a custom --instance-timeout value', () => {
+    const result = parseArgs([...requiredArgs, '--instance-timeout', '60']);
+    expect(result.instanceTimeout).toBe(60);
+  });
+
+  it('rejects non-positive --instance-timeout', () => {
+    expect(() => parseArgs([...requiredArgs, '--instance-timeout', '0'])).toThrow();
+    expect(() => parseArgs([...requiredArgs, '--instance-timeout', '-5'])).toThrow();
+    expect(() => parseArgs([...requiredArgs, '--instance-timeout', 'xyz'])).toThrow();
+  });
+
+  // --rate-limit-retries
+  it('defaults rateLimitRetries to 10 when omitted', () => {
+    const result = parseArgs(requiredArgs);
+    expect(result.rateLimitRetries).toBe(10);
+  });
+
+  it('accepts a custom --rate-limit-retries value', () => {
+    const result = parseArgs([...requiredArgs, '--rate-limit-retries', '20']);
+    expect(result.rateLimitRetries).toBe(20);
+  });
+
+  it('rejects non-positive --rate-limit-retries', () => {
+    expect(() => parseArgs([...requiredArgs, '--rate-limit-retries', '0'])).toThrow();
+    expect(() => parseArgs([...requiredArgs, '--rate-limit-retries', '-2'])).toThrow();
+    expect(() => parseArgs([...requiredArgs, '--rate-limit-retries', 'nope'])).toThrow();
+  });
 });
 
 describe('resolveTextOrFile file size validation', () => {

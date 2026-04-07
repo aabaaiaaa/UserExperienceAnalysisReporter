@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DEFAULT_SCOPE } from './default-scope.js';
+import { MAX_RETRIES, INSTANCE_TIMEOUT_MS, MAX_RATE_LIMIT_RETRIES } from './config.js';
 
 export interface ParsedArgs {
   url: string;
@@ -11,6 +12,9 @@ export interface ParsedArgs {
   rounds: number;
   output: string;
   keepTemp: boolean;
+  maxRetries: number;
+  instanceTimeout: number;
+  rateLimitRetries: number;
 }
 
 const USAGE = `Usage:
@@ -31,6 +35,9 @@ Options:
   --output <dir>           Output directory for deliverables (default: ./uxreview-output)
   --keep-temp              Preserve the .uxreview-temp/ working directory after the run
                            (default: false — temp directory is deleted on completion)
+  --max-retries <n>        Maximum normal retry attempts per instance (default: 3)
+  --instance-timeout <min> Timeout per Claude instance in minutes (default: 30)
+  --rate-limit-retries <n> Maximum rate-limit retry attempts globally (default: 10)
   --help                   Show this help message`;
 
 /**
@@ -126,7 +133,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   // Check for unknown flags
-  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp']);
+  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
   for (const key of raw.keys()) {
     if (!knownFlags.has(key)) {
       printUsageAndExit(`Unknown option: --${key}`);
@@ -169,6 +176,27 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
+  const maxRetriesRaw = raw.get('max-retries');
+  if (maxRetriesRaw !== undefined && maxRetriesRaw !== true) {
+    if (!isPositiveInteger(maxRetriesRaw)) {
+      printUsageAndExit('--max-retries must be a positive integer');
+    }
+  }
+
+  const instanceTimeoutRaw = raw.get('instance-timeout');
+  if (instanceTimeoutRaw !== undefined && instanceTimeoutRaw !== true) {
+    if (!isPositiveInteger(instanceTimeoutRaw)) {
+      printUsageAndExit('--instance-timeout must be a positive integer');
+    }
+  }
+
+  const rateLimitRetriesRaw = raw.get('rate-limit-retries');
+  if (rateLimitRetriesRaw !== undefined && rateLimitRetriesRaw !== true) {
+    if (!isPositiveInteger(rateLimitRetriesRaw)) {
+      printUsageAndExit('--rate-limit-retries must be a positive integer');
+    }
+  }
+
   // Resolve text-or-file params
   const resolvedIntro = resolveTextOrFile(intro);
   const resolvedPlan = resolveTextOrFile(plan);
@@ -190,5 +218,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
       return typeof outputRaw === 'string' ? outputRaw : './uxreview-output';
     })(),
     keepTemp: raw.has('keep-temp'),
+    maxRetries: maxRetriesRaw !== undefined && maxRetriesRaw !== true ? Number(maxRetriesRaw) : MAX_RETRIES,
+    instanceTimeout: instanceTimeoutRaw !== undefined && instanceTimeoutRaw !== true ? Number(instanceTimeoutRaw) : INSTANCE_TIMEOUT_MS / 60_000,
+    rateLimitRetries: rateLimitRetriesRaw !== undefined && rateLimitRetriesRaw !== true ? Number(rateLimitRetriesRaw) : MAX_RATE_LIMIT_RETRIES,
   };
 }

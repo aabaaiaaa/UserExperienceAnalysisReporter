@@ -49,7 +49,7 @@
 - **Verification**: `npx vitest run 2>&1 | tail -5`
 
 ### TASK-008a: Add CLI flags for retry limits and timeouts — parsing
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007a
 - **Description**: Add `--max-retries <n>`, `--instance-timeout <minutes>`, and `--rate-limit-retries <n>` to CLI argument parsing in `src/cli.ts`. Add the fields to `ParsedArgs` with defaults from `config.ts`. Validate that values are positive integers. Update the USAGE string. Add parsing tests for valid values, invalid values, and defaults. Reference requirements.md change #8.
 - **Verification**: `npx vitest run tests/cli.test.ts 2>&1 | tail -5`
