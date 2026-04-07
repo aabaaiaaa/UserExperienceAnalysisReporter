@@ -5,7 +5,8 @@ import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryC
 import { buildReportInstructions } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
 import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
-import { isRateLimitError, getBackoffDelay, sleep, MAX_RATE_LIMIT_RETRIES } from './rate-limit.js';
+import { isRateLimitError, getBackoffDelay, sleep } from './rate-limit.js';
+import { INSTANCE_TIMEOUT_MS, MAX_RETRIES, MAX_RATE_LIMIT_RETRIES } from './config.js';
 
 export type InstanceStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -33,11 +34,8 @@ export interface InstanceState {
   error?: string;
 }
 
-/** Default timeout for analysis instances: 30 minutes */
-const INSTANCE_TIMEOUT_MS = 30 * 60 * 1000;
-
-/** Default maximum retry attempts per instance on failure */
-export const DEFAULT_MAX_RETRIES = 3;
+/** @deprecated Use MAX_RETRIES from config.ts instead */
+export const DEFAULT_MAX_RETRIES = MAX_RETRIES;
 
 export interface RetryInfo {
   /** Round number where failure occurred */
@@ -350,7 +348,7 @@ async function handleRateLimitRetries(
 export async function runInstanceRounds(config: RoundExecutionConfig): Promise<RoundExecutionResult> {
   const roundResults: InstanceState[] = [];
   const areas = config.assignedAreas ?? [];
-  const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
+  const maxRetries = config.maxRetries ?? MAX_RETRIES;
   const retries: RetryInfo[] = [];
   const cb = config.progress;
   // Global rate-limit retry counter shared across all rounds and normal retries

@@ -1,5 +1,6 @@
 import { readCheckpoint, Checkpoint } from './checkpoint.js';
 import { readReportContent } from './report.js';
+import { POLL_INTERVAL_MS } from './config.js';
 
 export interface InstanceProgress {
   instanceNumber: number;
@@ -360,7 +361,7 @@ export class ProgressDisplay {
     this.renderedLineCount = lines.length;
   }
 
-  start(intervalMs = 1000): void {
+  start(intervalMs = POLL_INTERVAL_MS): void {
     this.renderToTerminal();
     this.pollTimer = setInterval(() => {
       this.updateAllFromFiles();

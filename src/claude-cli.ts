@@ -1,4 +1,5 @@
 import { spawn, ChildProcess } from 'node:child_process';
+import { DEFAULT_CLI_TIMEOUT_MS } from './config.js';
 
 /** Registry of currently active child processes for cleanup on shutdown */
 const activeProcesses = new Set<ChildProcess>();
@@ -43,8 +44,6 @@ export interface ClaudeCliOptions {
   extraArgs?: string[];
 }
 
-const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
-
 /**
  * Invoke Claude Code CLI as a subprocess with the given prompt.
  *
@@ -54,7 +53,7 @@ const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
  * Returns the captured stdout, stderr, exit code, and a success flag.
  */
 export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
-  const { prompt, cwd, timeout = DEFAULT_TIMEOUT_MS, extraArgs = [] } = options;
+  const { prompt, cwd, timeout = DEFAULT_CLI_TIMEOUT_MS, extraArgs = [] } = options;
 
   return new Promise((resolve, reject) => {
     const args = ['-p', '--output-format', 'text', ...extraArgs];

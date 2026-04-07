@@ -43,7 +43,7 @@
 - **Verification**: `npx vitest run tests/config.test.ts 2>&1 | tail -5`
 
 ### TASK-007a: Migrate all hardcoded constants to use config module
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007
 - **Description**: Update all source files that reference hardcoded constants to import from `src/config.ts` instead. Files to update: `orchestrator.ts`, `instance-manager.ts`, `rate-limit.ts`, `progress-display.ts`, `claude-cli.ts`. Remove the old constant declarations from `rate-limit.ts` (they now live in config). Ensure all existing tests still pass with the refactored imports. Reference requirements.md change #7.
 - **Verification**: `npx vitest run 2>&1 | tail -5`

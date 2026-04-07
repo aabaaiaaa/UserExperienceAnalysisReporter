@@ -1,4 +1,13 @@
 import { ClaudeCliResult } from './claude-cli.js';
+import {
+  DEFAULT_BASE_DELAY_MS,
+  MAX_BACKOFF_DELAY_MS,
+  MAX_RATE_LIMIT_RETRIES,
+} from './config.js';
+
+// Re-export so existing consumers (tests, instance-manager) can still
+// import these from './rate-limit.js' without breaking.
+export { DEFAULT_BASE_DELAY_MS, MAX_BACKOFF_DELAY_MS, MAX_RATE_LIMIT_RETRIES };
 
 /**
  * Patterns that indicate a rate limit error from the Claude Code CLI.
@@ -26,15 +35,6 @@ export function isRateLimitError(result: ClaudeCliResult): boolean {
   const combined = `${result.stdout}\n${result.stderr}`;
   return RATE_LIMIT_PATTERNS.some((pattern) => pattern.test(combined));
 }
-
-/** Default base delay for exponential backoff (10 seconds) */
-export const DEFAULT_BASE_DELAY_MS = 10_000;
-
-/** Maximum backoff delay cap (5 minutes) */
-export const MAX_BACKOFF_DELAY_MS = 5 * 60 * 1000;
-
-/** Maximum number of rate limit retries before giving up */
-export const MAX_RATE_LIMIT_RETRIES = 10;
 
 /**
  * Calculate exponential backoff delay with jitter.
