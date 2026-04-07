@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 6,
+  "lastIteration": 7,
   "startedAt": "2026-04-07T11:36:36.233Z",
   "iteration": 2,
   "devloopVersion": "3.4.0",
   "activeTask": {
-    "taskId": "TASK-004a",
-    "taskTitle": "Clean up backward-compat re-exports in rate-limit.ts",
-    "iterationNumber": 7,
-    "startedAt": "2026-04-07T11:59:29.298Z"
+    "taskId": "TASK-004b",
+    "taskTitle": "Extract shared rate-limit retry utility",
+    "iterationNumber": 8,
+    "startedAt": "2026-04-07T12:01:31.933Z"
   }
 }

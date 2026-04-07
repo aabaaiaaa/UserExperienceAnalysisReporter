@@ -43,7 +43,7 @@
 - **Verification**: `npx vitest run tests/rate-limit.test.ts`
 
 ### TASK-004b: Extract shared rate-limit retry utility
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-004a
 - **Description**: Extract a general-purpose rate-limit retry function from `instance-manager.ts:323` (`handleRateLimitRetries`) into `src/rate-limit.ts`. The new utility should accept: (1) an async function to retry, (2) a max retry count (default from `MAX_RATE_LIMIT_RETRIES` config), and (3) use exponential backoff with jitter via the existing `calculateBackoff`. It should detect rate-limit errors using the existing `isRateLimitError` function. Refactor `instance-manager.ts` to use the shared utility internally. See requirements.md change #4.
 - **Verification**: `npx vitest run tests/rate-limit.test.ts && npx vitest run tests/instance-manager.test.ts`

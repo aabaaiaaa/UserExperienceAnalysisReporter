@@ -5,7 +5,7 @@ import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryC
 import { buildReportInstructions, readReportContent } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
 import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
-import { isRateLimitError, getBackoffDelay, sleep } from './rate-limit.js';
+import { isRateLimitError, withRateLimitRetry, RateLimitRetryState } from './rate-limit.js';
 import { INSTANCE_TIMEOUT_MS, MAX_RETRIES, MAX_RATE_LIMIT_RETRIES } from './config.js';
 import { debug } from './logger.js';
 
@@ -302,20 +302,11 @@ export interface RoundExecutionResult {
 }
 
 /**
- * Mutable state object that tracks rate-limit retry attempts globally
- * across an instance's entire execution (all rounds and normal retries).
- */
-interface RateLimitRetryState {
-  globalAttempts: number;
-}
-
-/**
  * Handle rate-limit retries for a failed instance spawn.
  *
- * If the state represents a rate-limit failure and the global retry budget
- * hasn't been exhausted, this function will backoff, sleep, respawn, and
- * repeat until the spawn succeeds, a non-rate-limit error occurs, or the
- * retry budget is exhausted.
+ * Delegates to the shared `withRateLimitRetry` utility from rate-limit.ts,
+ * adapting between the InstanceState used by the instance manager and the
+ * ClaudeCliResult expected by the shared utility.
  *
  * Rate-limit retries are counted globally via `retryState.globalAttempts`,
  * so the budget is shared across the initial spawn and any normal retries.
@@ -330,23 +321,41 @@ async function handleRateLimitRetries(
   },
   maxRateLimitRetries: number = MAX_RATE_LIMIT_RETRIES,
 ): Promise<InstanceState> {
-  while (
-    state.status === 'failed' &&
-    state.result &&
-    isRateLimitError(state.result) &&
-    retryState.globalAttempts < maxRateLimitRetries
-  ) {
-    retryState.globalAttempts++;
-    const backoffMs = getBackoffDelay(retryState.globalAttempts - 1);
-    debug(`Rate limit hit, attempt ${retryState.globalAttempts}/${maxRateLimitRetries}, backing off ${backoffMs}ms`);
-    callbacks?.onRateLimited?.(backoffMs);
-    await sleep(backoffMs);
-    callbacks?.onRateLimitResolved?.();
-
-    state = await respawn();
+  // Short-circuit: if not a rate-limit failure, nothing to retry
+  if (state.status !== 'failed' || !state.result || !isRateLimitError(state.result)) {
+    return state;
   }
 
-  return state;
+  let latestState = state;
+  let firstCall = true;
+
+  await withRateLimitRetry(
+    async () => {
+      // First call returns the already-known rate-limit result so the
+      // shared utility can enter its retry loop without an extra spawn.
+      if (firstCall) {
+        firstCall = false;
+        return state.result!;
+      }
+      latestState = await respawn();
+      // If respawn threw and was caught internally, result may be undefined.
+      // Return a synthetic failure so the retry loop can evaluate it.
+      return latestState.result ?? {
+        stdout: '',
+        stderr: latestState.error ?? 'Unknown error',
+        exitCode: 1,
+        success: false,
+      };
+    },
+    {
+      maxRetries: maxRateLimitRetries,
+      retryState,
+      onRateLimited: callbacks?.onRateLimited,
+      onRateLimitResolved: callbacks?.onRateLimitResolved,
+    },
+  );
+
+  return latestState;
 }
 
 /**
