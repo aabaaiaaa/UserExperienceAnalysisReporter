@@ -125,16 +125,21 @@ function renderFinding(finding: Finding, headingLevel: number, screenshotsDir?: 
 /**
  * Render a hierarchical finding (parent + children) as HTML.
  * Recurses into children with increasing heading levels (capped at h6).
+ * Findings with children are wrapped in a collapsible <details> section.
  */
 function renderHierarchicalFinding(hf: HierarchicalFinding, screenshotsDir?: string, headingLevel: number = 3): string {
-  let html = renderFinding(hf.finding, headingLevel, screenshotsDir);
+  const findingHtml = renderFinding(hf.finding, headingLevel, screenshotsDir);
 
-  for (const child of hf.children) {
-    const childLevel = Math.min(headingLevel + 1, 6);
-    html += '\n' + `<div class="child-finding">\n${renderHierarchicalFinding(child, screenshotsDir, childLevel)}\n</div>`;
+  if (hf.children.length === 0) {
+    return findingHtml;
   }
 
-  return html;
+  const childrenHtml = hf.children.map(child => {
+    const childLevel = Math.min(headingLevel + 1, 6);
+    return `<div class="child-finding">\n${renderHierarchicalFinding(child, screenshotsDir, childLevel)}\n</div>`;
+  }).join('\n');
+
+  return `${findingHtml}\n<details open class="nested-findings">\n<summary>${hf.children.length} sub-finding${hf.children.length !== 1 ? 's' : ''}</summary>\n${childrenHtml}\n</details>`;
 }
 
 /**
@@ -193,6 +198,8 @@ function getStyles(): string {
   .finding:last-child { border-bottom: none; }
   .severity { display: inline-block; color: white; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
   .child-finding { margin-left: 1.5rem; border-left: 3px solid #e5e7eb; padding-left: 1rem; }
+  .nested-findings { border: none; margin-top: 0.5rem; }
+  .nested-findings > summary { font-size: 0.9rem; color: #6b7280; cursor: pointer; padding: 0.25rem 0; }
   dl { margin: 0.5rem 0; }
   dt { font-weight: 600; margin-top: 0.5rem; }
   dd { margin: 0 0 0.25rem 0; }

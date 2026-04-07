@@ -296,6 +296,133 @@ describe('formatHtmlReport', () => {
     expect(html).toContain('Child B');
   });
 
+  it('wraps children in collapsible nested-findings details section', () => {
+    const parent = makeFinding({ id: 'UXR-001', title: 'Parent issue' });
+    const child = makeFinding({ id: 'UXR-002', title: 'Child issue' });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [{ finding: parent, children: [{ finding: child, children: [] }] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata());
+
+    expect(html).toContain('class="nested-findings"');
+    expect(html).toContain('<summary>1 sub-finding</summary>');
+  });
+
+  it('pluralizes sub-finding count in nested details summary', () => {
+    const parent = makeFinding({ id: 'UXR-001', title: 'Parent' });
+    const child1 = makeFinding({ id: 'UXR-002', title: 'Child A' });
+    const child2 = makeFinding({ id: 'UXR-003', title: 'Child B' });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Area',
+        findings: [{ finding: parent, children: [{ finding: child1, children: [] }, { finding: child2, children: [] }] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata());
+
+    expect(html).toContain('<summary>2 sub-findings</summary>');
+  });
+
+  it('renders multi-level nesting (grandchildren) with increasing heading levels', () => {
+    const grandchild = makeFinding({ id: 'UXR-003', title: 'Component issue' });
+    const child = makeFinding({ id: 'UXR-002', title: 'Section issue' });
+    const parent = makeFinding({ id: 'UXR-001', title: 'Page issue' });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [{
+          finding: parent,
+          children: [{
+            finding: child,
+            children: [{ finding: grandchild, children: [] }],
+          }],
+        }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata());
+
+    // Parent h3, child h4, grandchild h5
+    expect(html).toContain('<h3>UXR-001: Page issue</h3>');
+    expect(html).toContain('<h4>UXR-002: Section issue</h4>');
+    expect(html).toContain('<h5>UXR-003: Component issue</h5>');
+
+    // Nested child-finding divs at each level
+    const childFindingMatches = html.match(/class="child-finding"/g);
+    expect(childFindingMatches).toHaveLength(2);
+
+    // Nested collapsible sections at each parent level
+    const nestedMatches = html.match(/class="nested-findings"/g);
+    expect(nestedMatches).toHaveLength(2);
+  });
+
+  it('caps heading level at h6 for very deep nesting in HTML', () => {
+    const l4 = makeFinding({ id: 'UXR-005', title: 'L4' });
+    const l3 = makeFinding({ id: 'UXR-004', title: 'L3' });
+    const l2 = makeFinding({ id: 'UXR-003', title: 'L2' });
+    const l1 = makeFinding({ id: 'UXR-002', title: 'L1' });
+    const l0 = makeFinding({ id: 'UXR-001', title: 'L0' });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Deep',
+        findings: [{
+          finding: l0,
+          children: [{
+            finding: l1,
+            children: [{
+              finding: l2,
+              children: [{
+                finding: l3,
+                children: [{ finding: l4, children: [] }],
+              }],
+            }],
+          }],
+        }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata());
+
+    // h3 -> h4 -> h5 -> h6 -> h6 (capped)
+    expect(html).toContain('<h3>UXR-001: L0</h3>');
+    expect(html).toContain('<h4>UXR-002: L1</h4>');
+    expect(html).toContain('<h5>UXR-003: L2</h5>');
+    expect(html).toContain('<h6>UXR-004: L3</h6>');
+    expect(html).toContain('<h6>UXR-005: L4</h6>');
+
+    // No h7 tags
+    expect(html).not.toContain('<h7');
+  });
+
+  it('renders leaf findings without nested-findings wrapper', () => {
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Simple',
+        findings: [{ finding: makeFinding({ id: 'UXR-001', title: 'Leaf' }), children: [] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata());
+
+    expect(html).not.toContain('class="nested-findings"');
+    expect(html).not.toContain('sub-finding');
+  });
+
+  it('includes nested-findings CSS in styles', () => {
+    const html = formatHtmlReport([], makeMetadata());
+
+    expect(html).toContain('.nested-findings');
+  });
+
   it('renders screenshot text when no screenshotsDir is provided', () => {
     const groups: UIAreaGroup[] = [
       {

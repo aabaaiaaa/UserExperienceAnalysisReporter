@@ -411,8 +411,8 @@ export function parseConsolidatedReport(content: string): Finding[] {
       continue;
     }
 
-    // Match finding headings: ### UXR-NNN: Title or #### UXR-NNN: Title
-    const findingMatch = trimmedLine.match(/^#{3,4}\s+(UXR-\d{3,}):\s*(.+)$/);
+    // Match finding headings: ### through ###### UXR-NNN: Title (multi-level hierarchy)
+    const findingMatch = trimmedLine.match(/^#{3,6}\s+(UXR-\d{3,}):\s*(.+)$/);
     if (findingMatch) {
       const id = findingMatch[1];
       const title = findingMatch[2].trim();
@@ -427,7 +427,7 @@ export function parseConsolidatedReport(content: string): Finding[] {
         const metaLine = lines[j].trim();
 
         // Stop at next heading or empty section
-        if (metaLine.match(/^#{2,4}\s+/) && !metaLine.startsWith('- **')) {
+        if (metaLine.match(/^#{2,6}\s+/) && !metaLine.startsWith('- **')) {
           break;
         }
 

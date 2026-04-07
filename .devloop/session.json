@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 25,
+  "lastIteration": 26,
   "startedAt": "2026-04-07T09:10:37.667Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-016a",
-    "taskTitle": "Update HierarchicalFinding to support recursive nesting",
-    "iterationNumber": 26,
-    "startedAt": "2026-04-07T10:45:00.772Z"
+    "taskId": "TASK-016b",
+    "taskTitle": "Update report formatting for multi-level hierarchy",
+    "iterationNumber": 27,
+    "startedAt": "2026-04-07T10:52:14.681Z"
   }
 }

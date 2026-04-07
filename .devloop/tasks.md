@@ -157,7 +157,7 @@
 - **Verification**: `npx vitest run tests/consolidation.test.ts 2>&1 | tail -5`
 
 ### TASK-016b: Update report formatting for multi-level hierarchy
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-016a, TASK-014a
 - **Description**: Update `formatConsolidatedReport()` in `src/consolidation.ts` to render multi-level indentation. Each nesting level adds one indent level. Heading levels increase with depth (`###` top-level, `####` children, `#####` grandchildren), capping at `######`. Update `formatHtmlReport()` in `src/html-report.ts` to render multi-level nesting with corresponding indentation and nested collapsible sections. Add tests for markdown and HTML output at multiple nesting depths. Reference requirements.md change #16.
 - **Verification**: `npx vitest run tests/consolidation.test.ts tests/html-report.test.ts 2>&1 | tail -5`
