@@ -780,6 +780,27 @@ describe('orchestrate', () => {
     });
   });
 
+  it('cleans up workspace when distributePlan throws', async () => {
+    const args = makeArgs({ instances: 1, keepTemp: false });
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-orch-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    mockDistributePlan.mockRejectedValue(new Error('Claude CLI not found'));
+
+    await expect(orchestrate(args)).rejects.toThrow('Claude CLI not found');
+
+    // The finally block should have run, cleaning up the workspace
+    expect(mockCleanupTempDir).toHaveBeenCalledTimes(1);
+    expect(mockProgressDisplay.stop).toHaveBeenCalledTimes(1);
+
+    // No instances should have been spawned
+    expect(mockRunInstanceRounds).not.toHaveBeenCalled();
+  });
+
   describe('signal handling', () => {
     let processExitSpy: ReturnType<typeof vi.spyOn>;
     let processOnSpy: ReturnType<typeof vi.spyOn>;

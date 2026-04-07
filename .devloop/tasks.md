@@ -7,7 +7,7 @@
 - **Verification**: `test -f LICENSE && head -1 LICENSE | grep -q "MIT" && echo "PASS" || echo "FAIL"`
 
 ### TASK-002: Move distributePlan inside the try block
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/orchestrator.ts`, move the `distributePlan()` call (currently line 114) inside the `try` block (currently line 132) so that the `finally` block handles cleanup if distribution fails. The `initWorkspace()` call can remain before the `try` block. Add a test verifying workspace cleanup occurs when `distributePlan` throws. Reference requirements.md change #2.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts 2>&1 | tail -5`

@@ -110,10 +110,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
   // 1. Initialize workspace
   const workspace = await initWorkspace(args.instances, args.output);
 
-  // 2. Distribute work across instances
-  const distribution = await distributePlan(args.plan, args.instances);
-
-  // 3. Set up progress display
+  // 2. Set up progress display
   const instanceNumbers = Array.from({ length: args.instances }, (_, i) => i + 1);
   const display = new ProgressDisplay(instanceNumbers, args.rounds);
   const progressCallback = buildProgressCallback(display);
@@ -130,6 +127,9 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
   display.start();
 
   try {
+    // 3. Distribute work across instances
+    const distribution = await distributePlan(args.plan, args.instances);
+
     // 4. Spawn all instances in parallel — each runs all its rounds
     const configs: RoundExecutionConfig[] = distribution.chunks.map((chunk, i) => ({
       instanceNumber: i + 1,
