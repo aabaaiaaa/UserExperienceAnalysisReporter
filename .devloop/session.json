@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 19,
+  "lastIteration": 20,
   "startedAt": "2026-04-07T09:10:37.667Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-013b",
-    "taskTitle": "Read existing findings and continue ID numbering in append mode",
-    "iterationNumber": 20,
-    "startedAt": "2026-04-07T10:05:54.102Z"
+    "taskId": "TASK-013c",
+    "taskTitle": "Cross-run deduplication and merged output in append mode",
+    "iterationNumber": 21,
+    "startedAt": "2026-04-07T10:12:37.013Z"
   }
 }

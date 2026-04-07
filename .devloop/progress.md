@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 27
-- **Completed**: 20
-- **Remaining**: 7
-- **Last Updated**: 2026-04-07T10:12:35.127Z
+- **Completed**: 21
+- **Remaining**: 6
+- **Last Updated**: 2026-04-07T10:28:42.691Z
 
 ## Iteration Log
 
@@ -223,4 +223,15 @@
 - **Verification Duration**: ~25s
 - **Tokens**: 3,908,865 total (1,671 in, 13,436 out, 102,019 cache-create, 3,791,739 cache-read)
 - **Cost**: $2.8777
+
+### Iteration 21 - 2026-04-07T10:28:42.689Z
+- **Task Attempted**: TASK-013c
+- **Task Completed**: TASK-013c
+- **Summary**: Completed Cross-run deduplication and merged output in append mode
+- **Duration**: 16m 6s
+- **Exit Status**: success
+- **Work Duration**: ~15m 2s
+- **Verification Duration**: ~1m 4s
+- **Tokens**: 8,944,189 total (1,705 in, 43,165 out, 151,169 cache-create, 8,748,150 cache-read)
+- **Cost**: $6.4065
 

@@ -380,6 +380,149 @@ export function buildNewScreenshotFilenames(finalId: string, count: number): str
 }
 
 /**
+ * Parse a consolidated report's markdown content into an array of Finding objects.
+ *
+ * Handles the hierarchical format produced by `formatConsolidatedReport`:
+ * - `## Area Name` headings define the current UI area
+ * - `### UXR-NNN: Title` defines a top-level finding
+ * - `#### UXR-NNN: Title` (possibly indented) defines a child finding
+ *
+ * Returns an empty array for empty or unparseable content.
+ */
+export function parseConsolidatedReport(content: string): Finding[] {
+  if (!content || !content.trim()) {
+    return [];
+  }
+
+  const findings: Finding[] = [];
+  let currentArea = '';
+
+  // Split into lines for processing
+  const lines = content.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd();
+    const trimmedLine = line.trim();
+
+    // Track UI area headings: ## Area Name
+    const areaMatch = trimmedLine.match(/^## (.+)$/);
+    if (areaMatch && !trimmedLine.match(/^## UXR-/)) {
+      currentArea = areaMatch[1].trim();
+      continue;
+    }
+
+    // Match finding headings: ### UXR-NNN: Title or #### UXR-NNN: Title
+    const findingMatch = trimmedLine.match(/^#{3,4}\s+(UXR-\d{3,}):\s*(.+)$/);
+    if (findingMatch) {
+      const id = findingMatch[1];
+      const title = findingMatch[2].trim();
+
+      // Extract metadata from subsequent lines
+      let severity: Severity = 'suggestion';
+      let description = '';
+      let suggestion = '';
+      let screenshot = '';
+
+      for (let j = i + 1; j < lines.length; j++) {
+        const metaLine = lines[j].trim();
+
+        // Stop at next heading or empty section
+        if (metaLine.match(/^#{2,4}\s+/) && !metaLine.startsWith('- **')) {
+          break;
+        }
+
+        const severityMatch = metaLine.match(/\*\*Severity\*\*:\s*(.+)/);
+        if (severityMatch) {
+          const raw = severityMatch[1].trim() as Severity;
+          if (['critical', 'major', 'minor', 'suggestion'].includes(raw)) {
+            severity = raw;
+          }
+        }
+        const descMatch = metaLine.match(/\*\*Description\*\*:\s*(.+)/);
+        if (descMatch) description = descMatch[1].trim();
+        const sugMatch = metaLine.match(/\*\*Suggestion\*\*:\s*(.+)/);
+        if (sugMatch) suggestion = sugMatch[1].trim();
+        const ssMatch = metaLine.match(/\*\*Screenshot\*\*:\s*(.+)/);
+        if (ssMatch) screenshot = ssMatch[1].trim();
+      }
+
+      findings.push({
+        id,
+        title,
+        uiArea: currentArea,
+        severity,
+        description,
+        suggestion,
+        screenshot,
+      });
+    }
+  }
+
+  return findings;
+}
+
+/**
+ * Detect cross-run duplicate findings between existing findings (from a
+ * previous report) and newly consolidated findings. Uses Claude to compare
+ * the two sets.
+ *
+ * Only calls Claude when both sets are non-empty. The returned duplicate
+ * groups may contain IDs from both sets.
+ */
+export async function detectCrossRunDuplicates(
+  existingFindings: Finding[],
+  newFindings: Finding[],
+): Promise<DeduplicationResult> {
+  if (existingFindings.length === 0 || newFindings.length === 0) {
+    return { duplicateGroups: [], usedClaude: false };
+  }
+
+  const allFindings = [...existingFindings, ...newFindings];
+  const prompt = buildDeduplicationPrompt(allFindings);
+  const result = await runClaude({ prompt });
+
+  if (!result.success) {
+    throw new Error(
+      `Claude CLI failed during cross-run deduplication (exit code ${result.exitCode}): ${result.stderr}`,
+    );
+  }
+
+  const groups = parseDeduplicationResponse(result.stdout);
+  return { duplicateGroups: groups, usedClaude: true };
+}
+
+/**
+ * Remove new findings that are duplicates of existing findings.
+ *
+ * Given duplicate groups from cross-run dedup, identifies new findings that
+ * share a group with at least one existing finding, and removes them.
+ * Existing findings are always kept. New findings that only duplicate other
+ * new findings are also kept (that dedup was already handled within-run).
+ */
+export function filterCrossRunDuplicates(
+  existingFindings: Finding[],
+  newFindings: Finding[],
+  duplicateGroups: DuplicateGroup[],
+): Finding[] {
+  const existingIds = new Set(existingFindings.map((f) => f.id));
+  const newIdsToRemove = new Set<string>();
+
+  for (const group of duplicateGroups) {
+    const hasExisting = group.findingIds.some((id) => existingIds.has(id));
+    if (hasExisting) {
+      // Remove all new findings in this group (keep existing ones)
+      for (const id of group.findingIds) {
+        if (!existingIds.has(id)) {
+          newIdsToRemove.add(id);
+        }
+      }
+    }
+  }
+
+  return newFindings.filter((f) => !newIdsToRemove.has(f.id));
+}
+
+/**
  * Parse an existing consolidated report to extract finding IDs and determine
  * the next available UXR-NNN number.
  *
@@ -461,8 +604,12 @@ export function reassignIds(findings: Finding[], startId: number = 1): Reassignm
  * Copy and rename screenshots from instance working directories to the
  * output directory. Silently skips files that don't exist (e.g., if an
  * instance failed before capturing a screenshot).
+ *
+ * When `skipExisting` is true, does not overwrite screenshots that already
+ * exist in the output directory. This is used in append mode to preserve
+ * screenshots from previous runs.
  */
-export function copyScreenshots(screenshotOps: ScreenshotCopyOp[], outputDir: string): void {
+export function copyScreenshots(screenshotOps: ScreenshotCopyOp[], outputDir: string, skipExisting: boolean = false): void {
   const outputScreenshotsDir = join(outputDir, 'screenshots');
 
   for (const op of screenshotOps) {
@@ -471,6 +618,9 @@ export function copyScreenshots(screenshotOps: ScreenshotCopyOp[], outputDir: st
     const destPath = join(outputScreenshotsDir, op.destFilename);
 
     if (existsSync(sourcePath)) {
+      if (skipExisting && existsSync(destPath)) {
+        continue;
+      }
       copyFileSync(sourcePath, destPath);
     }
   }
@@ -487,16 +637,20 @@ export function copyScreenshots(screenshotOps: ScreenshotCopyOp[], outputDir: st
  * The optional `startId` parameter specifies the first sequence number to use
  * (default 1). In append mode, pass the next available ID after existing findings.
  *
+ * When `skipExistingScreenshots` is true, existing screenshot files in the
+ * output directory are preserved (not overwritten).
+ *
  * Returns the findings with their final IDs and updated screenshot references.
  */
 export function reassignAndRemapScreenshots(
   consolidationResult: ConsolidationResult,
   outputDir: string,
   startId: number = 1,
+  skipExistingScreenshots: boolean = false,
 ): ReassignmentResult {
   const { findings, idMapping, screenshotOps } = reassignIds(consolidationResult.findings, startId);
 
-  copyScreenshots(screenshotOps, outputDir);
+  copyScreenshots(screenshotOps, outputDir, skipExistingScreenshots);
 
   return { findings, idMapping, screenshotOps };
 }

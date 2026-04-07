@@ -53,7 +53,7 @@ const mockProgressDisplay = {
   startConsolidation: vi.fn(),
   completeConsolidation: vi.fn(),
   renderToTerminal: vi.fn(),
-  updateAllFromFiles: vi.fn(),
+  updateProgress: vi.fn(),
 };
 
 vi.mock('../src/progress-display.js', () => ({
@@ -193,6 +193,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     rounds: 1,
     output: OUTPUT_DIR,
     keepTemp: true,
+    append: false,
     verbose: false,
     maxRetries: 3,
     instanceTimeout: 30,

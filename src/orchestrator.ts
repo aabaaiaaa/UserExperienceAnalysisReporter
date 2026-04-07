@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ParsedArgs } from './cli.js';
 import { initWorkspace, cleanupTempDir } from './file-manager.js';
@@ -18,8 +18,12 @@ import {
   consolidateDiscoveryDocs,
   writeConsolidatedDiscovery,
   parseExistingReportIds,
+  parseConsolidatedReport,
+  detectCrossRunDuplicates,
+  filterCrossRunDuplicates,
   ConsolidationResult,
   UIAreaGroup,
+  Finding,
 } from './consolidation.js';
 import { ProgressDisplay } from './progress-display.js';
 import { setVerbose, debug } from './logger.js';
@@ -207,13 +211,37 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     let checkpoint: ConsolidationCheckpoint =
       readConsolidationCheckpoint() ?? createEmptyConsolidationCheckpoint();
 
-    // Step 1: Dedup — consolidate reports
+    // Step 1: Dedup — consolidate reports (within-run dedup)
     let consolidation: ConsolidationResult;
     if (isStepCompleted(checkpoint, 'dedup') && checkpoint.dedupOutput) {
       consolidation = JSON.parse(checkpoint.dedupOutput);
       debug('Resuming consolidation: skipping dedup (already completed)');
     } else {
       consolidation = await consolidateReports(instanceNumbers);
+
+      // In append mode, run cross-run deduplication against existing findings
+      if (args.append) {
+        const reportPath = join(workspace.outputDir, 'report.md');
+        if (existsSync(reportPath)) {
+          const existingContent = readFileSync(reportPath, 'utf-8');
+          const existingFindings = parseConsolidatedReport(existingContent);
+          if (existingFindings.length > 0) {
+            debug(`Append mode: cross-run dedup against ${existingFindings.length} existing finding(s)`);
+            const crossRunDedup = await detectCrossRunDuplicates(existingFindings, consolidation.findings);
+            if (crossRunDedup.duplicateGroups.length > 0) {
+              const filtered = filterCrossRunDuplicates(
+                existingFindings,
+                consolidation.findings,
+                crossRunDedup.duplicateGroups,
+              );
+              const removedCount = consolidation.findings.length - filtered.length;
+              debug(`Cross-run dedup removed ${removedCount} duplicate(s)`);
+              consolidation = { ...consolidation, findings: filtered };
+            }
+          }
+        }
+      }
+
       checkpoint.dedupOutput = JSON.stringify(consolidation);
       checkpoint.completedSteps = [...checkpoint.completedSteps, 'dedup'];
       checkpoint.timestamp = new Date().toISOString();
@@ -223,6 +251,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     // Step 2: Reassign IDs and remap screenshots
     // In append mode, determine the next available ID from the existing report
     let startId = 1;
+    let existingFindings: Finding[] = [];
     if (args.append) {
       const reportPath = join(workspace.outputDir, 'report.md');
       const existing = parseExistingReportIds(reportPath);
@@ -232,23 +261,32 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       startId = existing.maxId + 1;
       if (startId > 1) {
         debug(`Append mode: continuing IDs from UXR-${String(startId).padStart(3, '0')}`);
+        // Parse existing findings for merging into the full report
+        if (existsSync(reportPath)) {
+          existingFindings = parseConsolidatedReport(readFileSync(reportPath, 'utf-8'));
+        }
       }
     }
 
-    let findings: ConsolidationResult['findings'];
+    let findings: Finding[];
     if (isStepCompleted(checkpoint, 'reassign') && checkpoint.reassignOutput) {
       findings = JSON.parse(checkpoint.reassignOutput);
       debug('Resuming consolidation: skipping reassign (already completed)');
     } else {
-      const reassignResult = reassignAndRemapScreenshots(consolidation, workspace.outputDir, startId);
-      findings = reassignResult.findings;
+      const reassignResult = reassignAndRemapScreenshots(
+        consolidation, workspace.outputDir, startId, args.append,
+      );
+      // In append mode, combine existing findings with newly assigned ones
+      findings = args.append
+        ? [...existingFindings, ...reassignResult.findings]
+        : reassignResult.findings;
       checkpoint.reassignOutput = JSON.stringify(findings);
       checkpoint.completedSteps = [...checkpoint.completedSteps, 'reassign'];
       checkpoint.timestamp = new Date().toISOString();
       writeConsolidationCheckpoint(checkpoint);
     }
 
-    // Step 3: Organize hierarchically
+    // Step 3: Organize hierarchically (all findings: existing + new)
     let groups: UIAreaGroup[];
     if (isStepCompleted(checkpoint, 'hierarchy') && checkpoint.hierarchyOutput) {
       groups = JSON.parse(checkpoint.hierarchyOutput);
@@ -261,7 +299,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       writeConsolidationCheckpoint(checkpoint);
     }
 
-    // Step 4: Format and write the consolidated report
+    // Step 4: Format and write the consolidated report (full report with all findings)
     const reportPath = join(workspace.outputDir, 'report.md');
     if (isStepCompleted(checkpoint, 'format-report') && checkpoint.formatReportOutput) {
       debug('Resuming consolidation: skipping format-report (already completed)');
@@ -280,7 +318,18 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       debug('Resuming consolidation: skipping discovery-merge (already completed)');
     } else {
       const discoveryResult = await consolidateDiscoveryDocs(instanceNumbers);
-      checkpoint.discoveryMergeOutput = discoveryResult.content;
+      // In append mode, merge with existing discovery document
+      let mergedDiscovery = discoveryResult.content;
+      if (args.append && existsSync(discoveryPath)) {
+        const existingDiscovery = readFileSync(discoveryPath, 'utf-8').trim();
+        if (existingDiscovery && mergedDiscovery) {
+          debug('Append mode: merging new discovery with existing discovery document');
+          mergedDiscovery = existingDiscovery + '\n\n' + mergedDiscovery;
+        } else if (existingDiscovery && !mergedDiscovery) {
+          mergedDiscovery = existingDiscovery;
+        }
+      }
+      checkpoint.discoveryMergeOutput = mergedDiscovery;
       checkpoint.completedSteps = [...checkpoint.completedSteps, 'discovery-merge'];
       checkpoint.timestamp = new Date().toISOString();
       writeConsolidationCheckpoint(checkpoint);

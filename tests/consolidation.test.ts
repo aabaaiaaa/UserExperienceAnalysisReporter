@@ -18,6 +18,9 @@ import {
   copyScreenshots,
   reassignAndRemapScreenshots,
   parseExistingReportIds,
+  parseConsolidatedReport,
+  detectCrossRunDuplicates,
+  filterCrossRunDuplicates,
   ConsolidationResult,
   groupFindingsByArea,
   buildHierarchyPrompt,
@@ -1981,5 +1984,275 @@ describe('reassignAndRemapScreenshots with startId', () => {
     const result = reassignAndRemapScreenshots(consolidationResult, testOutputDir);
 
     expect(result.findings[0].id).toBe('UXR-001');
+  });
+});
+
+// ---- Cross-run deduplication and append mode tests ----
+
+describe('parseConsolidatedReport', () => {
+  it('returns empty array for empty content', () => {
+    expect(parseConsolidatedReport('')).toEqual([]);
+    expect(parseConsolidatedReport('  ')).toEqual([]);
+  });
+
+  it('parses a single top-level finding', () => {
+    const report = `# UX Analysis Report
+
+## Navigation
+
+### UXR-001: Bad hover states
+
+- **Severity**: major
+- **Description**: Hover effects are inconsistent
+- **Suggestion**: Standardize hover styles
+- **Screenshot**: UXR-001.png
+`;
+    const findings = parseConsolidatedReport(report);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].id).toBe('UXR-001');
+    expect(findings[0].title).toBe('Bad hover states');
+    expect(findings[0].uiArea).toBe('Navigation');
+    expect(findings[0].severity).toBe('major');
+    expect(findings[0].description).toBe('Hover effects are inconsistent');
+    expect(findings[0].suggestion).toBe('Standardize hover styles');
+    expect(findings[0].screenshot).toBe('UXR-001.png');
+  });
+
+  it('parses multiple findings across UI areas', () => {
+    const report = `# UX Analysis Report
+
+## Navigation
+
+### UXR-001: Nav issue
+
+- **Severity**: major
+- **Description**: Nav is broken
+- **Suggestion**: Fix nav
+- **Screenshot**: UXR-001.png
+
+## Dashboard
+
+### UXR-002: Card issue
+
+- **Severity**: minor
+- **Description**: Cards misaligned
+- **Suggestion**: Fix alignment
+- **Screenshot**: UXR-002.png
+`;
+    const findings = parseConsolidatedReport(report);
+    expect(findings).toHaveLength(2);
+    expect(findings[0].uiArea).toBe('Navigation');
+    expect(findings[1].uiArea).toBe('Dashboard');
+    expect(findings[1].id).toBe('UXR-002');
+  });
+
+  it('parses child findings (#### headings)', () => {
+    const report = `# UX Analysis Report
+
+## Navigation
+
+### UXR-001: Parent finding
+
+- **Severity**: major
+- **Description**: Parent desc
+- **Suggestion**: Parent suggestion
+- **Screenshot**: UXR-001.png
+
+  #### UXR-002: Child finding
+
+  - **Severity**: minor
+  - **Description**: Child desc
+  - **Suggestion**: Child suggestion
+  - **Screenshot**: UXR-002.png
+`;
+    const findings = parseConsolidatedReport(report);
+    expect(findings).toHaveLength(2);
+    expect(findings[0].id).toBe('UXR-001');
+    expect(findings[1].id).toBe('UXR-002');
+    expect(findings[1].severity).toBe('minor');
+    expect(findings[1].description).toBe('Child desc');
+  });
+
+  it('returns empty array for report with no findings', () => {
+    const report = '# UX Analysis Report\n\nNo findings.\n';
+    expect(parseConsolidatedReport(report)).toEqual([]);
+  });
+});
+
+describe('detectCrossRunDuplicates', () => {
+  it('returns empty when existing findings is empty', async () => {
+    const result = await detectCrossRunDuplicates([], [
+      makeFinding({ id: 'I1-UXR-001' }),
+    ]);
+    expect(result.duplicateGroups).toEqual([]);
+    expect(result.usedClaude).toBe(false);
+  });
+
+  it('returns empty when new findings is empty', async () => {
+    const result = await detectCrossRunDuplicates([
+      makeFinding({ id: 'UXR-001' }),
+    ], []);
+    expect(result.duplicateGroups).toEqual([]);
+    expect(result.usedClaude).toBe(false);
+  });
+
+  it('calls Claude with combined findings and parses response', async () => {
+    mockedRunClaude.mockResolvedValueOnce({
+      success: true,
+      stdout: 'DUPLICATE_GROUP: UXR-001, I1-UXR-001',
+      stderr: '',
+      exitCode: 0,
+    });
+
+    const existing = [makeFinding({ id: 'UXR-001', title: 'Bad contrast', uiArea: 'Header' })];
+    const newFindings = [makeFinding({ id: 'I1-UXR-001', title: 'Poor contrast', uiArea: 'Header' })];
+
+    const result = await detectCrossRunDuplicates(existing, newFindings);
+
+    expect(result.usedClaude).toBe(true);
+    expect(result.duplicateGroups).toHaveLength(1);
+    expect(result.duplicateGroups[0].findingIds).toEqual(['UXR-001', 'I1-UXR-001']);
+  });
+
+  it('throws when Claude CLI fails', async () => {
+    mockedRunClaude.mockResolvedValueOnce({
+      success: false,
+      stdout: '',
+      stderr: 'API error',
+      exitCode: 1,
+    });
+
+    await expect(
+      detectCrossRunDuplicates(
+        [makeFinding({ id: 'UXR-001' })],
+        [makeFinding({ id: 'I1-UXR-001' })],
+      ),
+    ).rejects.toThrow('Claude CLI failed during cross-run deduplication');
+  });
+});
+
+describe('filterCrossRunDuplicates', () => {
+  it('removes new findings that are dupes of existing ones', () => {
+    const existing = [makeFinding({ id: 'UXR-001' }), makeFinding({ id: 'UXR-002' })];
+    const newFindings = [
+      makeFinding({ id: 'I1-UXR-001' }),
+      makeFinding({ id: 'I1-UXR-002' }),
+      makeFinding({ id: 'I2-UXR-001' }),
+    ];
+    const groups: DuplicateGroup[] = [
+      { findingIds: ['UXR-001', 'I1-UXR-001'] },  // I1-UXR-001 dupes UXR-001
+    ];
+
+    const result = filterCrossRunDuplicates(existing, newFindings, groups);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((f) => f.id)).toEqual(['I1-UXR-002', 'I2-UXR-001']);
+  });
+
+  it('keeps new findings that only duplicate other new findings', () => {
+    const existing = [makeFinding({ id: 'UXR-001' })];
+    const newFindings = [
+      makeFinding({ id: 'I1-UXR-001' }),
+      makeFinding({ id: 'I2-UXR-001' }),
+    ];
+    // This group only contains new finding IDs — no cross-run duplicate
+    const groups: DuplicateGroup[] = [
+      { findingIds: ['I1-UXR-001', 'I2-UXR-001'] },
+    ];
+
+    const result = filterCrossRunDuplicates(existing, newFindings, groups);
+
+    expect(result).toHaveLength(2); // both kept
+  });
+
+  it('returns all new findings when no duplicate groups', () => {
+    const existing = [makeFinding({ id: 'UXR-001' })];
+    const newFindings = [makeFinding({ id: 'I1-UXR-001' })];
+
+    const result = filterCrossRunDuplicates(existing, newFindings, []);
+
+    expect(result).toHaveLength(1);
+  });
+
+  it('handles multiple cross-run duplicate groups', () => {
+    const existing = [makeFinding({ id: 'UXR-001' }), makeFinding({ id: 'UXR-002' })];
+    const newFindings = [
+      makeFinding({ id: 'I1-UXR-001' }),
+      makeFinding({ id: 'I1-UXR-002' }),
+      makeFinding({ id: 'I1-UXR-003' }),
+    ];
+    const groups: DuplicateGroup[] = [
+      { findingIds: ['UXR-001', 'I1-UXR-001'] },
+      { findingIds: ['UXR-002', 'I1-UXR-002'] },
+    ];
+
+    const result = filterCrossRunDuplicates(existing, newFindings, groups);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('I1-UXR-003');
+  });
+});
+
+describe('copyScreenshots with skipExisting', () => {
+  const testTempDir = join(process.cwd(), '.uxreview-temp-test');
+  const testOutputDir = join(process.cwd(), '.uxreview-output-skip-test');
+
+  beforeEach(() => {
+    mkdirSync(join(testTempDir, 'instance-1', 'screenshots'), { recursive: true });
+    mkdirSync(join(testOutputDir, 'screenshots'), { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(testTempDir)) {
+      rmSync(testTempDir, { recursive: true, force: true });
+    }
+    if (existsSync(testOutputDir)) {
+      rmSync(testOutputDir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not overwrite existing screenshots when skipExisting is true', () => {
+    // Write a source screenshot
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-001.png'), 'new-image');
+    // Write an existing screenshot at the destination
+    writeFileSync(join(testOutputDir, 'screenshots', 'UXR-001.png'), 'old-image');
+
+    const ops = [
+      { instanceNumber: 1, sourceFilename: 'I1-UXR-001.png', destFilename: 'UXR-001.png' },
+    ];
+
+    copyScreenshots(ops, testOutputDir, true);
+
+    // The existing file should be preserved
+    const content = readFileSync(join(testOutputDir, 'screenshots', 'UXR-001.png'), 'utf-8');
+    expect(content).toBe('old-image');
+  });
+
+  it('overwrites existing screenshots when skipExisting is false', () => {
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-001.png'), 'new-image');
+    writeFileSync(join(testOutputDir, 'screenshots', 'UXR-001.png'), 'old-image');
+
+    const ops = [
+      { instanceNumber: 1, sourceFilename: 'I1-UXR-001.png', destFilename: 'UXR-001.png' },
+    ];
+
+    copyScreenshots(ops, testOutputDir, false);
+
+    const content = readFileSync(join(testOutputDir, 'screenshots', 'UXR-001.png'), 'utf-8');
+    expect(content).toBe('new-image');
+  });
+
+  it('copies new screenshots even when skipExisting is true', () => {
+    writeFileSync(join(testTempDir, 'instance-1', 'screenshots', 'I1-UXR-001.png'), 'new-image');
+
+    const ops = [
+      { instanceNumber: 1, sourceFilename: 'I1-UXR-001.png', destFilename: 'UXR-005.png' },
+    ];
+
+    copyScreenshots(ops, testOutputDir, true);
+
+    expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-005.png'))).toBe(true);
+    const content = readFileSync(join(testOutputDir, 'screenshots', 'UXR-005.png'), 'utf-8');
+    expect(content).toBe('new-image');
   });
 });

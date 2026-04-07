@@ -121,7 +121,7 @@
 - **Verification**: `npx vitest run tests/consolidation.test.ts 2>&1 | tail -5`
 
 ### TASK-013c: Cross-run deduplication and merged output in append mode
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-013b
 - **Description**: When `--append` is true, run deduplication across both existing and new findings (using the existing `detectDuplicates` Claude call). Merge screenshots without overwriting existing files. Merge the discovery document with the existing one. Regenerate the full report with all findings (old + new) organized hierarchically. Update the README to document the `--append` flag. Add integration tests for cross-run dedup, screenshot accumulation, and merged report output. Reference requirements.md change #13.
 - **Verification**: `npx vitest run tests/consolidation.test.ts tests/integration-*.test.ts 2>&1 | tail -5`

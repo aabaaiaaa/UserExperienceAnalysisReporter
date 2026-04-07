@@ -54,6 +54,7 @@ uxreview --show-default-scope
 | `--max-retries <n>` | `3` | Maximum normal retry attempts per instance when a round fails. |
 | `--instance-timeout <min>` | `30` | Timeout per Claude instance in minutes. Increase for complex apps that need longer analysis time. |
 | `--rate-limit-retries <n>` | `10` | Maximum rate-limit retry attempts globally across all rounds and retries. Rate-limit retries use exponential backoff. |
+| `--append` | `false` | Append new findings to the existing output directory instead of overwriting. New findings are deduplicated against previous results, screenshots are preserved, and the report is regenerated with all findings. |
 | `--verbose` | `false` | Enable debug logging to stderr. Logs subprocess spawn/exit, file operations, retry decisions, and phase timing. |
 | `--help` | — | Show usage information and exit. |
 
@@ -203,6 +204,37 @@ uxreview \
 ```
 
 The second run benefits from the detailed area/element breakdown discovered in the first run, leading to more targeted and thorough analysis.
+
+## Incremental Output with `--append`
+
+Use `--append` to add findings from a new run to an existing output directory without losing previous results:
+
+```bash
+# First run — review navigation and dashboard
+uxreview \
+  --url https://myapp.example.com \
+  --intro ./docs/app-intro.md \
+  --plan "Review the navigation bar and dashboard page" \
+  --output ./ux-report
+
+# Second run — review settings, appending to the same output
+uxreview \
+  --url https://myapp.example.com \
+  --intro ./docs/app-intro.md \
+  --plan "Review the settings page and forms" \
+  --output ./ux-report \
+  --append
+```
+
+When `--append` is used:
+
+- New findings are deduplicated against existing findings to avoid reporting the same issue twice.
+- New finding IDs continue sequentially from the highest existing ID (e.g., if the previous run ended at UXR-005, the next run starts at UXR-006).
+- Existing screenshots are preserved. New screenshots are added alongside them.
+- The discovery document is merged with the existing one.
+- The final report is regenerated with all findings (old and new) organized hierarchically.
+
+If `--append` is used but the output directory doesn't exist yet, the tool behaves as a fresh run. If the existing report is corrupt or unparseable, the tool warns and starts fresh.
 
 ## Recovery and Resumption
 
