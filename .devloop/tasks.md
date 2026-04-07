@@ -61,7 +61,7 @@
 - **Verification**: `npx vitest run tests/instance-manager tests/rate-limit --reporter=verbose` passes. Grep confirms only one rate-limit retry loop exists (the shared helper), not two duplicate loops.
 
 ### TASK-011: Fix child finding indentation bug in consolidation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/consolidation.ts` (lines ~698-699), fix the indentation logic for child findings in the hierarchical report. The current code `split('\n').map(l => l ? '  ' + l : l).join('\n')` skips blank lines. Change it to indent all lines uniformly. Use `.map(l => '  ' + l)` or equivalent. Update tests to verify correct indentation of child findings including blank lines. See requirements.md change #10.
 - **Verification**: `npx vitest run tests/consolidation --reporter=verbose` passes, including a test that verifies blank lines in child findings are indented correctly.

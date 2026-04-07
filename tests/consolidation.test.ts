@@ -1629,6 +1629,57 @@ describe('formatConsolidatedReport', () => {
     const report = formatConsolidatedReport([]);
     expect(report).toContain('# UX Analysis Report');
   });
+
+  it('indents all lines of child finding metadata including blank lines', () => {
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Forms',
+        findings: [
+          {
+            finding: makeFinding({
+              id: 'UXR-001',
+              title: 'Parent finding',
+              severity: 'major',
+              description: 'Parent desc',
+              suggestion: 'Parent suggestion',
+              screenshot: 'UXR-001.png',
+            }),
+            children: [
+              makeFinding({
+                id: 'UXR-002',
+                title: 'Child finding',
+                severity: 'minor',
+                description: 'Child desc',
+                suggestion: 'Child suggestion',
+                screenshot: 'UXR-002.png',
+              }),
+            ],
+          },
+        ],
+      },
+    ];
+
+    const report = formatConsolidatedReport(groups);
+    const lines = report.split('\n');
+
+    // Find the child heading line
+    const childHeadingIdx = lines.findIndex((l) => l.includes('#### UXR-002: Child finding'));
+    expect(childHeadingIdx).toBeGreaterThan(-1);
+
+    // The formatFindingMetadata output starts with a blank line, then metadata lines.
+    // After the fix, the blank line separator between heading and metadata should also be indented.
+    // Check that ALL lines after the child heading (until the next blank unindented line or end)
+    // within the child block are indented with 2 spaces.
+    const metadataStart = childHeadingIdx + 1;
+    // The metadata block is: blank line, then 4 metadata lines = 5 lines
+    for (let i = metadataStart; i < metadataStart + 5; i++) {
+      expect(lines[i]).toMatch(/^  /); // every line, including the blank separator, starts with 2 spaces
+    }
+
+    // Specifically verify the blank line separator is indented (this was the bug)
+    // formatFindingMetadata starts with '' which becomes '  ' after indentation
+    expect(lines[metadataStart]).toBe('  ');
+  });
 });
 
 describe('TASK-020 verification: hierarchical grouping end-to-end', () => {
