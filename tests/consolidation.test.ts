@@ -1672,13 +1672,20 @@ describe('formatConsolidatedReport', () => {
     // within the child block are indented with 2 spaces.
     const metadataStart = childHeadingIdx + 1;
     // The metadata block is: blank line, then 4 metadata lines = 5 lines
-    for (let i = metadataStart; i < metadataStart + 5; i++) {
-      expect(lines[i]).toMatch(/^  /); // every line, including the blank separator, starts with 2 spaces
+    // The blank separator line should be empty (no trailing whitespace)
+    expect(lines[metadataStart]).toBe('');
+
+    // The remaining 4 metadata lines should be indented with 2 spaces
+    for (let i = metadataStart + 1; i < metadataStart + 5; i++) {
+      expect(lines[i]).toMatch(/^  /); // metadata lines start with 2 spaces
     }
 
-    // Specifically verify the blank line separator is indented (this was the bug)
-    // formatFindingMetadata starts with '' which becomes '  ' after indentation
-    expect(lines[metadataStart]).toBe('  ');
+    // Verify no lines have trailing whitespace on blank lines
+    for (const line of lines) {
+      if (line.trim() === '') {
+        expect(line).toBe('');
+      }
+    }
   });
 });
 

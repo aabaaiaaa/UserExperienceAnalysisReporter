@@ -13,7 +13,7 @@
 - **Verification**: `npx vitest run tests/orchestrator.test.ts 2>&1 | tail -5`
 
 ### TASK-003: Fix trailing whitespace on blank lines in consolidation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/consolidation.ts:699`, change `.map(l => \`  \${l}\`)` to `.map(l => l.trim() === '' ? '' : \`  \${l}\`)` so blank separator lines in indented child findings have no trailing whitespace. Update consolidation tests to assert no trailing whitespace on blank lines. Reference requirements.md change #3.
 - **Verification**: `npx vitest run tests/consolidation.test.ts 2>&1 | tail -5`

@@ -696,7 +696,7 @@ export function formatConsolidatedReport(groups: UIAreaGroup[]): string {
       for (const child of hf.children) {
         lines.push('');
         lines.push(`  #### ${child.id}: ${child.title}`);
-        lines.push(formatFindingMetadata(child).split('\n').map(l => `  ${l}`).join('\n'));
+        lines.push(formatFindingMetadata(child).split('\n').map(l => l.trim() === '' ? '' : `  ${l}`).join('\n'));
       }
 
       lines.push('');
