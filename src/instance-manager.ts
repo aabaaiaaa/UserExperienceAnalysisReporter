@@ -5,7 +5,7 @@ import { buildDiscoveryInstructions, buildDiscoveryContextPrompt, readDiscoveryC
 import { buildReportInstructions, readReportContent, countFindings } from './report.js';
 import { buildScreenshotInstructions } from './screenshots.js';
 import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
-import { isRateLimitError, withRateLimitRetry, RateLimitRetryState } from './rate-limit.js';
+import { isRateLimitError, withRateLimitRetry, RateLimitRetryState, sleep } from './rate-limit.js';
 import { INSTANCE_TIMEOUT_MS, MAX_RETRIES, MAX_RATE_LIMIT_RETRIES } from './config.js';
 import { debug } from './logger.js';
 
@@ -352,6 +352,7 @@ async function handleRateLimitRetries(
       retryState,
       onRateLimited: callbacks?.onRateLimited,
       onRateLimitResolved: callbacks?.onRateLimitResolved,
+      sleepFn: sleep,
     },
   );
 

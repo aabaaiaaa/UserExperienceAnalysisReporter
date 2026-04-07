@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runClaude } from './claude-cli.js';
-import { withRateLimitRetry } from './rate-limit.js';
+import { withRateLimitRetry, sleep } from './rate-limit.js';
 import { readDiscoveryContent } from './discovery.js';
 import { getInstancePaths } from './file-manager.js';
 import { readInstanceReport, Finding, InstanceReport, Severity } from './report.js';
@@ -253,7 +253,7 @@ export async function detectDuplicates(findings: Finding[]): Promise<Deduplicati
   }
 
   const prompt = buildDeduplicationPrompt(findings);
-  const result = await withRateLimitRetry(() => runClaude({ prompt }));
+  const result = await withRateLimitRetry(() => runClaude({ prompt }), { sleepFn: sleep });
 
   if (!result.success) {
     throw new Error(
@@ -483,7 +483,7 @@ export async function detectCrossRunDuplicates(
 
   const allFindings = [...existingFindings, ...newFindings];
   const prompt = buildDeduplicationPrompt(allFindings);
-  const result = await withRateLimitRetry(() => runClaude({ prompt }));
+  const result = await withRateLimitRetry(() => runClaude({ prompt }), { sleepFn: sleep });
 
   if (!result.success) {
     throw new Error(
@@ -858,7 +858,7 @@ export async function determineHierarchy(findings: Finding[]): Promise<Hierarchi
   }
 
   const prompt = buildHierarchyPrompt(findings);
-  const result = await withRateLimitRetry(() => runClaude({ prompt }));
+  const result = await withRateLimitRetry(() => runClaude({ prompt }), { sleepFn: sleep });
 
   if (!result.success) {
     // On failure, fall back to flat structure (all top-level)
@@ -1075,7 +1075,7 @@ export async function consolidateDiscoveryDocs(
   if (docs.length === 1) {
     // Single doc — still use Claude to restructure into the hierarchical plan format
     const prompt = buildDiscoveryConsolidationPrompt(docs);
-    const result = await withRateLimitRetry(() => runClaude({ prompt }));
+    const result = await withRateLimitRetry(() => runClaude({ prompt }), { sleepFn: sleep });
 
     if (!result.success) {
       // Fallback: return the raw content if Claude fails
@@ -1087,7 +1087,7 @@ export async function consolidateDiscoveryDocs(
 
   // Multiple docs — use Claude to merge and deduplicate
   const prompt = buildDiscoveryConsolidationPrompt(docs);
-  const result = await withRateLimitRetry(() => runClaude({ prompt }));
+  const result = await withRateLimitRetry(() => runClaude({ prompt }), { sleepFn: sleep });
 
   if (!result.success) {
     throw new Error(

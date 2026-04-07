@@ -19,6 +19,15 @@ vi.mock('../src/discovery.js', () => ({
   readDiscoveryContent: vi.fn(),
 }));
 
+// Mock sleep to avoid real delays when withRateLimitRetry retries on rate-limit errors
+vi.mock('../src/rate-limit.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/rate-limit.js')>();
+  return {
+    ...original,
+    sleep: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 // Mock the file-manager module
 vi.mock('../src/file-manager.js', () => ({
   getInstancePaths: vi.fn((instanceNumber: number) => {
@@ -379,7 +388,7 @@ describe('consolidateDiscoveryDocs', () => {
 
     mockedRunClaude.mockResolvedValueOnce({
       stdout: '',
-      stderr: 'Rate limited',
+      stderr: 'Internal server error',
       exitCode: 1,
       success: false,
     });

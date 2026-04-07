@@ -80,6 +80,8 @@ export interface RateLimitRetryOptions {
   onRateLimited?: (backoffMs: number) => void;
   /** Called after each backoff wait completes, before retrying. */
   onRateLimitResolved?: () => void;
+  /** Override the sleep function (used for testing). Defaults to the module-level sleep. */
+  sleepFn?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -101,6 +103,7 @@ export async function withRateLimitRetry(
 ): Promise<ClaudeCliResult> {
   const maxRetries = options?.maxRetries ?? MAX_RATE_LIMIT_RETRIES;
   const retryState = options?.retryState ?? { globalAttempts: 0 };
+  const sleepFn = options?.sleepFn ?? sleep;
 
   let result = await fn();
 
@@ -109,7 +112,7 @@ export async function withRateLimitRetry(
     const backoffMs = getBackoffDelay(retryState.globalAttempts - 1);
     debug(`Rate limit hit, attempt ${retryState.globalAttempts}/${maxRetries}, backing off ${backoffMs}ms`);
     options?.onRateLimited?.(backoffMs);
-    await sleep(backoffMs);
+    await sleepFn(backoffMs);
     options?.onRateLimitResolved?.();
     result = await fn();
   }
