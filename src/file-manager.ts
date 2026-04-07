@@ -1,5 +1,6 @@
 import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { debug } from './logger.js';
 
 const TEMP_DIR_NAME = '.uxreview-temp';
 const DEFAULT_OUTPUT_DIR = './uxreview-output';
@@ -56,6 +57,7 @@ export function getWorkDistributionPath(): string {
 export async function cleanupTempDir(): Promise<void> {
   const tempDir = getTempDir();
   if (!existsSync(tempDir)) return;
+  debug(`Cleaning up temp directory: ${tempDir}`);
 
   const maxAttempts = 5;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -81,6 +83,7 @@ export async function cleanupTempDir(): Promise<void> {
  */
 export async function initTempDir(instanceCount: number): Promise<string> {
   const tempDir = getTempDir();
+  debug(`Initializing temp directory for ${instanceCount} instance(s): ${tempDir}`);
 
   // Clean up stale state from previous runs
   await cleanupTempDir();
@@ -104,6 +107,7 @@ export async function initTempDir(instanceCount: number): Promise<string> {
  */
 export function initOutputDir(outputPath?: string): string {
   const outputDir = resolve(outputPath || DEFAULT_OUTPUT_DIR);
+  debug(`Initializing output directory: ${outputDir}`);
 
   if (existsSync(outputDir)) {
     rmSync(outputDir, { recursive: true, force: true });

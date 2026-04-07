@@ -67,7 +67,7 @@
 - **Verification**: `npx vitest run tests/logger.test.ts 2>&1 | tail -5`
 
 ### TASK-009b: Add --verbose CLI flag and wire logging into modules
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-009a
 - **Description**: Add `--verbose` boolean flag to CLI parsing in `src/cli.ts`. Add `verbose` to `ParsedArgs`. Call `setVerbose(args.verbose)` in the orchestrator before any work begins. Add debug logging calls to key points: subprocess spawn/exit in `claude-cli.ts`, file reads/writes in `file-manager.ts`, retry decisions in `instance-manager.ts`, checkpoint operations in `checkpoint.ts`, phase timing in `orchestrator.ts`. Update the USAGE string and README. Add a test verifying verbose output for at least one key operation (e.g., subprocess spawn). Reference requirements.md change #9.
 - **Verification**: `npx vitest run tests/cli.test.ts tests/orchestrator.test.ts 2>&1 | tail -5`

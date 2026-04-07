@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 27
-- **Completed**: 11
-- **Remaining**: 16
-- **Last Updated**: 2026-04-07T09:33:10.556Z
+- **Completed**: 12
+- **Remaining**: 15
+- **Last Updated**: 2026-04-07T09:37:33.055Z
 
 ## Iteration Log
 
@@ -126,4 +126,15 @@
 - **Verification Duration**: ~57s
 - **Tokens**: 358,626 total (13 in, 2,788 out, 24,552 cache-create, 331,273 cache-read)
 - **Cost**: $0.3889
+
+### Iteration 12 - 2026-04-07T09:37:33.054Z
+- **Task Attempted**: TASK-009b
+- **Task Completed**: TASK-009b
+- **Summary**: Completed Add --verbose CLI flag and wire logging into modules
+- **Duration**: 4m 21s
+- **Exit Status**: success
+- **Work Duration**: ~3m 56s
+- **Verification Duration**: ~25s
+- **Tokens**: 3,179,758 total (2,071 in, 11,428 out, 88,033 cache-create, 3,078,226 cache-read)
+- **Cost**: $2.3854
 

@@ -52,6 +52,17 @@ describe('cli parseArgs', () => {
     expect(result.keepTemp).toBe(true);
   });
 
+  // --verbose
+  it('defaults verbose to false when omitted', () => {
+    const result = parseArgs(requiredArgs);
+    expect(result.verbose).toBe(false);
+  });
+
+  it('sets verbose to true when --verbose is provided', () => {
+    const result = parseArgs([...requiredArgs, '--verbose']);
+    expect(result.verbose).toBe(true);
+  });
+
   // --max-retries
   it('defaults maxRetries to 3 when omitted', () => {
     const result = parseArgs(requiredArgs);

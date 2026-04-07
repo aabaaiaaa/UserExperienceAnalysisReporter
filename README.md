@@ -54,6 +54,7 @@ uxreview --show-default-scope
 | `--max-retries <n>` | `3` | Maximum normal retry attempts per instance when a round fails. |
 | `--instance-timeout <min>` | `30` | Timeout per Claude instance in minutes. Increase for complex apps that need longer analysis time. |
 | `--rate-limit-retries <n>` | `10` | Maximum rate-limit retry attempts globally across all rounds and retries. Rate-limit retries use exponential backoff. |
+| `--verbose` | `false` | Enable debug logging to stderr. Logs subprocess spawn/exit, file operations, retry decisions, and phase timing. |
 | `--help` | — | Show usage information and exit. |
 
 ## Examples

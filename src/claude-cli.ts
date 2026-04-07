@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import { DEFAULT_CLI_TIMEOUT_MS } from './config.js';
+import { debug } from './logger.js';
 
 /** Registry of currently active child processes for cleanup on shutdown */
 const activeProcesses = new Set<ChildProcess>();
@@ -59,6 +60,7 @@ export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
     const args = ['-p', '--output-format', 'text', ...extraArgs];
     const command = process.platform === 'win32' ? 'claude.cmd' : 'claude';
 
+    const spawnStart = Date.now();
     const child = spawn(command, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -66,6 +68,7 @@ export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
     });
 
     activeProcesses.add(child);
+    debug(`Spawned subprocess PID=${child.pid} command=${command} args=${JSON.stringify(args)}`);
 
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
@@ -85,9 +88,11 @@ export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
 
     child.on('close', (code, signal) => {
       activeProcesses.delete(child);
+      const durationMs = Date.now() - spawnStart;
       const stdout = Buffer.concat(stdoutChunks).toString('utf-8');
       const stderr = Buffer.concat(stderrChunks).toString('utf-8');
       const exitCode = code ?? 1;
+      debug(`Subprocess PID=${child.pid} exited code=${exitCode} signal=${signal ?? 'none'} duration=${durationMs}ms`);
 
       if (signal === 'SIGTERM' && code === null) {
         resolve({

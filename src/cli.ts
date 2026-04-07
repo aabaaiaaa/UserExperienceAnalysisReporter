@@ -12,6 +12,7 @@ export interface ParsedArgs {
   rounds: number;
   output: string;
   keepTemp: boolean;
+  verbose: boolean;
   maxRetries: number;
   instanceTimeout: number;
   rateLimitRetries: number;
@@ -35,6 +36,7 @@ Options:
   --output <dir>           Output directory for deliverables (default: ./uxreview-output)
   --keep-temp              Preserve the .uxreview-temp/ working directory after the run
                            (default: false — temp directory is deleted on completion)
+  --verbose                Enable debug logging to stderr
   --max-retries <n>        Maximum normal retry attempts per instance (default: 3)
   --instance-timeout <min> Timeout per Claude instance in minutes (default: 30)
   --rate-limit-retries <n> Maximum rate-limit retry attempts globally (default: 10)
@@ -101,7 +103,7 @@ function parseRawArgs(argv: string[]): Map<string, string | true> {
     const key = arg.slice(2);
 
     // Boolean flags (no value)
-    if (key === 'show-default-scope' || key === 'help' || key === 'keep-temp') {
+    if (key === 'show-default-scope' || key === 'help' || key === 'keep-temp' || key === 'verbose') {
       args.set(key, true);
       continue;
     }
@@ -133,7 +135,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   // Check for unknown flags
-  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
+  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'verbose', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
   for (const key of raw.keys()) {
     if (!knownFlags.has(key)) {
       printUsageAndExit(`Unknown option: --${key}`);
@@ -218,6 +220,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       return typeof outputRaw === 'string' ? outputRaw : './uxreview-output';
     })(),
     keepTemp: raw.has('keep-temp'),
+    verbose: raw.has('verbose'),
     maxRetries: maxRetriesRaw !== undefined && maxRetriesRaw !== true ? Number(maxRetriesRaw) : MAX_RETRIES,
     instanceTimeout: instanceTimeoutRaw !== undefined && instanceTimeoutRaw !== true ? Number(instanceTimeoutRaw) : INSTANCE_TIMEOUT_MS / 60_000,
     rateLimitRetries: rateLimitRetriesRaw !== undefined && rateLimitRetriesRaw !== true ? Number(rateLimitRetriesRaw) : MAX_RATE_LIMIT_RETRIES,

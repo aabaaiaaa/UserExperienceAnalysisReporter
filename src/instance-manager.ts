@@ -7,6 +7,7 @@ import { buildScreenshotInstructions } from './screenshots.js';
 import { readCheckpoint, writeCheckpoint, createInitialCheckpoint, buildResumePrompt, Checkpoint } from './checkpoint.js';
 import { isRateLimitError, getBackoffDelay, sleep } from './rate-limit.js';
 import { INSTANCE_TIMEOUT_MS, MAX_RETRIES, MAX_RATE_LIMIT_RETRIES } from './config.js';
+import { debug } from './logger.js';
 
 export type InstanceStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -330,6 +331,7 @@ async function handleRateLimitRetries(
   ) {
     retryState.globalAttempts++;
     const backoffMs = getBackoffDelay(retryState.globalAttempts - 1);
+    debug(`Rate limit hit, attempt ${retryState.globalAttempts}/${maxRateLimitRetries}, backing off ${backoffMs}ms`);
     callbacks?.onRateLimited?.(backoffMs);
     await sleep(backoffMs);
     callbacks?.onRateLimitResolved?.();
@@ -430,6 +432,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
 
       while (retryInfo.attempts < maxRetries) {
         retryInfo.attempts++;
+        debug(`Instance ${config.instanceNumber} round ${round}: retry attempt ${retryInfo.attempts}/${maxRetries}`);
         cb?.onRetry?.(config.instanceNumber, round, retryInfo.attempts, maxRetries);
 
         // Read the checkpoint to determine resume state

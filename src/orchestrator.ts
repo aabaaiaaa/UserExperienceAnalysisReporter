@@ -19,6 +19,7 @@ import {
   writeConsolidatedDiscovery,
 } from './consolidation.js';
 import { ProgressDisplay } from './progress-display.js';
+import { setVerbose, debug } from './logger.js';
 
 /**
  * Extract area names from a plan chunk by looking for markdown headings
@@ -107,6 +108,9 @@ function buildProgressCallback(display: ProgressDisplay): ProgressCallback {
  * 6. Output final file paths
  */
 export async function orchestrate(args: ParsedArgs): Promise<void> {
+  // Enable verbose logging if requested
+  setVerbose(args.verbose);
+
   // 1. Initialize workspace
   const workspace = await initWorkspace(args.instances, args.output);
 
@@ -128,7 +132,9 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
 
   try {
     // 3. Distribute work across instances
+    const distributionStart = Date.now();
     const distribution = await distributePlan(args.plan, args.instances);
+    debug(`Distribution phase completed in ${Date.now() - distributionStart}ms`);
 
     // 4. Spawn all instances in parallel — each runs all its rounds
     const configs: RoundExecutionConfig[] = distribution.chunks.map((chunk, i) => ({
@@ -145,9 +151,12 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       progress: progressCallback,
     }));
 
+    debug(`Spawning ${configs.length} instance(s) for ${args.rounds} round(s)`);
+    const executionStart = Date.now();
     const settled = await Promise.allSettled(
       configs.map((config) => runInstanceRounds(config)),
     );
+    debug(`Instance execution phase completed in ${Date.now() - executionStart}ms`);
 
     // Process results — mark any unexpected rejections as permanently failed
     const results: RoundExecutionResult[] = settled.map((outcome, i) => {
@@ -172,6 +181,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     });
 
     // 5. Consolidation phase
+    const consolidationStart = Date.now();
     display.startConsolidation();
 
     // Consolidate reports (dedup, merge)
@@ -192,6 +202,8 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     const discoveryResult = await consolidateDiscoveryDocs(instanceNumbers);
     writeConsolidatedDiscovery(workspace.outputDir, discoveryResult.content);
     const discoveryPath = join(workspace.outputDir, 'discovery.md');
+
+    debug(`Consolidation phase completed in ${Date.now() - consolidationStart}ms`);
 
     // 6. Show final output paths
     display.completeConsolidation(reportPath, discoveryPath);

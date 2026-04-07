@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { getInstancePaths } from './file-manager.js';
+import { debug } from './logger.js';
 
 export type AreaStatus = 'complete' | 'in-progress' | 'not-started';
 
@@ -22,6 +23,7 @@ export interface Checkpoint {
  */
 export function writeCheckpoint(instanceNumber: number, checkpoint: Checkpoint): void {
   const paths = getInstancePaths(instanceNumber);
+  debug(`Writing checkpoint for instance ${instanceNumber}: round=${checkpoint.currentRound} action="${checkpoint.lastAction}"`);
   writeFileSync(paths.checkpoint, JSON.stringify(checkpoint, null, 2), 'utf-8');
 }
 
@@ -33,10 +35,12 @@ export function readCheckpoint(instanceNumber: number): Checkpoint | null {
   const paths = getInstancePaths(instanceNumber);
 
   if (!existsSync(paths.checkpoint)) {
+    debug(`No checkpoint found for instance ${instanceNumber}`);
     return null;
   }
 
   try {
+    debug(`Reading checkpoint for instance ${instanceNumber}`);
     const raw = readFileSync(paths.checkpoint, 'utf-8');
     const parsed = JSON.parse(raw);
 

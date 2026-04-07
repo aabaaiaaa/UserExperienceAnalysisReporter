@@ -66,6 +66,14 @@ vi.mock('../src/progress-display.js', () => ({
   ProgressDisplay: vi.fn().mockImplementation(() => mockProgressDisplay),
 }));
 
+// Mock logger
+const mockSetVerbose = vi.fn();
+const mockDebug = vi.fn();
+vi.mock('../src/logger.js', () => ({
+  setVerbose: (...args: unknown[]) => mockSetVerbose(...args),
+  debug: (...args: unknown[]) => mockDebug(...args),
+}));
+
 // Import mocked modules
 import { distributePlan } from '../src/work-distribution.js';
 import { runInstanceRounds, RoundExecutionResult, killAllChildProcesses } from '../src/instance-manager.js';
@@ -106,6 +114,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     rounds: 2,
     output: OUTPUT_DIR,
     keepTemp: false,
+    verbose: false,
     maxRetries: 3,
     instanceTimeout: 30,
     rateLimitRetries: 10,
@@ -802,6 +811,72 @@ describe('orchestrate', () => {
 
     // No instances should have been spawned
     expect(mockRunInstanceRounds).not.toHaveBeenCalled();
+  });
+
+  describe('--verbose flag', () => {
+    function setupSimpleMocksForVerbose() {
+      mockDistributePlan.mockResolvedValue({
+        chunks: ['## A'],
+        usedClaude: false,
+      });
+      mockInitWorkspace.mockReturnValue({
+        tempDir: resolve('.uxreview-temp-orch-test'),
+        instanceDirs: [join(resolve('.uxreview-temp-orch-test'), 'instance-1')],
+        outputDir: OUTPUT_DIR,
+      });
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+      mockConsolidateReports.mockResolvedValue({
+        findings: [],
+        duplicateGroups: [],
+        usedClaude: false,
+      });
+      mockReassignAndRemap.mockReturnValue({
+        findings: [],
+        idMapping: new Map(),
+        screenshotOps: [],
+      });
+      mockOrganizeHierarchically.mockResolvedValue([]);
+      mockFormatConsolidatedReport.mockReturnValue('');
+      mockConsolidateDiscoveryDocs.mockResolvedValue({
+        content: '',
+        instanceCount: 1,
+        usedClaude: false,
+      });
+    }
+
+    it('calls setVerbose(true) when verbose is enabled', async () => {
+      const args = makeArgs({ instances: 1, verbose: true });
+      setupSimpleMocksForVerbose();
+
+      await orchestrate(args);
+
+      expect(mockSetVerbose).toHaveBeenCalledWith(true);
+    });
+
+    it('calls setVerbose(false) when verbose is disabled', async () => {
+      const args = makeArgs({ instances: 1, verbose: false });
+      setupSimpleMocksForVerbose();
+
+      await orchestrate(args);
+
+      expect(mockSetVerbose).toHaveBeenCalledWith(false);
+    });
+
+    it('produces debug output for phase timing when verbose is enabled', async () => {
+      const args = makeArgs({ instances: 1, verbose: true });
+      setupSimpleMocksForVerbose();
+
+      await orchestrate(args);
+
+      // debug() should have been called with phase timing messages
+      const debugMessages = mockDebug.mock.calls.map((c: unknown[]) => c[0] as string);
+      expect(debugMessages.some((m: string) => m.includes('Distribution phase completed'))).toBe(true);
+      expect(debugMessages.some((m: string) => m.includes('Instance execution phase completed'))).toBe(true);
+      expect(debugMessages.some((m: string) => m.includes('Consolidation phase completed'))).toBe(true);
+    });
   });
 
   describe('signal handling', () => {
