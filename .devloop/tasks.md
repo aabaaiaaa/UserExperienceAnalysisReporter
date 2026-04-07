@@ -31,7 +31,7 @@
 - **Verification**: `npx vitest run tests/orchestrator.test.ts`
 
 ### TASK-003b: Add test for signal handler finally-block execution
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-003a
 - **Description**: Add a test in the orchestrator test suite that verifies the `finally` block executes when a signal is received. The test should confirm: (1) signal listeners are deregistered, (2) temp directory cleanup runs when `--keep-temp` is false. See requirements.md change #3 for full context.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts`

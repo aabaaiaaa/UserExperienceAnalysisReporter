@@ -1117,6 +1117,43 @@ describe('orchestrate', () => {
       expect(mockCleanupTempDir).toHaveBeenCalled();
     });
 
+    it('finally block deregisters signal listeners and cleans temp when signal fires', async () => {
+      const args = makeArgs({ instances: 1, keepTemp: false });
+      setupDefaultMocks();
+
+      let capturedSigintHandler: ((signal: NodeJS.Signals) => void) | undefined;
+      processOnSpy.mockImplementation(function (this: NodeJS.Process, event: string, handler: (...args: unknown[]) => void) {
+        if (event === 'SIGINT') {
+          capturedSigintHandler = handler as (signal: NodeJS.Signals) => void;
+        }
+        return this;
+      });
+
+      mockRunInstanceRounds.mockImplementation(async (config) => {
+        // Fire SIGINT during instance execution
+        if (capturedSigintHandler) {
+          capturedSigintHandler('SIGINT');
+        }
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(config.instanceNumber, 1);
+      });
+
+      await expect(orchestrate(args)).rejects.toThrow(SignalInterruptError);
+
+      // Verify finally block ran: signal listeners were deregistered
+      const removeSigint = processRemoveListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'SIGINT',
+      );
+      const removeSigterm = processRemoveListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'SIGTERM',
+      );
+      expect(removeSigint.length).toBeGreaterThanOrEqual(1);
+      expect(removeSigterm.length).toBeGreaterThanOrEqual(1);
+
+      // Verify finally block ran: temp directory was cleaned up
+      expect(mockCleanupTempDir).toHaveBeenCalledTimes(1);
+    });
+
     it('SIGTERM handler kills child processes, stops display, and sets exitCode 143', async () => {
       const args = makeArgs({ instances: 1 });
       setupDefaultMocks();
