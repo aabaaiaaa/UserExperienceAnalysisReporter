@@ -1,8 +1,14 @@
 {
-  "phase": "init",
+  "phase": "run",
   "sessionId": null,
   "lastIteration": 0,
-  "startedAt": "2026-04-07T11:18:05.404Z",
+  "startedAt": "2026-04-07T11:36:36.233Z",
   "iteration": 2,
-  "devloopVersion": "3.4.0"
+  "devloopVersion": "3.4.0",
+  "activeTask": {
+    "taskId": "TASK-001a",
+    "taskTitle": "Fix failing tests in progress-recalibration.test.ts",
+    "iterationNumber": 1,
+    "startedAt": "2026-04-07T11:36:36.263Z"
+  }
 }

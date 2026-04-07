@@ -27,8 +27,8 @@ vi.mock('../src/claude-cli.js', () => ({
 
 import { runClaude } from '../src/claude-cli.js';
 import { runInstanceRounds, RoundExecutionConfig } from '../src/instance-manager.js';
-import { ProgressDisplay, getProgressFromCheckpoint } from '../src/progress-display.js';
-import { readCheckpoint, Checkpoint } from '../src/checkpoint.js';
+import { ProgressDisplay } from '../src/progress-display.js';
+import { Checkpoint } from '../src/checkpoint.js';
 import { appendDiscoveryRound, DiscoveryRound, extractDiscoveryItems } from '../src/discovery.js';
 
 const mockRunClaude = vi.mocked(runClaude);
@@ -125,7 +125,7 @@ describe('Progress bar scale recalibration', () => {
         timestamp: '2026-04-02T10:00:00Z',
       });
 
-      display.updateFromFiles(1);
+      display.updateProgress(1, 1, 1, 3, 0);
       const p = display.getProgress(1);
       expect(p!.totalItems).toBe(3);
       expect(p!.completedItems).toBe(1);
@@ -226,7 +226,7 @@ describe('Progress bar scale recalibration', () => {
         timestamp: '2026-04-02T10:00:00Z',
       });
 
-      display.updateFromFiles(1);
+      display.updateProgress(1, 2, 0, 2, 0);
       expect(display.getProgress(1)!.totalItems).toBe(2);
       expect(display.getProgress(1)!.completedItems).toBe(2);
 
@@ -259,7 +259,7 @@ describe('Progress bar scale recalibration', () => {
         timestamp: '2026-04-02T10:05:00Z',
       });
 
-      display.updateFromFiles(1);
+      display.updateProgress(1, 0, 0, 6, 0);
       const p = display.getProgress(1)!;
       // Recalibrated: 6 items instead of 2
       expect(p.totalItems).toBe(6);
@@ -288,7 +288,7 @@ describe('Progress bar scale recalibration', () => {
         timestamp: '2026-04-02T10:00:00Z',
       });
 
-      display.updateFromFiles(1);
+      display.updateProgress(1, 0, 0, 2, 0);
       const pct0 = display.getProgress(1)!.completedItems / display.getProgress(1)!.totalItems;
       expect(pct0).toBe(0);
 
@@ -305,7 +305,7 @@ describe('Progress bar scale recalibration', () => {
         timestamp: '2026-04-02T10:02:00Z',
       });
 
-      display.updateFromFiles(1);
+      display.updateProgress(1, 1, 0, 2, 0);
       const pct1 = display.getProgress(1)!.completedItems / display.getProgress(1)!.totalItems;
       expect(pct1).toBe(0.5);
       expect(pct1).toBeGreaterThan(pct0);
@@ -323,7 +323,7 @@ describe('Progress bar scale recalibration', () => {
         timestamp: '2026-04-02T10:05:00Z',
       });
 
-      display.updateFromFiles(1);
+      display.updateProgress(1, 2, 0, 2, 0);
       const pct2 = display.getProgress(1)!.completedItems / display.getProgress(1)!.totalItems;
       expect(pct2).toBe(1);
       expect(pct2).toBeGreaterThan(pct1);
@@ -351,7 +351,7 @@ describe('Progress bar scale recalibration', () => {
         timestamp: '2026-04-02T10:05:01Z',
       });
 
-      display.updateFromFiles(1);
+      display.updateProgress(1, 0, 0, 5, 0);
       const pctR2_0 = display.getProgress(1)!.completedItems;
       expect(pctR2_0).toBe(0);
       expect(display.getProgress(1)!.totalItems).toBe(5);
@@ -372,7 +372,7 @@ describe('Progress bar scale recalibration', () => {
         timestamp: '2026-04-02T10:07:00Z',
       });
 
-      display.updateFromFiles(1);
+      display.updateProgress(1, 2, 0, 5, 0);
       const pR2 = display.getProgress(1)!;
       expect(pR2.completedItems).toBe(2);
       expect(pR2.totalItems).toBe(5);

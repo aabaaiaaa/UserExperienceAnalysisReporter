@@ -1,7 +1,7 @@
 # Iteration 4 — Tasks
 
 ### TASK-001a: Fix failing tests in progress-recalibration.test.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Replace all `display.updateFromFiles(N)` calls in `tests/progress-recalibration.test.ts` with the equivalent `display.updateProgress(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount)` calls. Derive the arguments from the mock checkpoint data each test sets up (e.g., a checkpoint with 3 items where 1 is complete → `updateProgress(1, 1, 1, 3, 0)`). Call sites are at lines 128, 229, 262, 291, 308, 326, 354, 375. See requirements.md change #1 for full context.
 - **Verification**: `npx vitest run tests/progress-recalibration.test.ts`
