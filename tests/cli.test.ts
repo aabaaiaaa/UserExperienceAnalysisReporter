@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs, resolveTextOrFile } from '../src/cli.js';
 
@@ -134,6 +134,32 @@ describe('cli parseArgs', () => {
     expect(() => parseArgs([...requiredArgs, '--rate-limit-retries', '0'])).toThrow();
     expect(() => parseArgs([...requiredArgs, '--rate-limit-retries', '-2'])).toThrow();
     expect(() => parseArgs([...requiredArgs, '--rate-limit-retries', 'nope'])).toThrow();
+  });
+});
+
+describe('cli --version flag', () => {
+  const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+    throw new Error('process.exit called');
+  }) as never);
+
+  const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('prints the version from package.json and exits', () => {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
+    expect(() => parseArgs(['--version'])).toThrow('process.exit called');
+    expect(consoleSpy).toHaveBeenCalledWith(pkg.version);
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('includes --version in the usage text', () => {
+    expect(() => parseArgs(['--help'])).toThrow('process.exit called');
+    const output = consoleSpy.mock.calls.map(c => c[0]).join('\n');
+    expect(output).toContain('--version');
+    expect(output).toContain('Show the version number');
   });
 });
 

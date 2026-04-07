@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { DEFAULT_SCOPE } from './default-scope.js';
 import { MAX_RETRIES, INSTANCE_TIMEOUT_MS, MAX_RATE_LIMIT_RETRIES } from './config.js';
@@ -47,7 +48,8 @@ Options:
   --max-retries <n>        Maximum normal retry attempts per instance (default: 3)
   --instance-timeout <min> Timeout per Claude instance in minutes (default: 30)
   --rate-limit-retries <n> Maximum rate-limit retry attempts globally (default: 10)
-  --help                   Show this help message`;
+  --help                   Show this help message
+  --version                Show the version number`;
 
 /**
  * Resolve a CLI value that could be either a file path or inline text.
@@ -110,7 +112,7 @@ function parseRawArgs(argv: string[]): Map<string, string | true> {
     const key = arg.slice(2);
 
     // Boolean flags (no value)
-    if (key === 'show-default-scope' || key === 'help' || key === 'keep-temp' || key === 'append' || key === 'dry-run' || key === 'verbose') {
+    if (key === 'show-default-scope' || key === 'help' || key === 'version' || key === 'keep-temp' || key === 'append' || key === 'dry-run' || key === 'verbose') {
       args.set(key, true);
       continue;
     }
@@ -135,6 +137,14 @@ export function parseArgs(argv: string[]): ParsedArgs {
     printUsageAndExit();
   }
 
+  // Handle --version
+  if (raw.has('version')) {
+    const require = createRequire(import.meta.url);
+    const pkg = require('../package.json') as { version: string };
+    console.log(pkg.version);
+    process.exit(0);
+  }
+
   // Handle --show-default-scope
   if (raw.has('show-default-scope')) {
     console.log(DEFAULT_SCOPE);
@@ -142,7 +152,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   // Check for unknown flags
-  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'append', 'dry-run', 'verbose', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
+  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'append', 'dry-run', 'verbose', 'max-retries', 'instance-timeout', 'rate-limit-retries', 'version']);
   for (const key of raw.keys()) {
     if (!knownFlags.has(key)) {
       printUsageAndExit(`Unknown option: --${key}`);

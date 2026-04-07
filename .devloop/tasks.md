@@ -49,7 +49,7 @@
 - **Verification**: `npx vitest run tests/consolidation-checkpoint*.test.ts tests/consolidation-resume.test.ts` — all tests pass.
 
 ### TASK-007: Add --version CLI flag
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a `--version` flag to the CLI in `src/cli.ts`. (1) Add `--version` to the USAGE string after `--help`, with description `Show the version number`. (2) Add `'version'` to the boolean flag check at line 113. (3) Add `'version'` to the `knownFlags` set at line 145. (4) After the `--help` handler (line 134), add a `--version` handler that reads the version from `package.json` and prints it, then calls `process.exit(0)`. Use `createRequire(import.meta.url)` from `node:module` to load `package.json`, or `readFileSync` + `JSON.parse`. (5) Add tests: verify `--version` outputs the version from `package.json` and exits, and that `--version` appears in the usage text. See requirements.md section 8.
 - **Verification**: `npx vitest run tests/cli*.test.ts` — all tests pass, including new `--version` tests.
