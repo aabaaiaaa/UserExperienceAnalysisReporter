@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 27
-- **Completed**: 25
-- **Remaining**: 2
-- **Last Updated**: 2026-04-07T10:44:58.854Z
+- **Completed**: 26
+- **Remaining**: 1
+- **Last Updated**: 2026-04-07T10:52:12.105Z
 
 ## Iteration Log
 
@@ -278,4 +278,15 @@
 - **Verification Duration**: ~30s
 - **Tokens**: 3,748,452 total (4,415 in, 14,022 out, 75,620 cache-create, 3,654,395 cache-read)
 - **Cost**: $2.6724
+
+### Iteration 26 - 2026-04-07T10:52:12.103Z
+- **Task Attempted**: TASK-016a
+- **Task Completed**: TASK-016a
+- **Summary**: Completed Update HierarchicalFinding to support recursive nesting
+- **Duration**: 7m 11s
+- **Exit Status**: success
+- **Work Duration**: ~6m 44s
+- **Verification Duration**: ~27s
+- **Tokens**: 3,039,769 total (46 in, 23,217 out, 77,344 cache-create, 2,939,162 cache-read)
+- **Cost**: $2.5336
 

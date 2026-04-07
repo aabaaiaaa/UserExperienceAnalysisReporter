@@ -1348,8 +1348,8 @@ describe('buildHierarchy', () => {
     expect(result.length).toBe(1);
     expect(result[0].finding.id).toBe('UXR-001');
     expect(result[0].children.length).toBe(2);
-    expect(result[0].children[0].id).toBe('UXR-002');
-    expect(result[0].children[1].id).toBe('UXR-003');
+    expect(result[0].children[0].finding.id).toBe('UXR-002');
+    expect(result[0].children[1].finding.id).toBe('UXR-003');
   });
 
   it('keeps child as top-level if parent ID does not exist in findings', () => {
@@ -1384,12 +1384,12 @@ describe('buildHierarchy', () => {
     expect(result.length).toBe(3);
     expect(result[0].finding.id).toBe('UXR-001');
     expect(result[0].children.length).toBe(1);
-    expect(result[0].children[0].id).toBe('UXR-002');
+    expect(result[0].children[0].finding.id).toBe('UXR-002');
     expect(result[1].finding.id).toBe('UXR-003');
     expect(result[1].children).toEqual([]);
     expect(result[2].finding.id).toBe('UXR-004');
     expect(result[2].children.length).toBe(1);
-    expect(result[2].children[0].id).toBe('UXR-005');
+    expect(result[2].children[0].finding.id).toBe('UXR-005');
   });
 
   it('ignores child references to IDs not in findings list', () => {
@@ -1403,6 +1403,132 @@ describe('buildHierarchy', () => {
     expect(result.length).toBe(1);
     expect(result[0].finding.id).toBe('UXR-001');
     expect(result[0].children).toEqual([]);
+  });
+
+  it('builds multi-level hierarchy (grandchildren)', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', title: 'Page-level' }),
+      makeFinding({ id: 'UXR-002', title: 'Section-level' }),
+      makeFinding({ id: 'UXR-003', title: 'Component-level' }),
+    ];
+    const childToParent = new Map([
+      ['UXR-002', 'UXR-001'],
+      ['UXR-003', 'UXR-002'],
+    ]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    expect(result.length).toBe(1);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[0].children.length).toBe(1);
+    expect(result[0].children[0].finding.id).toBe('UXR-002');
+    expect(result[0].children[0].children.length).toBe(1);
+    expect(result[0].children[0].children[0].finding.id).toBe('UXR-003');
+    expect(result[0].children[0].children[0].children).toEqual([]);
+  });
+
+  it('builds 3+ level deep hierarchy', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', title: 'Level 0' }),
+      makeFinding({ id: 'UXR-002', title: 'Level 1' }),
+      makeFinding({ id: 'UXR-003', title: 'Level 2' }),
+      makeFinding({ id: 'UXR-004', title: 'Level 3' }),
+    ];
+    const childToParent = new Map([
+      ['UXR-002', 'UXR-001'],
+      ['UXR-003', 'UXR-002'],
+      ['UXR-004', 'UXR-003'],
+    ]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    expect(result.length).toBe(1);
+    const level0 = result[0];
+    expect(level0.finding.id).toBe('UXR-001');
+    const level1 = level0.children[0];
+    expect(level1.finding.id).toBe('UXR-002');
+    const level2 = level1.children[0];
+    expect(level2.finding.id).toBe('UXR-003');
+    const level3 = level2.children[0];
+    expect(level3.finding.id).toBe('UXR-004');
+    expect(level3.children).toEqual([]);
+  });
+
+  it('detects and breaks a simple 2-node cycle', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001' }),
+      makeFinding({ id: 'UXR-002' }),
+    ];
+    // A is child of B, B is child of A — cycle
+    const childToParent = new Map([
+      ['UXR-001', 'UXR-002'],
+      ['UXR-002', 'UXR-001'],
+    ]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    // Cycle is broken: one becomes top-level, the other its child
+    // Both findings must appear exactly once in the tree
+    const allIds: string[] = [];
+    function collectIds(nodes: HierarchicalFinding[]) {
+      for (const n of nodes) {
+        allIds.push(n.finding.id);
+        collectIds(n.children);
+      }
+    }
+    collectIds(result);
+    expect(allIds.sort()).toEqual(['UXR-001', 'UXR-002']);
+    // At least one finding must be top-level
+    expect(result.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('detects and breaks a 3-node cycle', () => {
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001' }),
+      makeFinding({ id: 'UXR-002' }),
+      makeFinding({ id: 'UXR-003' }),
+    ];
+    // A -> B -> C -> A cycle
+    const childToParent = new Map([
+      ['UXR-001', 'UXR-003'],
+      ['UXR-002', 'UXR-001'],
+      ['UXR-003', 'UXR-002'],
+    ]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    // All three findings must appear exactly once
+    const allIds: string[] = [];
+    function collectIds(nodes: HierarchicalFinding[]) {
+      for (const n of nodes) {
+        allIds.push(n.finding.id);
+        collectIds(n.children);
+      }
+    }
+    collectIds(result);
+    expect(allIds.sort()).toEqual(['UXR-001', 'UXR-002', 'UXR-003']);
+    // At least one finding must be top-level (cycle broken)
+    expect(result.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('backward compatible: single-level hierarchy still works', () => {
+    // Same structure as the old single-level test — should produce identical results
+    const findings: Finding[] = [
+      makeFinding({ id: 'UXR-001', title: 'Parent A' }),
+      makeFinding({ id: 'UXR-002', title: 'Child of A' }),
+      makeFinding({ id: 'UXR-003', title: 'Independent' }),
+    ];
+    const childToParent = new Map([['UXR-002', 'UXR-001']]);
+
+    const result = buildHierarchy(findings, childToParent);
+
+    expect(result.length).toBe(2);
+    expect(result[0].finding.id).toBe('UXR-001');
+    expect(result[0].children.length).toBe(1);
+    expect(result[0].children[0].finding.id).toBe('UXR-002');
+    expect(result[0].children[0].children).toEqual([]);
+    expect(result[1].finding.id).toBe('UXR-003');
+    expect(result[1].children).toEqual([]);
   });
 });
 
@@ -1448,7 +1574,7 @@ describe('determineHierarchy', () => {
     expect(result.length).toBe(1);
     expect(result[0].finding.id).toBe('UXR-001');
     expect(result[0].children.length).toBe(1);
-    expect(result[0].children[0].id).toBe('UXR-002');
+    expect(result[0].children[0].finding.id).toBe('UXR-002');
   });
 
   it('falls back to flat structure when Claude fails', async () => {
@@ -1526,7 +1652,7 @@ describe('organizeHierarchically', () => {
     expect(groups[0].findings.length).toBe(1); // UXR-001 is the only top-level
     expect(groups[0].findings[0].finding.id).toBe('UXR-001');
     expect(groups[0].findings[0].children.length).toBe(1);
-    expect(groups[0].findings[0].children[0].id).toBe('UXR-002');
+    expect(groups[0].findings[0].children[0].finding.id).toBe('UXR-002');
 
     // Dashboard group
     expect(groups[1].area).toBe('Dashboard');
@@ -1557,14 +1683,17 @@ describe('formatConsolidatedReport', () => {
               screenshot: 'UXR-001.png',
             }),
             children: [
-              makeFinding({
-                id: 'UXR-002',
-                title: 'Hamburger menu janky',
-                severity: 'minor',
-                description: 'Animation stutters',
-                suggestion: 'Use CSS transition',
-                screenshot: 'UXR-002.png',
-              }),
+              {
+                finding: makeFinding({
+                  id: 'UXR-002',
+                  title: 'Hamburger menu janky',
+                  severity: 'minor',
+                  description: 'Animation stutters',
+                  suggestion: 'Use CSS transition',
+                  screenshot: 'UXR-002.png',
+                }),
+                children: [],
+              },
             ],
           },
         ],
@@ -1649,14 +1778,17 @@ describe('formatConsolidatedReport', () => {
               screenshot: 'UXR-001.png',
             }),
             children: [
-              makeFinding({
-                id: 'UXR-002',
-                title: 'Child finding',
-                severity: 'minor',
-                description: 'Child desc',
-                suggestion: 'Child suggestion',
-                screenshot: 'UXR-002.png',
-              }),
+              {
+                finding: makeFinding({
+                  id: 'UXR-002',
+                  title: 'Child finding',
+                  severity: 'minor',
+                  description: 'Child desc',
+                  suggestion: 'Child suggestion',
+                  screenshot: 'UXR-002.png',
+                }),
+                children: [],
+              },
             ],
           },
         ],
@@ -1690,6 +1822,80 @@ describe('formatConsolidatedReport', () => {
         expect(line).toBe('');
       }
     }
+  });
+
+  it('formats multi-level nested hierarchy with increasing heading levels', () => {
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Navigation',
+        findings: [
+          {
+            finding: makeFinding({ id: 'UXR-001', title: 'Page-level issue' }),
+            children: [
+              {
+                finding: makeFinding({ id: 'UXR-002', title: 'Section-level issue' }),
+                children: [
+                  {
+                    finding: makeFinding({ id: 'UXR-003', title: 'Component-level issue' }),
+                    children: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const report = formatConsolidatedReport(groups);
+
+    // Top-level uses ###, child uses ####, grandchild uses #####
+    expect(report).toContain('### UXR-001: Page-level issue');
+    expect(report).toContain('  #### UXR-002: Section-level issue');
+    expect(report).toContain('    ##### UXR-003: Component-level issue');
+  });
+
+  it('caps heading level at ###### for very deep nesting', () => {
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Deep',
+        findings: [
+          {
+            finding: makeFinding({ id: 'UXR-001', title: 'L0' }),
+            children: [
+              {
+                finding: makeFinding({ id: 'UXR-002', title: 'L1' }),
+                children: [
+                  {
+                    finding: makeFinding({ id: 'UXR-003', title: 'L2' }),
+                    children: [
+                      {
+                        finding: makeFinding({ id: 'UXR-004', title: 'L3' }),
+                        children: [
+                          {
+                            finding: makeFinding({ id: 'UXR-005', title: 'L4' }),
+                            children: [],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const report = formatConsolidatedReport(groups);
+
+    // ### (depth 0), #### (depth 1), ##### (depth 2), ###### (depth 3), ###### (depth 4, capped)
+    expect(report).toContain('### UXR-001: L0');
+    expect(report).toContain('  #### UXR-002: L1');
+    expect(report).toContain('    ##### UXR-003: L2');
+    expect(report).toContain('      ###### UXR-004: L3');
+    expect(report).toContain('        ###### UXR-005: L4');
   });
 });
 
@@ -1742,14 +1948,14 @@ describe('TASK-020 verification: hierarchical grouping end-to-end', () => {
     expect(groups[0].findings.length).toBe(1);
     expect(groups[0].findings[0].finding.id).toBe('UXR-001');
     expect(groups[0].findings[0].children.length).toBe(2);
-    expect(groups[0].findings[0].children[0].id).toBe('UXR-002');
-    expect(groups[0].findings[0].children[1].id).toBe('UXR-003');
+    expect(groups[0].findings[0].children[0].finding.id).toBe('UXR-002');
+    expect(groups[0].findings[0].children[1].finding.id).toBe('UXR-003');
 
     // Dashboard: UXR-004 is parent of UXR-005, UXR-006 is independent
     expect(groups[1].findings.length).toBe(2);
     expect(groups[1].findings[0].finding.id).toBe('UXR-004');
     expect(groups[1].findings[0].children.length).toBe(1);
-    expect(groups[1].findings[0].children[0].id).toBe('UXR-005');
+    expect(groups[1].findings[0].children[0].finding.id).toBe('UXR-005');
     expect(groups[1].findings[1].finding.id).toBe('UXR-006');
     expect(groups[1].findings[1].children).toEqual([]);
 
@@ -1762,7 +1968,7 @@ describe('TASK-020 verification: hierarchical grouping end-to-end', () => {
     // (i.e., no top-level finding appears as a child anywhere)
     const allTopLevelIds = groups.flatMap((g) => g.findings.map((hf) => hf.finding.id));
     const allChildIds = groups.flatMap((g) =>
-      g.findings.flatMap((hf) => hf.children.map((c) => c.id)),
+      g.findings.flatMap((hf) => hf.children.map((c) => c.finding.id)),
     );
     for (const topId of allTopLevelIds) {
       expect(allChildIds).not.toContain(topId);

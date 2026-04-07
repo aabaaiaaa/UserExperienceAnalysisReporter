@@ -124,12 +124,14 @@ function renderFinding(finding: Finding, headingLevel: number, screenshotsDir?: 
 
 /**
  * Render a hierarchical finding (parent + children) as HTML.
+ * Recurses into children with increasing heading levels (capped at h6).
  */
-function renderHierarchicalFinding(hf: HierarchicalFinding, screenshotsDir?: string): string {
-  let html = renderFinding(hf.finding, 3, screenshotsDir);
+function renderHierarchicalFinding(hf: HierarchicalFinding, screenshotsDir?: string, headingLevel: number = 3): string {
+  let html = renderFinding(hf.finding, headingLevel, screenshotsDir);
 
   for (const child of hf.children) {
-    html += '\n' + `<div class="child-finding">\n${renderFinding(child, 4, screenshotsDir)}\n</div>`;
+    const childLevel = Math.min(headingLevel + 1, 6);
+    html += '\n' + `<div class="child-finding">\n${renderHierarchicalFinding(child, screenshotsDir, childLevel)}\n</div>`;
   }
 
   return html;

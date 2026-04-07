@@ -204,7 +204,7 @@ describe('formatHtmlReport', () => {
     const groups: UIAreaGroup[] = [
       {
         area: 'Navigation',
-        findings: [{ finding: parent, children: [child] }],
+        findings: [{ finding: parent, children: [{ finding: child, children: [] }] }],
       },
     ];
 
@@ -284,7 +284,7 @@ describe('formatHtmlReport', () => {
     const groups: UIAreaGroup[] = [
       {
         area: 'Area',
-        findings: [{ finding: parent, children: [child1, child2] }],
+        findings: [{ finding: parent, children: [{ finding: child1, children: [] }, { finding: child2, children: [] }] }],
       },
     ];
 
@@ -441,7 +441,7 @@ describe('screenshot base64 embedding', () => {
     const groups: UIAreaGroup[] = [
       {
         area: 'Navigation',
-        findings: [{ finding: parent, children: [child] }],
+        findings: [{ finding: parent, children: [{ finding: child, children: [] }] }],
       },
     ];
 

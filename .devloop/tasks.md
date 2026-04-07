@@ -151,7 +151,7 @@
 - **Verification**: `npx vitest run tests/cli.test.ts tests/orchestrator.test.ts 2>&1 | tail -5`
 
 ### TASK-016a: Update HierarchicalFinding to support recursive nesting
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/consolidation.ts`, change the `HierarchicalFinding` interface so `children` is `HierarchicalFinding[]` instead of `Finding[]`. Update `buildHierarchy()` to construct a tree of arbitrary depth from flat `CHILD_OF` mappings. Add cycle detection — if a finding would be its own ancestor, break the cycle by keeping it at the top level. Update the hierarchy prompt to remove the "A finding cannot be both a parent and a child" constraint (line ~529). Add tests for multi-level tree building, cycle detection, and backward compatibility with single-level hierarchies. Reference requirements.md change #16.
 - **Verification**: `npx vitest run tests/consolidation.test.ts 2>&1 | tail -5`

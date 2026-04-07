@@ -658,11 +658,12 @@ export function reassignAndRemapScreenshots(
 // ---- Hierarchical Grouping (TASK-020) ----
 
 /**
- * A top-level finding with optional dependent (child) findings nested under it.
+ * A finding with optional dependent (child) findings nested under it.
+ * Children are themselves HierarchicalFinding objects, supporting arbitrary nesting depth.
  */
 export interface HierarchicalFinding {
   finding: Finding;
-  children: Finding[];
+  children: HierarchicalFinding[];
 }
 
 /**
@@ -717,9 +718,9 @@ A finding is a CHILD of another finding if:
 RULES:
 - A finding can have at most ONE parent.
 - A finding can have zero or more children.
+- A finding CAN be both a parent and a child, allowing multi-level nesting (e.g., a page-level issue can have a section-level child which itself has a component-level grandchild).
 - Top-level findings (no parent) must be INDEPENDENT of each other — they can be worked on in parallel.
 - Only create parent-child relationships when there is a clear dependency. When in doubt, keep findings at the top level.
-- A finding cannot be both a parent and a child (only one level of nesting).
 
 OUTPUT FORMAT:
 For each child finding, output one line:
@@ -763,10 +764,13 @@ export function parseHierarchyResponse(response: string): Map<string, string> {
 }
 
 /**
- * Build a hierarchical structure from a flat list of findings and a
- * child-to-parent mapping.
+ * Build a hierarchical structure of arbitrary depth from a flat list of
+ * findings and a child-to-parent mapping.
  *
- * Findings that are parents get their children nested under them.
+ * Supports multi-level nesting: a finding can be both a parent and a child.
+ * Detects cycles in the ancestor chain and breaks them by promoting the
+ * cycle-causing finding to the top level.
+ *
  * Findings with no parent and no children are also top-level.
  * If a child references a parent ID that doesn't exist, the child
  * becomes top-level.
@@ -780,28 +784,59 @@ export function buildHierarchy(
     findingMap.set(f.id, f);
   }
 
-  // Collect children grouped by parent ID
-  const parentToChildren = new Map<string, Finding[]>();
-  const childIds = new Set<string>();
-
+  // Filter to only valid relationships (both IDs exist in findings)
+  const validChildToParent = new Map<string, string>();
   for (const [childId, parentId] of childToParent) {
-    // Only apply the relationship if both IDs exist in the findings list
     if (findingMap.has(childId) && findingMap.has(parentId)) {
-      childIds.add(childId);
-      const children = parentToChildren.get(parentId) || [];
-      children.push(findingMap.get(childId)!);
-      parentToChildren.set(parentId, children);
+      validChildToParent.set(childId, parentId);
     }
   }
 
-  // Build top-level findings (those not marked as children)
+  // Cycle detection: for each node, walk up the ancestor chain.
+  // If we revisit a node, there's a cycle — break it by removing the edge.
+  for (const childId of [...validChildToParent.keys()]) {
+    const visited = new Set<string>();
+    let current = childId;
+
+    while (true) {
+      if (visited.has(current)) {
+        // Cycle detected — break it by removing this node's parent edge
+        validChildToParent.delete(current);
+        break;
+      }
+      visited.add(current);
+      const parent = validChildToParent.get(current);
+      if (!parent) break;
+      current = parent;
+    }
+  }
+
+  // Build parentToChildren map
+  const childIds = new Set<string>();
+  const parentToChildren = new Map<string, string[]>();
+
+  for (const [childId, parentId] of validChildToParent) {
+    childIds.add(childId);
+    const children = parentToChildren.get(parentId) || [];
+    children.push(childId);
+    parentToChildren.set(parentId, children);
+  }
+
+  // Build tree recursively
+  function buildNode(id: string): HierarchicalFinding {
+    const finding = findingMap.get(id)!;
+    const childIdList = parentToChildren.get(id) || [];
+    return {
+      finding,
+      children: childIdList.map((cid) => buildNode(cid)),
+    };
+  }
+
+  // Top-level findings: those not marked as children
   const result: HierarchicalFinding[] = [];
   for (const finding of findings) {
     if (!childIds.has(finding.id)) {
-      result.push({
-        finding,
-        children: parentToChildren.get(finding.id) || [],
-      });
+      result.push(buildNode(finding.id));
     }
   }
 
@@ -866,12 +901,46 @@ function formatFindingMetadata(finding: Finding): string {
 }
 
 /**
+ * Render a HierarchicalFinding and its children recursively as markdown lines.
+ *
+ * @param depth - Nesting depth (0 = top-level under area heading).
+ *   Controls heading level (### at depth 0, #### at depth 1, capped at ###### for depth 3+)
+ *   and indentation (2 spaces per depth level).
+ */
+function renderHierarchicalFindingMd(hf: HierarchicalFinding, depth: number): string[] {
+  const indent = '  '.repeat(depth);
+  const headingLevel = Math.min(3 + depth, 6);
+  const heading = '#'.repeat(headingLevel);
+
+  const lines: string[] = [];
+
+  if (depth > 0) {
+    lines.push('');
+  }
+  lines.push(`${indent}${heading} ${hf.finding.id}: ${hf.finding.title}`);
+
+  if (depth > 0) {
+    lines.push(formatFindingMetadata(hf.finding).split('\n').map(l => l.trim() === '' ? '' : `${indent}${l}`).join('\n'));
+  } else {
+    lines.push(formatFindingMetadata(hf.finding));
+  }
+
+  for (const child of hf.children) {
+    lines.push(...renderHierarchicalFindingMd(child, depth + 1));
+  }
+
+  return lines;
+}
+
+/**
  * Format the consolidated report as hierarchical markdown.
  *
  * Structure:
  * - ## UI Area heading
  * - ### UXR-xxx: Title for top-level findings
- * -   #### UXR-xxx: Title for child (dependent) findings, indented
+ * -   #### UXR-xxx: Title for children, indented
+ * -     ##### UXR-xxx: Title for grandchildren, further indented
+ * Heading levels cap at ###### (HTML's deepest heading) for deep nesting.
  */
 export function formatConsolidatedReport(groups: UIAreaGroup[]): string {
   const lines: string[] = ['# UX Analysis Report', ''];
@@ -881,17 +950,7 @@ export function formatConsolidatedReport(groups: UIAreaGroup[]): string {
     lines.push('');
 
     for (const hf of group.findings) {
-      // Top-level finding
-      lines.push(`### ${hf.finding.id}: ${hf.finding.title}`);
-      lines.push(formatFindingMetadata(hf.finding));
-
-      // Child findings
-      for (const child of hf.children) {
-        lines.push('');
-        lines.push(`  #### ${child.id}: ${child.title}`);
-        lines.push(formatFindingMetadata(child).split('\n').map(l => l.trim() === '' ? '' : `  ${l}`).join('\n'));
-      }
-
+      lines.push(...renderHierarchicalFindingMd(hf, 0));
       lines.push('');
     }
   }
