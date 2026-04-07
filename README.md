@@ -204,6 +204,71 @@ uxreview \
 
 The second run benefits from the detailed area/element breakdown discovered in the first run, leading to more targeted and thorough analysis.
 
+## Recovery and Resumption
+
+The tool uses a checkpoint system that allows interrupted runs to be resumed. If a run is interrupted (e.g., via Ctrl+C or a crash), you can re-run the same command and the tool will pick up where it left off.
+
+### Interruption during instance execution
+
+Each Claude instance writes a checkpoint file after every completed round. If the tool is interrupted while instances are running:
+
+- Instances that finished all rounds keep their results.
+- Instances that were mid-round lose the current round's progress, but retain checkpoints from any previously completed rounds.
+- On re-run, the tool reads existing checkpoints and resumes each instance from its last completed round rather than starting over.
+
+The SIGINT/SIGTERM handler ensures child Claude processes are terminated cleanly on interruption.
+
+### Interruption during consolidation
+
+If the tool is interrupted during the consolidation phase (deduplication, hierarchy determination, or discovery merging), consolidation checkpoints preserve progress:
+
+- Completed consolidation steps are saved to a checkpoint file.
+- On re-run, consolidation resumes from the last completed step instead of re-running all Claude calls.
+
+### How to resume
+
+Simply re-run the same command:
+
+```bash
+uxreview \
+  --url https://myapp.example.com \
+  --intro ./docs/app-intro.md \
+  --plan ./docs/review-plan.md \
+  --instances 3
+```
+
+The tool detects existing checkpoint data in `.uxreview-temp/` and resumes automatically. No special flags are needed.
+
+### Preserving intermediate state with `--keep-temp`
+
+By default, the `.uxreview-temp/` directory is deleted after a successful run. To preserve it for debugging or manual inspection, pass `--keep-temp`:
+
+```bash
+uxreview \
+  --url https://myapp.example.com \
+  --intro ./docs/app-intro.md \
+  --plan ./docs/review-plan.md \
+  --keep-temp
+```
+
+### Where raw instance data lives
+
+The `.uxreview-temp/` directory contains all intermediate state:
+
+```
+.uxreview-temp/
+  instance-1/           # Per-instance working directory
+    checkpoint.json     # Round progress and resume state
+    discovery.md        # Instance-scoped discovery document
+    report.md           # Instance-scoped findings report
+    screenshots/        # Instance-scoped screenshots
+  instance-2/
+    ...
+  consolidation-checkpoint.json   # Consolidation phase progress
+```
+
+Each `instance-*` directory holds the raw data for that instance's analysis. This is useful for debugging individual instance behavior or manually inspecting findings before consolidation.
+
 ## Running Tests
 
 ```bash

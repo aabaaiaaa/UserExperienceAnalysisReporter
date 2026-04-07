@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 27
-- **Completed**: 15
-- **Remaining**: 12
-- **Last Updated**: 2026-04-07T09:49:40.227Z
+- **Completed**: 16
+- **Remaining**: 11
+- **Last Updated**: 2026-04-07T09:50:31.252Z
 
 ## Iteration Log
 
@@ -168,4 +168,15 @@
 - **Verification Duration**: ~21s
 - **Tokens**: 901,718 total (16 in, 9,916 out, 69,501 cache-create, 822,285 cache-read)
 - **Cost**: $1.0935
+
+### Iteration 16 - 2026-04-07T09:50:31.251Z
+- **Task Attempted**: TASK-011
+- **Task Completed**: TASK-011
+- **Summary**: Completed Add recovery documentation to README
+- **Duration**: 49s
+- **Exit Status**: success
+- **Work Duration**: ~41s
+- **Verification Duration**: ~8s
+- **Tokens**: 154,833 total (7 in, 1,507 out, 21,283 cache-create, 132,036 cache-read)
+- **Cost**: $0.2367
 

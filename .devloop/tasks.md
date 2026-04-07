@@ -91,7 +91,7 @@
 - **Verification**: `npx vitest run tests/consolidation-resume.test.ts 2>&1 | tail -5`
 
 ### TASK-011: Add recovery documentation to README
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-010b
 - **Description**: Add a "Recovery and Resumption" section to the README covering: what happens on interruption during instance execution, what happens on interruption during consolidation, how to re-run to resume, how `--keep-temp` preserves intermediate state, where raw instance data lives (`.uxreview-temp/instance-*`). Reference requirements.md change #11.
 - **Verification**: `grep -q "Recovery" README.md && echo "PASS" || echo "FAIL"`
