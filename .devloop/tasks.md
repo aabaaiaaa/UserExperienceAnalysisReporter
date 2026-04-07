@@ -25,7 +25,7 @@
 - **Verification**: `npx vitest run tests/file-manager*.test.ts` — all tests pass. Run `npx vitest run --coverage tests/file-manager*.test.ts` and confirm `file-manager.ts` coverage is above 95% statements.
 
 ### TASK-005: Remove unused countFindings re-export from progress-display.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Remove line 95 (`export { countFindings } from './report.js';`) from `src/progress-display.ts`. Before removing, verify with grep that no source or test file imports `countFindings` from `progress-display`. If any file does, update its import to reference `report.js` instead. See requirements.md section 5.
 - **Verification**: `npx vitest run tests/progress-display*.test.ts` — all tests pass. Grep for `countFindings.*progress-display` across `src/` and `tests/` returns zero matches.
