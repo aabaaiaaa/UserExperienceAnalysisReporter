@@ -109,7 +109,7 @@
 - **Verification**: `npx vitest run tests/progress-display.test.ts tests/orchestrator.test.ts 2>&1 | tail -5`
 
 ### TASK-013a: Add --append CLI flag and preserve output directory
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add `--append` boolean CLI flag to `src/cli.ts`. Add `append` to `ParsedArgs`. In `src/file-manager.ts`, modify `initOutputDir` to skip deleting the existing output directory when append mode is true (still create it if it doesn't exist). Update the USAGE string. Add tests for flag parsing and output directory preservation. Reference requirements.md change #13.
 - **Verification**: `npx vitest run tests/cli.test.ts tests/file-manager.test.ts 2>&1 | tail -5`

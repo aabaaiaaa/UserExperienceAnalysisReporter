@@ -102,14 +102,18 @@ export async function initTempDir(instanceCount: number): Promise<string> {
 }
 
 /**
- * Initialize the output directory. Creates it fresh (removes existing to avoid
- * mixing stale output with new results).
+ * Initialize the output directory. By default, removes any existing output to
+ * avoid mixing stale data with new results.
+ *
+ * When `append` is true, the existing output directory is preserved so that new
+ * findings can be added alongside previous results. The directory (and its
+ * screenshots subdirectory) is still created if it doesn't already exist.
  */
-export function initOutputDir(outputPath?: string): string {
+export function initOutputDir(outputPath?: string, append?: boolean): string {
   const outputDir = resolve(outputPath || DEFAULT_OUTPUT_DIR);
-  debug(`Initializing output directory: ${outputDir}`);
+  debug(`Initializing output directory: ${outputDir}${append ? ' (append mode)' : ''}`);
 
-  if (existsSync(outputDir)) {
+  if (existsSync(outputDir) && !append) {
     rmSync(outputDir, { recursive: true, force: true });
   }
 
@@ -123,9 +127,9 @@ export function initOutputDir(outputPath?: string): string {
  * Initialize the full workspace: temp directory and output directory.
  * Returns the layout with all resolved paths.
  */
-export async function initWorkspace(instanceCount: number, outputPath?: string): Promise<WorkspaceLayout> {
+export async function initWorkspace(instanceCount: number, outputPath?: string, append?: boolean): Promise<WorkspaceLayout> {
   const tempDir = await initTempDir(instanceCount);
-  const outputDir = initOutputDir(outputPath);
+  const outputDir = initOutputDir(outputPath, append);
 
   const instanceDirs: string[] = [];
   for (let i = 1; i <= instanceCount; i++) {

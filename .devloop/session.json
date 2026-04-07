@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 17,
+  "lastIteration": 18,
   "startedAt": "2026-04-07T09:10:37.667Z",
   "iteration": 1,
   "devloopVersion": "3.2.0",
   "activeTask": {
-    "taskId": "TASK-012b",
-    "taskTitle": "Remove file-polling from ProgressDisplay",
-    "iterationNumber": 18,
-    "startedAt": "2026-04-07T09:55:16.640Z"
+    "taskId": "TASK-013a",
+    "taskTitle": "Add --append CLI flag and preserve output directory",
+    "iterationNumber": 19,
+    "startedAt": "2026-04-07T10:04:04.360Z"
   }
 }

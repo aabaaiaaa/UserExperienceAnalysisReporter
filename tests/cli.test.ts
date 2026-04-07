@@ -52,6 +52,17 @@ describe('cli parseArgs', () => {
     expect(result.keepTemp).toBe(true);
   });
 
+  // --append
+  it('defaults append to false when omitted', () => {
+    const result = parseArgs(requiredArgs);
+    expect(result.append).toBe(false);
+  });
+
+  it('sets append to true when --append is provided', () => {
+    const result = parseArgs([...requiredArgs, '--append']);
+    expect(result.append).toBe(true);
+  });
+
   // --verbose
   it('defaults verbose to false when omitted', () => {
     const result = parseArgs(requiredArgs);

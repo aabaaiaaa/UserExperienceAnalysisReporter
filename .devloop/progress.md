@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 27
-- **Completed**: 18
-- **Remaining**: 9
-- **Last Updated**: 2026-04-07T10:04:02.499Z
+- **Completed**: 19
+- **Remaining**: 8
+- **Last Updated**: 2026-04-07T10:05:51.714Z
 
 ## Iteration Log
 
@@ -201,4 +201,15 @@
 - **Verification Duration**: ~23s
 - **Tokens**: 2,848,929 total (34 in, 34,219 out, 116,618 cache-create, 2,698,058 cache-read)
 - **Cost**: $2.9335
+
+### Iteration 19 - 2026-04-07T10:05:51.713Z
+- **Task Attempted**: TASK-013a
+- **Task Completed**: TASK-013a
+- **Summary**: Completed Add --append CLI flag and preserve output directory
+- **Duration**: 1m 47s
+- **Exit Status**: success
+- **Work Duration**: ~1m 21s
+- **Verification Duration**: ~26s
+- **Tokens**: 558,968 total (16 in, 4,217 out, 32,767 cache-create, 521,968 cache-read)
+- **Cost**: $0.5713
 
