@@ -1107,7 +1107,7 @@ DUPLICATE_GROUP: I1-UXR-003, I3-UXR-001`;
       expect(hierarchy).toHaveLength(2); // UXR-001 (with child) and UXR-003
       const parent = hierarchy.find((h) => h.finding.id === 'UXR-001')!;
       expect(parent.children).toHaveLength(1);
-      expect(parent.children[0].id).toBe('UXR-002');
+      expect(parent.children[0].finding.id).toBe('UXR-002');
 
       const independent = hierarchy.find((h) => h.finding.id === 'UXR-003')!;
       expect(independent.children).toHaveLength(0);
@@ -1135,7 +1135,7 @@ CHILD_OF: UXR-003, UXR-004`;
             {
               finding: { id: 'UXR-001', title: 'Parent', uiArea: 'Navigation', severity: 'major' as const, description: 'parent desc', suggestion: 'fix parent', screenshot: 'UXR-001.png' },
               children: [
-                { id: 'UXR-002', title: 'Child', uiArea: 'Navigation', severity: 'minor' as const, description: 'child desc', suggestion: 'fix child', screenshot: 'UXR-002.png' },
+                { finding: { id: 'UXR-002', title: 'Child', uiArea: 'Navigation', severity: 'minor' as const, description: 'child desc', suggestion: 'fix child', screenshot: 'UXR-002.png' }, children: [] },
               ],
             },
           ],

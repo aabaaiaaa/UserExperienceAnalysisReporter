@@ -7,7 +7,7 @@
 - **Verification**: `npx vitest run tests/progress-recalibration.test.ts`
 
 ### TASK-001b: Fix failing tests in integration-dedup-consolidation.test.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Two fixes in `tests/integration-dedup-consolidation.test.ts`: (1) Line 1110: change `parent.children[0].id` to `parent.children[0].finding.id`. (2) Lines 1130-1152: wrap each child object in the `children` array as `{ finding: { ...existingObject }, children: [] }` to match the `HierarchicalFinding` interface. See requirements.md change #1 for full context.
 - **Verification**: `npx vitest run tests/integration-dedup-consolidation.test.ts`
