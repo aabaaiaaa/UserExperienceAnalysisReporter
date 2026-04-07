@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { getTempDir } from './file-manager.js';
 import { debug } from './logger.js';
+import type { ConsolidationResult, UIAreaGroup } from './consolidation.js';
+import type { Finding } from './report.js';
 
 /**
  * The steps in the consolidation pipeline, in execution order.
@@ -35,12 +37,12 @@ export const CONSOLIDATION_STEPS: ConsolidationStep[] = [
 export interface ConsolidationCheckpoint {
   /** Which steps have completed */
   completedSteps: ConsolidationStep[];
-  /** Deduplicated findings as JSON (output of dedup step) */
-  dedupOutput: string | null;
-  /** Reassigned findings as JSON (output of reassign step) */
-  reassignOutput: string | null;
-  /** Hierarchical grouping as JSON (output of hierarchy step) */
-  hierarchyOutput: string | null;
+  /** Deduplicated findings (output of dedup step) */
+  dedupOutput: ConsolidationResult | null;
+  /** Reassigned findings (output of reassign step) */
+  reassignOutput: Finding[] | null;
+  /** Hierarchical grouping (output of hierarchy step) */
+  hierarchyOutput: UIAreaGroup[] | null;
   /** Formatted report markdown (output of format-report step) */
   formatReportOutput: string | null;
   /** Merged discovery document content (output of discovery-merge step) */
@@ -99,16 +101,26 @@ export function readConsolidationCheckpoint(): ConsolidationCheckpoint | null {
       }
     }
 
-    // Validate nullable string fields
-    const nullableFields = [
+    // Validate nullable structured fields (object/array or null)
+    const nullableStructuredFields = [
       'dedupOutput',
       'reassignOutput',
       'hierarchyOutput',
+    ] as const;
+
+    for (const field of nullableStructuredFields) {
+      if (parsed[field] !== null && (typeof parsed[field] !== 'object' || parsed[field] === undefined)) {
+        return null;
+      }
+    }
+
+    // Validate nullable string fields
+    const nullableStringFields = [
       'formatReportOutput',
       'discoveryMergeOutput',
     ] as const;
 
-    for (const field of nullableFields) {
+    for (const field of nullableStringFields) {
       if (parsed[field] !== null && typeof parsed[field] !== 'string') {
         return null;
       }

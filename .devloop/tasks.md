@@ -31,7 +31,7 @@
 - **Verification**: `npx vitest run tests/progress-display*.test.ts` — all tests pass. Grep for `countFindings.*progress-display` across `src/` and `tests/` returns zero matches.
 
 ### TASK-006a: Refactor ConsolidationCheckpoint interface to use structured types
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: In `src/consolidation-checkpoint.ts`, change the `ConsolidationCheckpoint` interface fields from `string | null` to structured types for the three double-serialized fields: `dedupOutput: ConsolidationResult | null`, `reassignOutput: Finding[] | null`, `hierarchyOutput: UIAreaGroup[] | null`. Import the required types (`ConsolidationResult`, `Finding`, `UIAreaGroup`) from their source modules. Keep `formatReportOutput` and `discoveryMergeOutput` as `string | null` since they hold actual text content. Update `readConsolidationCheckpoint()` validation: for the three changed fields, validate they are objects/arrays or null instead of strings. Update `createEmptyConsolidationCheckpoint()` if needed (the null defaults should still work). See requirements.md section 7.
 - **Verification**: `npx vitest run tests/consolidation-checkpoint*.test.ts` — all tests pass. `npx tsc --noEmit src/consolidation-checkpoint.ts` — no type errors.
