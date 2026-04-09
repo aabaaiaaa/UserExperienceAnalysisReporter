@@ -185,7 +185,6 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     if (signalReceived) return;
     signalReceived = true;
     killAllChildProcesses();
-    display.stop();
     process.exitCode = signal === 'SIGINT' ? 130 : 143;
     if (rejectOnSignal) {
       rejectOnSignal(new SignalInterruptError(signal));

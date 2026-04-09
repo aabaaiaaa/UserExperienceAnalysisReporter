@@ -31,6 +31,7 @@ import {
   formatConsolidatedReport,
   HierarchicalFinding,
   UIAreaGroup,
+  generatePlanTemplate,
 } from '../src/consolidation.js';
 import { Finding, InstanceReport } from '../src/report.js';
 
@@ -2496,5 +2497,71 @@ describe('copyScreenshots with skipExisting', () => {
     expect(existsSync(join(testOutputDir, 'screenshots', 'UXR-005.png'))).toBe(true);
     const content = readFileSync(join(testOutputDir, 'screenshots', 'UXR-005.png'), 'utf-8');
     expect(content).toBe('new-image');
+  });
+});
+
+describe('generatePlanTemplate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('sends correct prompt structure containing discovery content', async () => {
+    const discoveryContent = '## Navigation\nMain nav with 5 links\n## Dashboard\nWidgets and charts';
+
+    mockedRunClaude.mockResolvedValueOnce({
+      success: true,
+      exitCode: 0,
+      stdout: '## Nav\n- Main nav\n## Dashboard\n- Widgets',
+      stderr: '',
+    });
+
+    await generatePlanTemplate(discoveryContent);
+
+    expect(mockedRunClaude).toHaveBeenCalledTimes(1);
+    const callArgs = mockedRunClaude.mock.calls[0][0];
+    expect(callArgs.prompt).toContain(discoveryContent);
+    expect(callArgs.prompt).toContain('## headings');
+    expect(callArgs.prompt).toContain('bullet points');
+  });
+
+  it('returns Claude output on success', async () => {
+    const discoveryContent = 'Raw discovery data';
+    const expectedOutput = '## Nav\n- Main nav\n## Dashboard\n- Widgets';
+
+    mockedRunClaude.mockResolvedValueOnce({
+      success: true,
+      exitCode: 0,
+      stdout: expectedOutput,
+      stderr: '',
+    });
+
+    const result = await generatePlanTemplate(discoveryContent);
+
+    expect(result).toBe(expectedOutput);
+  });
+
+  it('falls back to raw discovery on Claude failure', async () => {
+    const discoveryContent = 'Raw discovery content here';
+
+    mockedRunClaude.mockResolvedValueOnce({
+      success: false,
+      exitCode: 1,
+      stdout: '',
+      stderr: 'error',
+    });
+
+    const result = await generatePlanTemplate(discoveryContent);
+
+    expect(result).toBe(discoveryContent);
+  });
+
+  it('falls back to raw discovery on exception', async () => {
+    const discoveryContent = 'Raw discovery content here';
+
+    mockedRunClaude.mockRejectedValueOnce(new Error('spawn failed'));
+
+    const result = await generatePlanTemplate(discoveryContent);
+
+    expect(result).toBe(discoveryContent);
   });
 });

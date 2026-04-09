@@ -33,7 +33,7 @@
 - **Verification**: `npx vitest run tests/consolidation.test.ts --reporter=verbose` — all tests pass including the new one.
 
 ### TASK-006: Remove duplicate display.stop() call
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `orchestrator.ts`, remove the `display.stop()` call from the signal handler (line ~188). The `finally` block (line ~495) already calls `display.stop()` and runs regardless of exit path. The signal handler should only set the cancellation flag. See requirements.md section A6.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts --reporter=verbose` — all existing tests pass.
@@ -41,7 +41,7 @@
 ## Part B: Plan Subcommand
 
 ### TASK-007a: Add plan subcommand parsing to CLI
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Modify `cli.ts` to detect `plan` as the first positional argument (first arg not starting with `--`). When detected, parse the remaining flags and route to a plan subcommand handler. The plan subcommand accepts: `--url` (required), `--intro`, `--scope`, `--plan`, `--instances` (default 1), `--rounds` (default 1), `--output` (default `.`), `--keep-temp`, `--verbose`, `--suppress-open`, `--dry-run`. Validation: `--url` required; if `--instances > 1` without `--plan`, warn and fall back to 1; `--append` with plan warns it's not applicable. Export a parsed config type for the plan subcommand. Do NOT implement the orchestration — just the CLI parsing and validation. See requirements.md section B2.
 - **Verification**: `npx vitest run tests/cli.test.ts --reporter=verbose` — all existing tests pass plus new tests for plan subcommand parsing, validation, and edge cases.
@@ -53,19 +53,19 @@
 - **Verification**: `npx vitest run tests/cli.test.ts --reporter=verbose` — all tests pass.
 
 ### TASK-008: Build discovery-only instance prompt
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a `buildDiscoveryPrompt()` function to `instance-manager.ts` (or a new `plan-prompt.ts` module if instance-manager is too large). This prompt variant shares structure with `buildInstancePrompt()` but: (1) removes `buildReportInstructions()` entirely — no findings, no report.md, (2) reframes plan chunk as "Areas to Explore", (3) reframes scope as exploration guidance not evaluation criteria, (4) replaces the analysis process instructions with discovery-focused instructions (navigate, screenshot, document areas/elements/features, go deep into sub-pages and modals), (5) when no plan chunk is provided (single instance, no --plan), instructs Claude to explore the entire site freely. Includes the same checkpoint and screenshot instructions as the main prompt. See requirements.md section B3.
 - **Verification**: `npx vitest run tests/instance-manager.test.ts --reporter=verbose` — new tests verify prompt includes discovery/screenshot/checkpoint instructions but NOT report instructions, with and without plan chunk.
 
 ### TASK-009: Build plan template generation
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a function (e.g., `generatePlanTemplate()`) that takes consolidated discovery content and uses a Claude call (via `withRateLimitRetry`) to produce a clean plan template in `--plan`-compatible format: `## Area` headings with `- Sub-item` bullets. The prompt instructs Claude to structure areas hierarchically, order logically (navigation first, settings last), keep entries concise. Fallback: if Claude call fails, return the raw consolidated discovery content. See requirements.md section B5.
 - **Verification**: `npx vitest run tests/consolidation.test.ts --reporter=verbose` — new tests verify prompt format, output structure, and fallback behavior when Claude fails.
 
 ### TASK-010: Build discovery HTML report generator
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a `formatDiscoveryHtml()` function (in a new `discovery-html.ts` module or in `html-report.ts`). Takes consolidated discovery markdown and a screenshots directory path. Produces a self-contained HTML document with: (1) header with metadata (URL, date, instance count, rounds), (2) nested table of contents reflecting area hierarchy, (3) collapsible `<details>` sections for each area showing navigation path, elements found, criteria noted, and inline base64 screenshots, (4) nested sub-areas as child `<details>`, (5) same CSS foundation as existing report.html for visual consistency. Screenshots matched to areas by filename references in discovery content; unmatched screenshots shown in a general section. See requirements.md section B6.
 - **Verification**: `npx vitest run tests/discovery-html.test.ts --reporter=verbose` — tests verify HTML includes TOC, nested sections, embedded screenshots, handles missing screenshots gracefully.

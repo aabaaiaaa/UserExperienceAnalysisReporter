@@ -22,6 +22,20 @@ export interface ParsedArgs {
   rateLimitRetries: number;
 }
 
+export interface ParsedPlanArgs {
+  url: string;
+  intro: string;
+  plan: string;
+  scope: string;
+  instances: number;
+  rounds: number;
+  output: string;
+  keepTemp: boolean;
+  dryRun: boolean;
+  verbose: boolean;
+  suppressOpen: boolean;
+}
+
 const USAGE = `Usage:
   uxreview --url <url> --intro <text|filepath> --plan <text|filepath> [options]
   uxreview --show-default-scope
@@ -52,6 +66,27 @@ Options:
   --suppress-open          Do not open the HTML report in the browser after completion
   --help                   Show this help message
   --version                Show the version number`;
+
+const PLAN_USAGE = `Usage:
+  uxreview plan --url <url> [options]
+
+Required:
+  --url <url>              URL of the web application to analyze
+
+Options:
+  --intro <text|filepath>  Introduction/context about the app (inline text or file path)
+  --plan <text|filepath>   Broad exploration areas to focus on (inline text or file path)
+  --scope <text|filepath>  Custom evaluation scope (inline text or file path)
+                           Defaults to the built-in scope if not provided
+  --instances <n>          Number of parallel Claude Code instances (default: 1)
+                           Requires --plan when > 1 to distribute work across instances
+  --rounds <n>             Number of review rounds per instance (default: 1)
+  --output <dir>           Output directory for deliverables (default: . current directory)
+  --keep-temp              Preserve the .uxreview-temp/ working directory after the run
+  --dry-run                Preview work distribution without running instances
+  --verbose                Enable debug logging to stderr
+  --suppress-open          Do not open the HTML report in the browser after completion
+  --help                   Show this help message`;
 
 /**
  * Resolve a CLI value that could be either a file path or inline text.
@@ -246,5 +281,153 @@ export function parseArgs(argv: string[]): ParsedArgs {
     maxRetries: maxRetriesRaw !== undefined && maxRetriesRaw !== true ? Number(maxRetriesRaw) : MAX_RETRIES,
     instanceTimeout: instanceTimeoutRaw !== undefined && instanceTimeoutRaw !== true ? Number(instanceTimeoutRaw) : INSTANCE_TIMEOUT_MS / 60_000,
     rateLimitRetries: rateLimitRetriesRaw !== undefined && rateLimitRetriesRaw !== true ? Number(rateLimitRetriesRaw) : MAX_RATE_LIMIT_RETRIES,
+  };
+}
+
+/**
+ * Detect whether the first positional argument is a known subcommand.
+ * Returns the subcommand name or null if none is found.
+ */
+export function detectSubcommand(argv: string[]): 'plan' | null {
+  if (argv.length > 0 && !argv[0].startsWith('--') && argv[0] === 'plan') {
+    return 'plan';
+  }
+  return null;
+}
+
+function printPlanUsageAndExit(error?: string): never {
+  if (error) {
+    console.error(`Error: ${error}\n`);
+  }
+  console.log(PLAN_USAGE);
+  process.exit(error ? 1 : 0);
+}
+
+/**
+ * Parse raw argv for the plan subcommand (argv should NOT include the 'plan' word).
+ */
+function parsePlanRawArgs(argv: string[]): Map<string, string | true> {
+  const args = new Map<string, string | true>();
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith('--')) {
+      printPlanUsageAndExit(`Unexpected argument: ${arg}`);
+    }
+
+    const key = arg.slice(2);
+
+    // Boolean flags (no value)
+    if (key === 'help' || key === 'keep-temp' || key === 'dry-run' || key === 'verbose' || key === 'suppress-open' || key === 'append') {
+      args.set(key, true);
+      continue;
+    }
+
+    // All other flags require a value
+    const next = argv[i + 1];
+    if (next === undefined || next.startsWith('--')) {
+      printPlanUsageAndExit(`Missing value for --${key}`);
+    }
+    args.set(key, next);
+    i++; // skip value
+  }
+
+  return args;
+}
+
+export function parsePlanArgs(argv: string[]): ParsedPlanArgs {
+  // Strip 'plan' subcommand if present at the start
+  const args = argv[0] === 'plan' ? argv.slice(1) : argv;
+  const raw = parsePlanRawArgs(args);
+
+  // Handle --help
+  if (raw.has('help')) {
+    printPlanUsageAndExit();
+  }
+
+  // Known flags for the plan subcommand
+  const planKnownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'dry-run', 'verbose', 'suppress-open', 'help', 'append', 'max-retries', 'instance-timeout', 'rate-limit-retries']);
+
+  // Check for unknown flags
+  for (const key of raw.keys()) {
+    if (!planKnownFlags.has(key)) {
+      printPlanUsageAndExit(`Unknown option: --${key}`);
+    }
+  }
+
+  // Warn about flags not applicable to the plan subcommand
+  if (raw.has('append')) {
+    console.error('Warning: --append is not applicable to the plan subcommand and will be ignored');
+  }
+  if (raw.has('max-retries')) {
+    console.error('Warning: --max-retries is not applicable to the plan subcommand and will be ignored');
+  }
+  if (raw.has('instance-timeout')) {
+    console.error('Warning: --instance-timeout is not applicable to the plan subcommand and will be ignored');
+  }
+  if (raw.has('rate-limit-retries')) {
+    console.error('Warning: --rate-limit-retries is not applicable to the plan subcommand and will be ignored');
+  }
+
+  // Validate required params
+  const url = raw.get('url');
+  if (!url || url === true) {
+    printPlanUsageAndExit('--url is required');
+  }
+
+  // Validate URL
+  if (!isValidUrl(url)) {
+    printPlanUsageAndExit(`Invalid URL: ${url} (must be http:// or https://)`);
+  }
+
+  // Validate numeric params
+  const instancesRaw = raw.get('instances');
+  if (instancesRaw !== undefined && instancesRaw !== true) {
+    if (!isPositiveInteger(instancesRaw)) {
+      printPlanUsageAndExit('--instances must be a positive integer');
+    }
+  }
+
+  const roundsRaw = raw.get('rounds');
+  if (roundsRaw !== undefined && roundsRaw !== true) {
+    if (!isPositiveInteger(roundsRaw)) {
+      printPlanUsageAndExit('--rounds must be a positive integer');
+    }
+  }
+
+  // Resolve text-or-file params
+  const introRaw = raw.get('intro');
+  const resolvedIntro = (introRaw && introRaw !== true) ? resolveTextOrFile(introRaw) : '';
+
+  const planRaw = raw.get('plan');
+  const resolvedPlan = (planRaw && planRaw !== true) ? resolveTextOrFile(planRaw) : '';
+
+  const scopeRaw = raw.get('scope');
+  const resolvedScope = (scopeRaw && scopeRaw !== true)
+    ? resolveTextOrFile(scopeRaw)
+    : DEFAULT_SCOPE;
+
+  // Determine instances — default 1, but warn and fall back to 1 if > 1 without --plan
+  let instances = instancesRaw !== undefined && instancesRaw !== true ? Number(instancesRaw) : 1;
+  if (instances > 1 && !resolvedPlan) {
+    console.error('Warning: --instances > 1 requires --plan to distribute work; falling back to 1 instance');
+    instances = 1;
+  }
+
+  return {
+    url,
+    intro: resolvedIntro,
+    plan: resolvedPlan,
+    scope: resolvedScope,
+    instances,
+    rounds: roundsRaw !== undefined && roundsRaw !== true ? Number(roundsRaw) : 1,
+    output: (() => {
+      const outputRaw = raw.get('output');
+      return typeof outputRaw === 'string' ? outputRaw : '.';
+    })(),
+    keepTemp: raw.has('keep-temp'),
+    dryRun: raw.has('dry-run'),
+    verbose: raw.has('verbose'),
+    suppressOpen: raw.has('suppress-open'),
   };
 }

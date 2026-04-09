@@ -3,6 +3,7 @@ import { resolve, join } from 'node:path';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import {
   buildInstancePrompt,
+  buildDiscoveryPrompt,
   spawnInstance,
   spawnInstances,
   runInstanceRounds,
@@ -674,5 +675,96 @@ describe('onProgressUpdate callback', () => {
 
     const result = await runInstanceRounds({ ...BASE_ROUND_CONFIG, progress });
     expect(result.status).toBe('completed');
+  });
+});
+
+describe('buildDiscoveryPrompt', () => {
+  it('includes the target URL', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    expect(prompt).toContain('https://example.com/app');
+  });
+
+  it('includes the intro text', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    expect(prompt).toContain('This is a test app for reviewing UX.');
+  });
+
+  it('includes discovery instructions', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    // buildDiscoveryInstructions outputs the "Discovery Document:" header
+    expect(prompt).toContain('Discovery Document:');
+    // It also includes the discovery entry format
+    expect(prompt).toContain('Track what you explore');
+  });
+
+  it('includes screenshot instructions', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    // buildScreenshotInstructions outputs the "Screenshots Directory:" header
+    expect(prompt).toContain('Screenshots Directory:');
+    expect(prompt).toContain('Capture screenshots');
+  });
+
+  it('does NOT include report instructions', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    // buildReportInstructions outputs "Report Document:" and severity-related text
+    expect(prompt).not.toContain('report.md');
+    expect(prompt).not.toContain('### 2. Report');
+    expect(prompt).not.toContain('Severity');
+    expect(prompt).not.toContain('critical | major | minor | suggestion');
+  });
+
+  it('includes "Areas to Explore" and plan chunk content when planChunk is provided', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    expect(prompt).toContain('Areas to Explore');
+    expect(prompt).toContain('Review main nav bar');
+    expect(prompt).toContain('Check breadcrumb trail');
+  });
+
+  it('includes free exploration instructions when planChunk is empty', () => {
+    const emptyPlanConfig: InstanceConfig = {
+      ...BASE_CONFIG,
+      planChunk: '',
+    };
+    const prompt = buildDiscoveryPrompt(emptyPlanConfig);
+    expect(prompt).toContain('Explore the entire site freely');
+    expect(prompt).not.toContain('Areas to Explore');
+  });
+
+  it('includes free exploration instructions when planChunk is whitespace only', () => {
+    const whitespacePlanConfig: InstanceConfig = {
+      ...BASE_CONFIG,
+      planChunk: '   \n  ',
+    };
+    const prompt = buildDiscoveryPrompt(whitespacePlanConfig);
+    expect(prompt).toContain('Explore the entire site freely');
+    expect(prompt).not.toContain('Areas to Explore');
+  });
+
+  it('includes checkpoint instructions with frequent-update language', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    expect(prompt).toContain('checkpoint');
+    expect(prompt).toContain('EVERY page navigation');
+    expect(prompt).toContain('EVERY screenshot');
+    expect(prompt).toContain('real time');
+  });
+
+  it('frames scope as exploration guidance, not evaluation criteria', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    expect(prompt).not.toContain('Evaluate the application against');
+    expect(prompt).toContain('Exploration Guidance');
+    expect(prompt).toContain('things to look for during exploration');
+  });
+
+  it('includes checkpoint JSON schema with correct instance ID', () => {
+    const prompt = buildDiscoveryPrompt({ ...BASE_CONFIG, instanceNumber: 2 });
+    expect(prompt).toContain('"instanceId": 2');
+  });
+
+  it('uses instance-scoped screenshot naming', () => {
+    const prompt = buildDiscoveryPrompt(BASE_CONFIG);
+    expect(prompt).toContain('I1-UXR-');
+
+    const prompt2 = buildDiscoveryPrompt({ ...BASE_CONFIG, instanceNumber: 3 });
+    expect(prompt2).toContain('I3-UXR-');
   });
 });

@@ -1,7 +1,8 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runClaude } from './claude-cli.js';
-import { withRateLimitRetry, sleep } from './rate-limit.js';
+import { withRateLimitRetry, sleep, RateLimitRetryState } from './rate-limit.js';
+import { debug } from './logger.js';
 import { readDiscoveryContent } from './discovery.js';
 import { getInstancePaths } from './file-manager.js';
 import { readInstanceReport, Finding, InstanceReport, Severity } from './report.js';
@@ -1105,4 +1106,48 @@ export async function consolidateDiscoveryDocs(
 export function writeConsolidatedDiscovery(outputDir: string, content: string): void {
   const outputPath = join(outputDir, 'discovery.md');
   writeFileSync(outputPath, content + '\n', 'utf-8');
+}
+
+/**
+ * Generate a plan template from consolidated discovery content using Claude.
+ *
+ * Transforms raw discovery content (areas, navigation paths, elements, sub-areas)
+ * into a structured plan with `## Area` headings and `- Sub-area` bullets,
+ * which is the format expected by `extractAreasFromPlanChunk()`.
+ *
+ * Falls back to returning the raw discovery content if the Claude call fails.
+ */
+export async function generatePlanTemplate(
+  discoveryContent: string,
+  retryState?: RateLimitRetryState,
+): Promise<string> {
+  const prompt = `You are a UX analysis planning assistant. Below is raw discovery content from analyzing a web application. It contains information about UI areas, navigation paths, interactive elements, and sub-areas.
+
+Transform this into a clean plan template using the following format:
+- Use ## headings for each top-level area (e.g., ## Navigation, ## Dashboard)
+- Under each area heading, use bullet points (- ) for sub-areas or features
+- Keep entries concise but include enough detail to know what each area covers
+- Order logically: navigation/header first, then main content areas, then settings/footer last
+- Output ONLY the plan document — no commentary, no instructions, no markdown fences
+
+DISCOVERY CONTENT:
+
+${discoveryContent}`;
+
+  try {
+    const result = await withRateLimitRetry(
+      () => runClaude({ prompt }),
+      { sleepFn: sleep, retryState },
+    );
+
+    if (!result.success) {
+      debug(`generatePlanTemplate: Claude call failed (exit ${result.exitCode}): ${result.stderr}`);
+      return discoveryContent;
+    }
+
+    return result.stdout;
+  } catch (err) {
+    debug(`generatePlanTemplate: exception during Claude call: ${err}`);
+    return discoveryContent;
+  }
 }
