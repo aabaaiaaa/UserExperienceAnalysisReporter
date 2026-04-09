@@ -1,61 +1,83 @@
-# Iteration 6 Tasks
+# Iteration 7 Tasks
 
-### TASK-001: Add screenshot counting to progress display
-- **Status**: done
+## Part A: Technical Debt
+
+### TASK-001: Move markRateLimited tests to dedicated file
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: In `progress-display.ts`, modify `pollCheckpoints()` to count screenshots for each running instance using `listScreenshots()` from `screenshots.ts`. Store the total count. In `formatProgressLine()`, append `, N screenshots` after the findings count when N > 0. See requirements.md §1 for display format and design decisions.
-- **Verification**: `npx vitest run tests/progress-display.test.ts` — all existing tests pass plus new test(s) verifying screenshot count appears in the formatted progress line when count > 0 and is absent when count is 0.
+- **Description**: Move the two `ProgressDisplay.markRateLimited` tests from `tests/coverage-gaps.test.ts:255-276` to a new file `tests/progress-display-rate-limit.test.ts`. The new file uses a static `import { ProgressDisplay } from '../src/progress-display.js'` — no dynamic import, no mocks. Remove the `// ─── progress-display: markRateLimited` section from coverage-gaps.test.ts entirely. See requirements.md section A1.
+- **Verification**: `npx vitest run tests/progress-display-rate-limit.test.ts tests/coverage-gaps.test.ts --reporter=verbose` — both files pass, no timeouts.
 
-### TASK-002: Add file liveness signal to progress display
-- **Status**: done
-- **Dependencies**: TASK-001
-- **Description**: In `progress-display.ts`, extend `pollCheckpoints()` to check `mtime` (via `fs.statSync`) of each running instance's files: `discovery.md`, `report.md`, `checkpoint.json`, and the `screenshots/` directory. Track the most recent mtime across all instances. In `formatProgressLine()`, append ` · active Xs ago` when file activity has been observed, where X is seconds since the most recent mtime. Silently skip files that don't exist yet; catch `statSync` errors to avoid crashing the render loop. See requirements.md §2 for full details.
-- **Verification**: `npx vitest run tests/progress-display.test.ts` — all existing tests pass plus new test(s) verifying liveness signal appears with correct format when files have recent mtime, and is absent when no activity.
-
-### TASK-003: Strengthen checkpoint update prompt in instance-manager
-- **Status**: done
+### TASK-002: Add debug logging to safeStatMtimeMs bare catch
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: In `instance-manager.ts`, rewrite the checkpoint instruction section in `buildInstancePrompt()` (currently around line 102: "After each significant step, write a JSON checkpoint"). Replace with explicit, emphatic instructions demanding checkpoint updates after EVERY page navigation, EVERY screenshot, and EVERY finding. Emphasize that the checkpoint is how the user tracks progress in real time. See requirements.md §3 for tone and design decisions. The checkpoint JSON structure itself does not change.
-- **Verification**: `npx vitest run tests/instance-manager.test.ts` — existing tests pass. Add or update a test verifying the prompt string no longer contains "significant step" and does contain the stronger checkpoint language (e.g., check for keywords like "every screenshot" or "every navigation").
+- **Description**: In `progress-display.ts:379-384`, change `catch` to `catch (err)` and add `debug()` call before returning `null`. Import `debug` from `./logger.js` if not already imported. Add a targeted test verifying `safeStatMtimeMs()` returns `null` on error and calls `debug()`. See requirements.md section A2.
+- **Verification**: `npx vitest run tests/progress-display.test.ts --reporter=verbose` — all tests pass including the new one.
 
-### TASK-004a: Create shared test cleanup helper with EBUSY retry
-- **Status**: done
+### TASK-003: Add debug logging to consolidation-checkpoint.ts bare catch
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Create `tests/test-helpers.ts` with an async `cleanTestDirs(testBase: string)` function that mirrors the retry logic in `file-manager.ts:57-78`: up to 5 attempts, catches EBUSY/EPERM errors, linear backoff (100ms * attempt), throws immediately on other errors or after max attempts exhausted. Export this function for use by integration test files.
-- **Verification**: `npx vitest run tests/test-helpers.test.ts` — add a small test file verifying: (1) successful deletion on first attempt, (2) retry on EBUSY then success, (3) throw after max attempts. Mock `rmSync` to simulate errors.
+- **Description**: In `consolidation-checkpoint.ts:130`, change outer `catch` to `catch (err)` and add `debug()` call before returning `null`. Import `debug` from `./logger.js` if not already imported. Add a targeted test verifying `readConsolidationCheckpoint()` returns `null` on invalid JSON and calls `debug()`. See requirements.md section A3.
+- **Verification**: `npx vitest run tests/consolidation-checkpoint.test.ts --reporter=verbose` — all tests pass including the new one.
 
-### TASK-004b: Replace cleanTestDirs in integration-happy-path and integration-failure-retry
-- **Status**: done
-- **Dependencies**: TASK-004a
-- **Description**: In `tests/integration-happy-path.test.ts` and `tests/integration-failure-retry.test.ts`, replace the local `cleanTestDirs()` function with an import of the shared helper from `tests/test-helpers.ts`. Update the `afterEach` hook to be async (use `async () => { await cleanTestDirs(TEST_BASE); }`). Remove the old `cleanTestDirs` function and any now-unused `rmSync` import.
-- **Verification**: `npx vitest run tests/integration-happy-path.test.ts tests/integration-failure-retry.test.ts` — all tests pass.
-
-### TASK-004c: Replace cleanTestDirs in integration-edge-cases and integration-append-mode
-- **Status**: done
-- **Dependencies**: TASK-004a
-- **Description**: Same as TASK-004b but for `tests/integration-edge-cases.test.ts` and `tests/integration-append-mode.test.ts`. Replace local `cleanTestDirs()` with the shared helper, make `afterEach` async, remove old function and unused imports.
-- **Verification**: `npx vitest run tests/integration-edge-cases.test.ts tests/integration-append-mode.test.ts` — all tests pass.
-
-### TASK-004d: Replace cleanTestDirs in remaining 3 integration test files
-- **Status**: done
-- **Dependencies**: TASK-004a
-- **Description**: Same as TASK-004b but for `tests/integration-dedup-consolidation.test.ts`, `tests/integration-multi-instance.test.ts`, and `tests/consolidation-resume.test.ts`. Replace local `cleanTestDirs()` with the shared helper, make `afterEach` async, remove old function and unused imports.
-- **Verification**: `npx vitest run tests/integration-dedup-consolidation.test.ts tests/integration-multi-instance.test.ts tests/consolidation-resume.test.ts` — all tests pass.
-
-### TASK-005: Fix bare catch block in checkpoint.ts
-- **Status**: done
+### TASK-004: Preserve original stderr on subprocess timeout
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: In `checkpoint.ts`, change the bare `catch` block in `readCheckpoint()` (line 61) to `catch (err)` and add a `debug()` call logging the error before returning `null`. Import `debug` from `./logger.js` if not already imported. This matches the pattern applied to `file-manager.ts` in iteration 5. See requirements.md §5.
-- **Verification**: `npx vitest run tests/checkpoint.test.ts` — all existing tests pass plus a new test verifying `readCheckpoint()` returns `null` when the checkpoint file contains invalid JSON.
+- **Description**: In `claude-cli.ts:98-101`, when the subprocess times out and stderr already contains content, preserve both the timeout message and the original stderr. When stderr is empty, use just the timeout message. Add tests for both cases (stderr non-empty and stderr empty on timeout). See requirements.md section A4.
+- **Verification**: `npx vitest run tests/claude-cli.test.ts --reporter=verbose` — all tests pass including the new ones.
 
-### TASK-006: Remove redundant undefined check in consolidation-checkpoint.ts
-- **Status**: done
+### TASK-005: Fix fragile area heading regex in consolidation.ts
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: In `consolidation-checkpoint.ts:112`, simplify the validation condition from `if (parsed[field] !== null && (typeof parsed[field] !== 'object' || parsed[field] === undefined))` to `if (parsed[field] !== null && typeof parsed[field] !== 'object')`. The `=== undefined` check is redundant because `typeof undefined` is `'undefined'`, which already fails the `typeof !== 'object'` check. See requirements.md §6.
-- **Verification**: `npx vitest run tests/consolidation-resume.test.ts` — all existing checkpoint validation tests pass.
+- **Description**: In `consolidation.ts:412-414`, change the `^## UXR-` exclusion pattern to `^## UXR-\d+:` (or similar) so it only skips actual finding ID headings (like `## UXR-001: Title`), not area names that happen to start with "UXR-". Add a test verifying an area named "UXR-Custom Area" is correctly parsed, while `## UXR-001: Finding` is still skipped. See requirements.md section A5.
+- **Verification**: `npx vitest run tests/consolidation.test.ts --reporter=verbose` — all tests pass including the new one.
 
-### TASK-007: Add help and show-default-scope to knownFlags set in cli.ts
-- **Status**: done
+### TASK-006: Remove duplicate display.stop() call
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: In `cli.ts:157`, add `'help'` and `'show-default-scope'` to the `knownFlags` set. These flags are handled before the unknown-flag check but are missing from the set. See requirements.md §7.
-- **Verification**: `npx vitest run tests/cli.test.ts` — all existing CLI tests pass.
+- **Description**: In `orchestrator.ts`, remove the `display.stop()` call from the signal handler (line ~188). The `finally` block (line ~495) already calls `display.stop()` and runs regardless of exit path. The signal handler should only set the cancellation flag. See requirements.md section A6.
+- **Verification**: `npx vitest run tests/orchestrator.test.ts --reporter=verbose` — all existing tests pass.
+
+## Part B: Plan Subcommand
+
+### TASK-007a: Add plan subcommand parsing to CLI
+- **Status**: pending
+- **Dependencies**: none
+- **Description**: Modify `cli.ts` to detect `plan` as the first positional argument (first arg not starting with `--`). When detected, parse the remaining flags and route to a plan subcommand handler. The plan subcommand accepts: `--url` (required), `--intro`, `--scope`, `--plan`, `--instances` (default 1), `--rounds` (default 1), `--output` (default `.`), `--keep-temp`, `--verbose`, `--suppress-open`, `--dry-run`. Validation: `--url` required; if `--instances > 1` without `--plan`, warn and fall back to 1; `--append` with plan warns it's not applicable. Export a parsed config type for the plan subcommand. Do NOT implement the orchestration — just the CLI parsing and validation. See requirements.md section B2.
+- **Verification**: `npx vitest run tests/cli.test.ts --reporter=verbose` — all existing tests pass plus new tests for plan subcommand parsing, validation, and edge cases.
+
+### TASK-007b: Add plan subcommand CLI tests
+- **Status**: pending
+- **Dependencies**: TASK-007a
+- **Description**: Add tests to the CLI test file for the plan subcommand: (1) `uxreview plan --url <url>` parses correctly with defaults (instances=1, rounds=1, output='.'), (2) missing `--url` produces error, (3) `--instances 3` without `--plan` warns and falls back to 1, (4) `--append` with plan subcommand warns, (5) all valid flags are accepted. See requirements.md section B2 testing.
+- **Verification**: `npx vitest run tests/cli.test.ts --reporter=verbose` — all tests pass.
+
+### TASK-008: Build discovery-only instance prompt
+- **Status**: pending
+- **Dependencies**: none
+- **Description**: Add a `buildDiscoveryPrompt()` function to `instance-manager.ts` (or a new `plan-prompt.ts` module if instance-manager is too large). This prompt variant shares structure with `buildInstancePrompt()` but: (1) removes `buildReportInstructions()` entirely — no findings, no report.md, (2) reframes plan chunk as "Areas to Explore", (3) reframes scope as exploration guidance not evaluation criteria, (4) replaces the analysis process instructions with discovery-focused instructions (navigate, screenshot, document areas/elements/features, go deep into sub-pages and modals), (5) when no plan chunk is provided (single instance, no --plan), instructs Claude to explore the entire site freely. Includes the same checkpoint and screenshot instructions as the main prompt. See requirements.md section B3.
+- **Verification**: `npx vitest run tests/instance-manager.test.ts --reporter=verbose` — new tests verify prompt includes discovery/screenshot/checkpoint instructions but NOT report instructions, with and without plan chunk.
+
+### TASK-009: Build plan template generation
+- **Status**: pending
+- **Dependencies**: none
+- **Description**: Add a function (e.g., `generatePlanTemplate()`) that takes consolidated discovery content and uses a Claude call (via `withRateLimitRetry`) to produce a clean plan template in `--plan`-compatible format: `## Area` headings with `- Sub-item` bullets. The prompt instructs Claude to structure areas hierarchically, order logically (navigation first, settings last), keep entries concise. Fallback: if Claude call fails, return the raw consolidated discovery content. See requirements.md section B5.
+- **Verification**: `npx vitest run tests/consolidation.test.ts --reporter=verbose` — new tests verify prompt format, output structure, and fallback behavior when Claude fails.
+
+### TASK-010: Build discovery HTML report generator
+- **Status**: pending
+- **Dependencies**: none
+- **Description**: Add a `formatDiscoveryHtml()` function (in a new `discovery-html.ts` module or in `html-report.ts`). Takes consolidated discovery markdown and a screenshots directory path. Produces a self-contained HTML document with: (1) header with metadata (URL, date, instance count, rounds), (2) nested table of contents reflecting area hierarchy, (3) collapsible `<details>` sections for each area showing navigation path, elements found, criteria noted, and inline base64 screenshots, (4) nested sub-areas as child `<details>`, (5) same CSS foundation as existing report.html for visual consistency. Screenshots matched to areas by filename references in discovery content; unmatched screenshots shown in a general section. See requirements.md section B6.
+- **Verification**: `npx vitest run tests/discovery-html.test.ts --reporter=verbose` — tests verify HTML includes TOC, nested sections, embedded screenshots, handles missing screenshots gracefully.
+
+### TASK-011a: Build plan orchestration flow
+- **Status**: pending
+- **Dependencies**: TASK-007a, TASK-008, TASK-009, TASK-010
+- **Description**: Add a `runPlanDiscovery()` function (in `orchestrator.ts` or a new `plan-orchestrator.ts` module) that implements the plan subcommand flow: (1) initialize temp and output dirs, (2) distribute plan if provided and instances > 1 (reuse `distributePlan()`), (3) spawn instances with discovery-only prompt via `runInstanceRounds()` using the new `buildDiscoveryPrompt()`, (4) consolidate discoveries via `consolidateDiscoveryDocs()`, (5) generate plan template via `generatePlanTemplate()`, (6) generate discovery HTML via `formatDiscoveryHtml()`, (7) copy/rename screenshots to output dir, (8) write plan.md and discovery.html to output dir, (9) open discovery.html unless `--suppress-open`, (10) cleanup temp unless `--keep-temp`. Progress display runs during instance execution same as main command. See requirements.md section B4.
+- **Verification**: `npx vitest run tests/plan-orchestrator.test.ts --reporter=verbose` — integration-style test with mocked Claude calls verifying the full flow: instances spawned, discoveries consolidated, both output files written.
+
+### TASK-011b: Wire plan orchestration to CLI entry point
+- **Status**: pending
+- **Dependencies**: TASK-011a
+- **Description**: Connect the CLI plan subcommand handler (from TASK-007a) to the `runPlanDiscovery()` orchestration function (from TASK-011a). When `uxreview plan` is invoked, the CLI parses args, constructs the config, and calls `runPlanDiscovery()`. Handle dry-run mode (print what would happen, exit). Handle errors with the same pattern as the main command (print error, exit with code 1). See requirements.md sections B2 and B4.
+- **Verification**: `npx vitest run tests/cli.test.ts tests/plan-orchestrator.test.ts --reporter=verbose` — all tests pass, including end-to-end wiring test.
