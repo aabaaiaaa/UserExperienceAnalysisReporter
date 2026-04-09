@@ -384,6 +384,144 @@ describe('formatProgressLine', () => {
     expect(line).toContain('6 findings');
     expect(line).not.toContain('screenshots');
   });
+
+  it('shows liveness signal when latestMtime is provided in running state', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 5,
+      completedItems: 2,
+      inProgressItems: 1,
+      findingsCount: 3,
+      screenshotCount: 7,
+      startTime: now - 30000,
+      roundStartTime: now - 30000,
+      status: 'running',
+      priorRoundDurations: [],
+      latestMtime: now - 2000,
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).toContain('3 findings, 7 screenshots \u00B7 active 2s ago');
+  });
+
+  it('shows liveness signal with 0s when mtime equals now', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 2,
+      inProgressItems: 0,
+      findingsCount: 1,
+      screenshotCount: 0,
+      startTime: now - 10000,
+      roundStartTime: now - 10000,
+      status: 'running',
+      priorRoundDurations: [],
+      latestMtime: now,
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).toContain('1 findings \u00B7 active 0s ago');
+  });
+
+  it('omits liveness signal when latestMtime is undefined', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 2,
+      inProgressItems: 0,
+      findingsCount: 1,
+      screenshotCount: 0,
+      startTime: now - 10000,
+      roundStartTime: now - 10000,
+      status: 'running',
+      priorRoundDurations: [],
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).not.toContain('active');
+    expect(line).not.toContain('\u00B7');
+  });
+
+  it('does not show liveness signal in completed state even if latestMtime is set', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 4,
+      inProgressItems: 0,
+      findingsCount: 3,
+      screenshotCount: 2,
+      startTime: now - 60000,
+      roundStartTime: now - 60000,
+      status: 'completed',
+      completedTime: now,
+      priorRoundDurations: [],
+      latestMtime: now - 5000,
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).not.toContain('active');
+    expect(line).not.toContain('\u00B7');
+    expect(line).toContain(ANSI_GREEN);
+  });
+
+  it('does not show liveness signal in failed state even if latestMtime is set', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 2,
+      inProgressItems: 0,
+      findingsCount: 1,
+      screenshotCount: 0,
+      startTime: now - 10000,
+      roundStartTime: now - 10000,
+      status: 'failed',
+      error: 'Some error',
+      priorRoundDurations: [],
+      latestMtime: now - 3000,
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).not.toContain('active');
+    expect(line).not.toContain('\u00B7');
+    expect(line).toContain(ANSI_RED);
+  });
+
+  it('clamps negative age to 0s when latestMtime is in the future', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 2,
+      inProgressItems: 0,
+      findingsCount: 1,
+      screenshotCount: 0,
+      startTime: now - 10000,
+      roundStartTime: now - 10000,
+      status: 'running',
+      priorRoundDurations: [],
+      latestMtime: now + 5000,
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).toContain('active 0s ago');
+  });
 });
 
 describe('formatConsolidationLine', () => {

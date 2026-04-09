@@ -1,8 +1,10 @@
+import { statSync } from 'node:fs';
 import { readCheckpoint, type Checkpoint } from './checkpoint.js';
 import { RENDER_INTERVAL_MS } from './config.js';
+import { getInstancePaths } from './file-manager.js';
+import { debug } from './logger.js';
 import { readReportContent, countFindings } from './report.js';
 import { listScreenshots } from './screenshots.js';
-import { debug } from './logger.js';
 
 export interface InstanceProgress {
   instanceNumber: number;
@@ -23,6 +25,7 @@ export interface InstanceProgress {
   rateLimitBackoffMs?: number;
   completedTime?: number;
   priorRoundDurations: number[];
+  latestMtime?: number;
 }
 
 export type ConsolidationStatus = 'idle' | 'running' | 'completed';
@@ -177,6 +180,10 @@ export function formatProgressLine(progress: InstanceProgress, now?: number): st
   let statsStr = `${progress.completedItems}/${progress.totalItems} areas, ${progress.findingsCount} findings`;
   if (progress.screenshotCount > 0) {
     statsStr += `, ${progress.screenshotCount} screenshots`;
+  }
+  if (progress.latestMtime != null) {
+    const agoSec = Math.max(0, Math.round((currentTime - progress.latestMtime) / 1000));
+    statsStr += ` \u00B7 active ${agoSec}s ago`;
   }
   return `${prefix} | ${statsStr} | ${elapsedStr}${etaStr}`;
 }
@@ -366,6 +373,18 @@ export class ProgressDisplay {
   }
 
   /**
+   * Safely stat a file and return its mtime in milliseconds.
+   * Returns null if the file doesn't exist or the stat fails.
+   */
+  private safeStatMtimeMs(filePath: string): number | null {
+    try {
+      return statSync(filePath).mtimeMs;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Poll checkpoint and report files for all running instances and
    * update their progress. Called once per render tick so the display
    * reflects live subprocess progress.
@@ -385,6 +404,22 @@ export class ProgressDisplay {
       // Count screenshots for this instance
       const screenshots = listScreenshots(instanceNumber);
       progress.screenshotCount = screenshots.length;
+
+      // Check file modification times for liveness signal
+      const paths = getInstancePaths(instanceNumber);
+      const mtimes = [
+        this.safeStatMtimeMs(paths.discovery),
+        this.safeStatMtimeMs(paths.report),
+        this.safeStatMtimeMs(paths.checkpoint),
+        this.safeStatMtimeMs(paths.screenshots),
+      ];
+      let latestMtime: number | null = null;
+      for (const mt of mtimes) {
+        if (mt != null && (latestMtime == null || mt > latestMtime)) {
+          latestMtime = mt;
+        }
+      }
+      progress.latestMtime = latestMtime ?? undefined;
 
       const checkpoint = readCheckpoint(instanceNumber);
       if (checkpoint) {

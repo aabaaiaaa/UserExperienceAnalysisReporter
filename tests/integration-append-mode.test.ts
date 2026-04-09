@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { cleanTestDirs } from './test-helpers.js';
 
 // --- Test-isolated directory structure ---
 const TEST_BASE = resolve('.uxreview-integ-append-test');
@@ -176,12 +177,6 @@ function createTestDirs() {
   mkdirSync(join(OUTPUT_DIR, 'screenshots'), { recursive: true });
 }
 
-function cleanTestDirs() {
-  if (existsSync(TEST_BASE)) {
-    rmSync(TEST_BASE, { recursive: true, force: true });
-  }
-}
-
 function writeExistingOutput() {
   writeFileSync(join(OUTPUT_DIR, 'report.md'), EXISTING_REPORT, 'utf-8');
   writeFileSync(join(OUTPUT_DIR, 'discovery.md'), EXISTING_DISCOVERY, 'utf-8');
@@ -312,8 +307,8 @@ describe('Integration: Append mode — cross-run dedup and merged output', () =>
     setupRunClaudeMock();
   });
 
-  afterEach(() => {
-    cleanTestDirs();
+  afterEach(async () => {
+    await cleanTestDirs(TEST_BASE);
   });
 
   // ---------------------------------------------------------------------------

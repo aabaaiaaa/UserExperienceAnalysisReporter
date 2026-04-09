@@ -154,7 +154,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   // Check for unknown flags
-  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'append', 'dry-run', 'verbose', 'suppress-open', 'max-retries', 'instance-timeout', 'rate-limit-retries', 'version']);
+  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'append', 'dry-run', 'verbose', 'suppress-open', 'max-retries', 'instance-timeout', 'rate-limit-retries', 'version', 'help', 'show-default-scope']);
   for (const key of raw.keys()) {
     if (!knownFlags.has(key)) {
       printUsageAndExit(`Unknown option: --${key}`);

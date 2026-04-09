@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { cleanTestDirs } from './test-helpers.js';
 
 // --- Test-isolated directory structure ---
 const TEST_BASE = resolve('.uxreview-integ-consol-resume-test');
@@ -165,12 +166,6 @@ function createTestDirs() {
   mkdirSync(join(OUTPUT_DIR, 'screenshots'), { recursive: true });
 }
 
-function cleanTestDirs() {
-  if (existsSync(TEST_BASE)) {
-    rmSync(TEST_BASE, { recursive: true, force: true });
-  }
-}
-
 function writeInstanceFiles() {
   const p1 = testInstancePaths(1);
   writeFileSync(p1.discovery, MOCK_DISCOVERY_I1, 'utf-8');
@@ -309,8 +304,8 @@ describe('Integration: Consolidation checkpoint resumability', () => {
     setupRunClaudeMock();
   });
 
-  afterEach(() => {
-    cleanTestDirs();
+  afterEach(async () => {
+    await cleanTestDirs(TEST_BASE);
   });
 
   // ---------------------------------------------------------------------------

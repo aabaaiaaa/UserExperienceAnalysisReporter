@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { cleanTestDirs } from './test-helpers.js';
 
 // --- Test-isolated directory structure ---
 const TEST_BASE = resolve('.uxreview-integ-dedup-test');
@@ -319,12 +320,6 @@ function createTestDirs() {
   mkdirSync(join(OUTPUT_DIR, 'screenshots'), { recursive: true });
 }
 
-function cleanTestDirs() {
-  if (existsSync(TEST_BASE)) {
-    rmSync(TEST_BASE, { recursive: true, force: true });
-  }
-}
-
 function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
   return {
     url: 'https://example.com/app',
@@ -514,8 +509,8 @@ describe('Integration: Deduplication and consolidation', () => {
     setupRunClaudeMock();
   });
 
-  afterEach(() => {
-    cleanTestDirs();
+  afterEach(async () => {
+    await cleanTestDirs(TEST_BASE);
   });
 
   // ---------------------------------------------------------------------------
