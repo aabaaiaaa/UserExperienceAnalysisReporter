@@ -379,7 +379,8 @@ export class ProgressDisplay {
   private safeStatMtimeMs(filePath: string): number | null {
     try {
       return statSync(filePath).mtimeMs;
-    } catch {
+    } catch (err) {
+      debug(`safeStatMtimeMs failed for ${filePath}: ${err}`);
       return null;
     }
   }

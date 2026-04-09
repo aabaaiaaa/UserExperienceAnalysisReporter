@@ -135,6 +135,30 @@ describe('runClaude', () => {
     expect(result.stderr).toContain('timed out');
   });
 
+  it('preserves original stderr on subprocess timeout', async () => {
+    const promise = runClaude({ prompt: 'test', timeout: 1000 });
+    // Emit stderr before timeout
+    mockProc.stderr.emit('data', Buffer.from('partial error output'));
+    mockProc.emit('close', null, 'SIGTERM');
+    const result = await promise;
+
+    expect(result.success).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Process timed out after');
+    expect(result.stderr).toContain('partial error output');
+    expect(result.stderr).toContain('Original stderr:');
+  });
+
+  it('uses timeout message alone when stderr is empty on timeout', async () => {
+    const promise = runClaude({ prompt: 'test', timeout: 1000 });
+    mockProc.emit('close', null, 'SIGTERM');
+    const result = await promise;
+
+    expect(result.success).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe('Process timed out after 1000ms');
+  });
+
   it('passes custom cwd to subprocess', async () => {
     const promise = runClaude({ prompt: 'test', cwd: '/some/dir' });
     mockProc._simulateOutput('ok', '', 0);

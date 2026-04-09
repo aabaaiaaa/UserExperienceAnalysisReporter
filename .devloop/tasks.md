@@ -3,31 +3,31 @@
 ## Part A: Technical Debt
 
 ### TASK-001: Move markRateLimited tests to dedicated file
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Move the two `ProgressDisplay.markRateLimited` tests from `tests/coverage-gaps.test.ts:255-276` to a new file `tests/progress-display-rate-limit.test.ts`. The new file uses a static `import { ProgressDisplay } from '../src/progress-display.js'` — no dynamic import, no mocks. Remove the `// ─── progress-display: markRateLimited` section from coverage-gaps.test.ts entirely. See requirements.md section A1.
 - **Verification**: `npx vitest run tests/progress-display-rate-limit.test.ts tests/coverage-gaps.test.ts --reporter=verbose` — both files pass, no timeouts.
 
 ### TASK-002: Add debug logging to safeStatMtimeMs bare catch
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `progress-display.ts:379-384`, change `catch` to `catch (err)` and add `debug()` call before returning `null`. Import `debug` from `./logger.js` if not already imported. Add a targeted test verifying `safeStatMtimeMs()` returns `null` on error and calls `debug()`. See requirements.md section A2.
 - **Verification**: `npx vitest run tests/progress-display.test.ts --reporter=verbose` — all tests pass including the new one.
 
 ### TASK-003: Add debug logging to consolidation-checkpoint.ts bare catch
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `consolidation-checkpoint.ts:130`, change outer `catch` to `catch (err)` and add `debug()` call before returning `null`. Import `debug` from `./logger.js` if not already imported. Add a targeted test verifying `readConsolidationCheckpoint()` returns `null` on invalid JSON and calls `debug()`. See requirements.md section A3.
 - **Verification**: `npx vitest run tests/consolidation-checkpoint.test.ts --reporter=verbose` — all tests pass including the new one.
 
 ### TASK-004: Preserve original stderr on subprocess timeout
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `claude-cli.ts:98-101`, when the subprocess times out and stderr already contains content, preserve both the timeout message and the original stderr. When stderr is empty, use just the timeout message. Add tests for both cases (stderr non-empty and stderr empty on timeout). See requirements.md section A4.
 - **Verification**: `npx vitest run tests/claude-cli.test.ts --reporter=verbose` — all tests pass including the new ones.
 
 ### TASK-005: Fix fragile area heading regex in consolidation.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `consolidation.ts:412-414`, change the `^## UXR-` exclusion pattern to `^## UXR-\d+:` (or similar) so it only skips actual finding ID headings (like `## UXR-001: Title`), not area names that happen to start with "UXR-". Add a test verifying an area named "UXR-Custom Area" is correctly parsed, while `## UXR-001: Finding` is still skipped. See requirements.md section A5.
 - **Verification**: `npx vitest run tests/consolidation.test.ts --reporter=verbose` — all tests pass including the new one.

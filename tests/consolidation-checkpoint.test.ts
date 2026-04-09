@@ -102,6 +102,21 @@ describe('writeConsolidationCheckpoint / readConsolidationCheckpoint', () => {
     expect(result).toBeNull();
   });
 
+  it('logs a debug message when checkpoint read fails due to invalid JSON', async () => {
+    const logger = await import('../src/logger.js');
+    const debugSpy = vi.spyOn(logger, 'debug').mockImplementation(() => {});
+
+    writeFileSync(CHECKPOINT_PATH, 'not valid json {{{', 'utf-8');
+
+    const result = readConsolidationCheckpoint();
+    expect(result).toBeNull();
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('readConsolidationCheckpoint failed:'),
+    );
+
+    debugSpy.mockRestore();
+  });
+
   it('returns null when checkpoint is missing required fields', () => {
     writeFileSync(
       CHECKPOINT_PATH,

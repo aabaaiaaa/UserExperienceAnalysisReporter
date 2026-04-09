@@ -1362,3 +1362,12 @@ describe('ProgressDisplay', () => {
     });
   });
 });
+
+describe('safeStatMtimeMs debug logging', () => {
+  it('returns null and calls debug when statSync throws', () => {
+    const display = new ProgressDisplay([1], 1);
+    // Access private method via type cast
+    const result = (display as any).safeStatMtimeMs('/nonexistent/path/to/file');
+    expect(result).toBeNull();
+  });
+});

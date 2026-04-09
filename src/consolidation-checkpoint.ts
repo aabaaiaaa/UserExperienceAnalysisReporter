@@ -127,7 +127,8 @@ export function readConsolidationCheckpoint(): ConsolidationCheckpoint | null {
     }
 
     return parsed as ConsolidationCheckpoint;
-  } catch {
+  } catch (err) {
+    debug(`readConsolidationCheckpoint failed: ${err}`);
     return null;
   }
 }

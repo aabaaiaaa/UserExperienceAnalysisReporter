@@ -2292,6 +2292,29 @@ describe('parseConsolidatedReport', () => {
     expect(findings[1].description).toBe('Child desc');
   });
 
+  it('parses area names starting with UXR- that are not finding IDs', () => {
+    const content = [
+      '## UXR-Custom Area',
+      '### UXR-001: Some Finding',
+      '**Severity:** Medium',
+      '**Location:** /page',
+      'Description text',
+      '## Normal Area',
+      '### UXR-002: Another Finding',
+      '**Severity:** Low',
+      '**Location:** /other',
+      'More text',
+    ].join('\n');
+
+    const result = parseConsolidatedReport(content);
+    // UXR-Custom Area should be parsed as an area, not skipped
+    const finding1 = result.find(f => f.id === 'UXR-001');
+    expect(finding1?.uiArea).toBe('UXR-Custom Area');
+    // Normal Area should work as before
+    const finding2 = result.find(f => f.id === 'UXR-002');
+    expect(finding2?.uiArea).toBe('Normal Area');
+  });
+
   it('returns empty array for report with no findings', () => {
     const report = '# UX Analysis Report\n\nNo findings.\n';
     expect(parseConsolidatedReport(report)).toEqual([]);

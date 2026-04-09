@@ -411,7 +411,7 @@ export function parseConsolidatedReport(content: string): Finding[] {
 
     // Track UI area headings: ## Area Name
     const areaMatch = trimmedLine.match(/^## (.+)$/);
-    if (areaMatch && !trimmedLine.match(/^## UXR-/)) {
+    if (areaMatch && !trimmedLine.match(/^## UXR-\d+:/)) {
       currentArea = areaMatch[1].trim();
       continue;
     }

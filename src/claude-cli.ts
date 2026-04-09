@@ -98,7 +98,9 @@ export function runClaude(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
       if (signal === 'SIGTERM' && code === null) {
         resolve({
           stdout,
-          stderr: stderr || `Process timed out after ${timeout}ms`,
+          stderr: stderr
+            ? `Process timed out after ${timeout}ms. Original stderr:\n${stderr}`
+            : `Process timed out after ${timeout}ms`,
           exitCode: 1,
           success: false,
         });

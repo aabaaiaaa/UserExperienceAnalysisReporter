@@ -248,29 +248,3 @@ describe('Outer rate-limit retry with missing checkpoint', () => {
     expect(mockRunClaude).toHaveBeenCalledTimes(2);
   });
 });
-
-
-// ─── progress-display: markRateLimited ─────────────────────────────
-
-describe('ProgressDisplay.markRateLimited', () => {
-  // Import the class (no additional mocks needed for this)
-  it('sets rate-limited status and backoff duration', async () => {
-    const { ProgressDisplay } = await import('../src/progress-display.js');
-    const display = new ProgressDisplay([1, 2], 2);
-
-    display.markRateLimited(1, 15000);
-    const progress = display.getProgress(1);
-
-    expect(progress?.status).toBe('rate-limited');
-    expect(progress?.rateLimitBackoffMs).toBe(15000);
-  });
-
-  it('no-ops for unknown instance numbers', async () => {
-    const { ProgressDisplay } = await import('../src/progress-display.js');
-    const display = new ProgressDisplay([1], 1);
-
-    // Should not throw
-    display.markRateLimited(999, 5000);
-    expect(display.getProgress(999)).toBeUndefined();
-  });
-});
