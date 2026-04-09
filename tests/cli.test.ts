@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs, resolveTextOrFile, detectSubcommand, parsePlanArgs } from '../src/cli.js';
+import { DEFAULT_SCOPE } from '../src/default-scope.js';
 
 describe('cli parseArgs', () => {
   // Suppress process.exit calls during tests
@@ -235,12 +236,17 @@ describe('detectSubcommand', () => {
 });
 
 describe('parsePlanArgs', () => {
-  const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
-    throw new Error('process.exit called');
-  }) as never);
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let consoleSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
-  const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-  const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  beforeEach(() => {
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('process.exit called');
+    }) as never);
+    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -397,5 +403,55 @@ describe('parsePlanArgs', () => {
   it('accepts custom --rounds', () => {
     const result = parsePlanArgs([...planRequiredArgs, '--rounds', '3']);
     expect(result.rounds).toBe(3);
+  });
+
+  it('rejects invalid URL (not http/https)', () => {
+    expect(() => parsePlanArgs(['--url', 'ftp://example.com'])).toThrow('process.exit called');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid URL'));
+  });
+
+  it('rejects non-positive --instances value', () => {
+    expect(() => parsePlanArgs([...planRequiredArgs, '--instances', '0'])).toThrow('process.exit called');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('rejects non-numeric --instances value', () => {
+    expect(() => parsePlanArgs([...planRequiredArgs, '--instances', 'abc'])).toThrow('process.exit called');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('rejects non-positive --rounds value', () => {
+    expect(() => parsePlanArgs([...planRequiredArgs, '--rounds', '0'])).toThrow('process.exit called');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('rejects non-numeric --rounds value', () => {
+    expect(() => parsePlanArgs([...planRequiredArgs, '--rounds', 'xyz'])).toThrow('process.exit called');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('defaults scope to DEFAULT_SCOPE when --scope is not provided', () => {
+    const result = parsePlanArgs(planRequiredArgs);
+    expect(result.scope).toBe(DEFAULT_SCOPE);
+  });
+
+  it('accepts custom --scope as inline text', () => {
+    const result = parsePlanArgs([...planRequiredArgs, '--scope', 'Custom scope text']);
+    expect(result.scope).toBe('Custom scope text');
+  });
+
+  it('works end-to-end with detectSubcommand then parsePlanArgs', () => {
+    const fullArgv = ['plan', '--url', 'https://myapp.com', '--verbose', '--rounds', '2'];
+    const subcommand = detectSubcommand(fullArgv);
+    expect(subcommand).toBe('plan');
+    // parsePlanArgs handles stripping 'plan' from the front
+    const result = parsePlanArgs(fullArgv);
+    expect(result.url).toBe('https://myapp.com');
+    expect(result.verbose).toBe(true);
+    expect(result.rounds).toBe(2);
+    expect(result.instances).toBe(1);
+    expect(result.output).toBe('.');
+    expect(result.scope).toBe(DEFAULT_SCOPE);
   });
 });

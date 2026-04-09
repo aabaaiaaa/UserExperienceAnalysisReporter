@@ -47,7 +47,7 @@
 - **Verification**: `npx vitest run tests/cli.test.ts --reporter=verbose` — all existing tests pass plus new tests for plan subcommand parsing, validation, and edge cases.
 
 ### TASK-007b: Add plan subcommand CLI tests
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007a
 - **Description**: Add tests to the CLI test file for the plan subcommand: (1) `uxreview plan --url <url>` parses correctly with defaults (instances=1, rounds=1, output='.'), (2) missing `--url` produces error, (3) `--instances 3` without `--plan` warns and falls back to 1, (4) `--append` with plan subcommand warns, (5) all valid flags are accepted. See requirements.md section B2 testing.
 - **Verification**: `npx vitest run tests/cli.test.ts --reporter=verbose` — all tests pass.
@@ -71,7 +71,7 @@
 - **Verification**: `npx vitest run tests/discovery-html.test.ts --reporter=verbose` — tests verify HTML includes TOC, nested sections, embedded screenshots, handles missing screenshots gracefully.
 
 ### TASK-011a: Build plan orchestration flow
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007a, TASK-008, TASK-009, TASK-010
 - **Description**: Add a `runPlanDiscovery()` function (in `orchestrator.ts` or a new `plan-orchestrator.ts` module) that implements the plan subcommand flow: (1) initialize temp and output dirs, (2) distribute plan if provided and instances > 1 (reuse `distributePlan()`), (3) spawn instances with discovery-only prompt via `runInstanceRounds()` using the new `buildDiscoveryPrompt()`, (4) consolidate discoveries via `consolidateDiscoveryDocs()`, (5) generate plan template via `generatePlanTemplate()`, (6) generate discovery HTML via `formatDiscoveryHtml()`, (7) copy/rename screenshots to output dir, (8) write plan.md and discovery.html to output dir, (9) open discovery.html unless `--suppress-open`, (10) cleanup temp unless `--keep-temp`. Progress display runs during instance execution same as main command. See requirements.md section B4.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts --reporter=verbose` — integration-style test with mocked Claude calls verifying the full flow: instances spawned, discoveries consolidated, both output files written.
