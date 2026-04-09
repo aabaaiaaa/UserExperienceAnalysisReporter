@@ -109,7 +109,7 @@ export function readConsolidationCheckpoint(): ConsolidationCheckpoint | null {
     ] as const;
 
     for (const field of nullableStructuredFields) {
-      if (parsed[field] !== null && (typeof parsed[field] !== 'object' || parsed[field] === undefined)) {
+      if (parsed[field] !== null && typeof parsed[field] !== 'object') {
         return null;
       }
     }

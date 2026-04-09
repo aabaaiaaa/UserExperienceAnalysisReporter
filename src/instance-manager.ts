@@ -99,7 +99,9 @@ Current round: ${roundNumber}
 ${buildDiscoveryInstructions(config.instanceNumber, paths.discovery)}
 
 ### 2. Checkpoint File: ${paths.checkpoint}
-After each significant step, write a JSON checkpoint with this EXACT structure:
+**CRITICAL: Update this checkpoint file FREQUENTLY.** Write to it after EVERY page navigation, EVERY screenshot taken, and EVERY finding recorded. Do NOT wait until an area is complete — update the checkpoint as you go, after each individual action. This file is how the user tracks your progress in real time, so frequent updates are essential for the user experience.
+
+Write a JSON checkpoint with this EXACT structure:
 \`\`\`json
 {
   "instanceId": ${config.instanceNumber},
@@ -127,7 +129,7 @@ ${buildScreenshotInstructions(config.instanceNumber, paths.screenshots)}
 3. Work through each of your assigned review areas systematically.
 4. For each area, evaluate against every criterion in the evaluation scope.
 5. Document findings immediately as you discover them.
-6. Update the checkpoint after completing each area.
+6. Update the checkpoint after every navigation, screenshot, and finding — not just at area boundaries.
 7. When all assigned areas are reviewed, ensure all files are fully written.
 
 Begin your review now.`;

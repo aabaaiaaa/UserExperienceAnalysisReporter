@@ -1,6 +1,7 @@
 import { readCheckpoint, type Checkpoint } from './checkpoint.js';
 import { RENDER_INTERVAL_MS } from './config.js';
 import { readReportContent, countFindings } from './report.js';
+import { listScreenshots } from './screenshots.js';
 import { debug } from './logger.js';
 
 export interface InstanceProgress {
@@ -11,6 +12,7 @@ export interface InstanceProgress {
   completedItems: number;
   inProgressItems: number;
   findingsCount: number;
+  screenshotCount: number;
   startTime: number;
   roundStartTime: number;
   status: 'running' | 'completed' | 'failed' | 'retrying' | 'rate-limited';
@@ -151,7 +153,10 @@ export function formatProgressLine(progress: InstanceProgress, now?: number): st
   if (progress.status === 'completed') {
     const totalElapsed = (progress.completedTime ?? currentTime) - progress.startTime;
     const totalElapsedStr = formatDuration(totalElapsed);
-    const statsStr = `${progress.completedItems}/${progress.totalItems} areas, ${progress.findingsCount} findings`;
+    let statsStr = `${progress.completedItems}/${progress.totalItems} areas, ${progress.findingsCount} findings`;
+    if (progress.screenshotCount > 0) {
+      statsStr += `, ${progress.screenshotCount} screenshots`;
+    }
     return `${ANSI_GREEN}${prefix} | ${statsStr} | ${totalElapsedStr}${ANSI_RESET}`;
   }
 
@@ -169,7 +174,10 @@ export function formatProgressLine(progress: InstanceProgress, now?: number): st
     etaStr = ` | ETA ~${eta}`;
   }
 
-  const statsStr = `${progress.completedItems}/${progress.totalItems} areas, ${progress.findingsCount} findings`;
+  let statsStr = `${progress.completedItems}/${progress.totalItems} areas, ${progress.findingsCount} findings`;
+  if (progress.screenshotCount > 0) {
+    statsStr += `, ${progress.screenshotCount} screenshots`;
+  }
   return `${prefix} | ${statsStr} | ${elapsedStr}${etaStr}`;
 }
 
@@ -213,6 +221,7 @@ export class ProgressDisplay {
         completedItems: 0,
         inProgressItems: 0,
         findingsCount: 0,
+        screenshotCount: 0,
         startTime: now,
         roundStartTime: now,
         status: 'running',
@@ -372,6 +381,10 @@ export class ProgressDisplay {
       if (reportContent) {
         findingsCount = countFindings(reportContent);
       }
+
+      // Count screenshots for this instance
+      const screenshots = listScreenshots(instanceNumber);
+      progress.screenshotCount = screenshots.length;
 
       const checkpoint = readCheckpoint(instanceNumber);
       if (checkpoint) {

@@ -110,6 +110,17 @@ describe('buildInstancePrompt', () => {
     expect(prompt).toContain('checkpoint');
     expect(prompt).toContain('resume');
   });
+
+  it('uses strong checkpoint language demanding frequent updates', () => {
+    const prompt = buildInstancePrompt(BASE_CONFIG);
+    // Must NOT contain the old vague phrasing
+    expect(prompt).not.toContain('significant step');
+    // Must contain emphatic language about frequent checkpoint updates
+    expect(prompt).toContain('EVERY page navigation');
+    expect(prompt).toContain('EVERY screenshot');
+    expect(prompt).toContain('EVERY finding');
+    expect(prompt).toContain('real time');
+  });
 });
 
 describe('spawnInstance', () => {

@@ -210,6 +210,7 @@ describe('formatProgressLine', () => {
       completedItems: 3,
       inProgressItems: 1,
       findingsCount: 2,
+      screenshotCount: 0,
       startTime: now - 60000,
       roundStartTime: now - 60000,
       status: 'running',
@@ -236,6 +237,7 @@ describe('formatProgressLine', () => {
       completedItems: 0,
       inProgressItems: 0,
       findingsCount: 0,
+      screenshotCount: 0,
       startTime: now,
       roundStartTime: now,
       status: 'running',
@@ -261,6 +263,7 @@ describe('formatProgressLine', () => {
       completedItems: 0,
       inProgressItems: 1,
       findingsCount: 0,
+      screenshotCount: 0,
       startTime: now - 10000,
       roundStartTime: now - 10000,
       status: 'running',
@@ -282,6 +285,7 @@ describe('formatProgressLine', () => {
       completedItems: 2,
       inProgressItems: 0,
       findingsCount: 1,
+      screenshotCount: 0,
       startTime: now - 30000,
       roundStartTime: now - 30000,
       status: 'running',
@@ -290,6 +294,95 @@ describe('formatProgressLine', () => {
 
     const line = formatProgressLine(progress, now);
     expect(line).toContain('[##########----------]');
+  });
+
+  it('includes screenshot count in running state when count > 0', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 2,
+      inProgressItems: 1,
+      findingsCount: 3,
+      screenshotCount: 5,
+      startTime: now - 30000,
+      roundStartTime: now - 30000,
+      status: 'running',
+      priorRoundDurations: [],
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).toContain('3 findings, 5 screenshots');
+  });
+
+  it('omits screenshot count in running state when count is 0', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 2,
+      inProgressItems: 1,
+      findingsCount: 3,
+      screenshotCount: 0,
+      startTime: now - 30000,
+      roundStartTime: now - 30000,
+      status: 'running',
+      priorRoundDurations: [],
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).toContain('3 findings');
+    expect(line).not.toContain('screenshots');
+  });
+
+  it('includes screenshot count in completed state when count > 0', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 4,
+      inProgressItems: 0,
+      findingsCount: 6,
+      screenshotCount: 8,
+      startTime: now - 60000,
+      roundStartTime: now - 60000,
+      status: 'completed',
+      completedTime: now,
+      priorRoundDurations: [],
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).toContain('6 findings, 8 screenshots');
+    expect(line).toContain(ANSI_GREEN);
+  });
+
+  it('omits screenshot count in completed state when count is 0', () => {
+    const now = 1000000;
+    const progress: InstanceProgress = {
+      instanceNumber: 1,
+      currentRound: 1,
+      totalRounds: 1,
+      totalItems: 4,
+      completedItems: 4,
+      inProgressItems: 0,
+      findingsCount: 6,
+      screenshotCount: 0,
+      startTime: now - 60000,
+      roundStartTime: now - 60000,
+      status: 'completed',
+      completedTime: now,
+      priorRoundDurations: [],
+    };
+
+    const line = formatProgressLine(progress, now);
+    expect(line).toContain('6 findings');
+    expect(line).not.toContain('screenshots');
   });
 });
 
@@ -662,6 +755,7 @@ describe('ProgressDisplay', () => {
         completedItems: 3,
         inProgressItems: 1,
         findingsCount: 2,
+        screenshotCount: 0,
         startTime: 900000,
         roundStartTime: 900000,
         status: 'running',

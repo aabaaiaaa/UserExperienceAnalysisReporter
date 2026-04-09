@@ -11,13 +11,20 @@ vi.mock('../src/report.js', () => ({
   countFindings: vi.fn(),
 }));
 
+// Mock screenshots module
+vi.mock('../src/screenshots.js', () => ({
+  listScreenshots: vi.fn(() => []),
+}));
+
 import { ProgressDisplay } from '../src/progress-display.js';
 import { readCheckpoint } from '../src/checkpoint.js';
 import { readReportContent, countFindings } from '../src/report.js';
+import { listScreenshots } from '../src/screenshots.js';
 
 const mockReadCheckpoint = vi.mocked(readCheckpoint);
 const mockReadReportContent = vi.mocked(readReportContent);
 const mockCountFindings = vi.mocked(countFindings);
+const mockListScreenshots = vi.mocked(listScreenshots);
 
 describe('ProgressDisplay.pollCheckpoints', () => {
   beforeEach(() => {
@@ -159,5 +166,29 @@ describe('ProgressDisplay.pollCheckpoints', () => {
 
     expect(mockReadCheckpoint).not.toHaveBeenCalled();
     expect(display.getProgress(1)!.status).toBe('failed');
+  });
+
+  it('updates screenshot count from listScreenshots', () => {
+    const display = new ProgressDisplay([1], 1);
+    mockReadCheckpoint.mockReturnValue(null);
+    mockReadReportContent.mockReturnValue(null);
+    mockListScreenshots.mockReturnValue(['I1-UXR-001.png', 'I1-UXR-002.png', 'I1-UXR-002-a.png']);
+
+    display.pollCheckpoints();
+
+    const p = display.getProgress(1)!;
+    expect(p.screenshotCount).toBe(3);
+  });
+
+  it('sets screenshot count to 0 when no screenshots exist', () => {
+    const display = new ProgressDisplay([1], 1);
+    mockReadCheckpoint.mockReturnValue(null);
+    mockReadReportContent.mockReturnValue(null);
+    mockListScreenshots.mockReturnValue([]);
+
+    display.pollCheckpoints();
+
+    const p = display.getProgress(1)!;
+    expect(p.screenshotCount).toBe(0);
   });
 });

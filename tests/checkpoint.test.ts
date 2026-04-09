@@ -110,6 +110,23 @@ describe('writeCheckpoint / readCheckpoint', () => {
     expect(result).toBeNull();
   });
 
+  it('logs a debug message when checkpoint read fails', async () => {
+    const logger = await import('../src/logger.js');
+    const debugSpy = vi.spyOn(logger, 'debug').mockImplementation(() => {});
+
+    const dir = ensureInstanceDir(6);
+    writeFileSync(join(dir, 'checkpoint.json'), 'not valid json {{{', 'utf-8');
+
+    readCheckpoint(6);
+
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to read checkpoint for instance 6'),
+      expect.any(SyntaxError),
+    );
+
+    debugSpy.mockRestore();
+  });
+
   it('returns null when checkpoint is missing required fields', () => {
     const dir = ensureInstanceDir(3);
     writeFileSync(

@@ -58,7 +58,8 @@ export function readCheckpoint(instanceNumber: number): Checkpoint | null {
       lastAction: String(parsed.lastAction ?? ''),
       timestamp: String(parsed.timestamp ?? new Date().toISOString()),
     } as Checkpoint;
-  } catch {
+  } catch (err) {
+    debug('Failed to read checkpoint for instance ' + instanceNumber, err);
     return null;
   }
 }
