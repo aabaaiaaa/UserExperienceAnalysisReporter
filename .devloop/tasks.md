@@ -77,7 +77,7 @@
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts --reporter=verbose` — integration-style test with mocked Claude calls verifying the full flow: instances spawned, discoveries consolidated, both output files written.
 
 ### TASK-011b: Wire plan orchestration to CLI entry point
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-011a
 - **Description**: Connect the CLI plan subcommand handler (from TASK-007a) to the `runPlanDiscovery()` orchestration function (from TASK-011a). When `uxreview plan` is invoked, the CLI parses args, constructs the config, and calls `runPlanDiscovery()`. Handle dry-run mode (print what would happen, exit). Handle errors with the same pattern as the main command (print error, exit with code 1). See requirements.md sections B2 and B4.
 - **Verification**: `npx vitest run tests/cli.test.ts tests/plan-orchestrator.test.ts --reporter=verbose` — all tests pass, including end-to-end wiring test.
