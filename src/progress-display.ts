@@ -1,5 +1,7 @@
-import type { Checkpoint } from './checkpoint.js';
+import { readCheckpoint, type Checkpoint } from './checkpoint.js';
 import { RENDER_INTERVAL_MS } from './config.js';
+import { readReportContent, countFindings } from './report.js';
+import { debug } from './logger.js';
 
 export interface InstanceProgress {
   instanceNumber: number;
@@ -17,6 +19,7 @@ export interface InstanceProgress {
   maxRetries?: number;
   permanentlyFailed?: boolean;
   rateLimitBackoffMs?: number;
+  completedTime?: number;
   priorRoundDurations: number[];
 }
 
@@ -144,10 +147,12 @@ export function formatProgressLine(progress: InstanceProgress, now?: number): st
     return `${ANSI_YELLOW}${prefix} | Rate limited — pausing ${backoffSec}s before retry...${ANSI_RESET}`;
   }
 
-  // Completed: green with stats
+  // Completed: green with stats and frozen elapsed time
   if (progress.status === 'completed') {
+    const totalElapsed = (progress.completedTime ?? currentTime) - progress.startTime;
+    const totalElapsedStr = formatDuration(totalElapsed);
     const statsStr = `${progress.completedItems}/${progress.totalItems} areas, ${progress.findingsCount} findings`;
-    return `${ANSI_GREEN}${prefix} | ${statsStr} | ${elapsedStr}${ANSI_RESET}`;
+    return `${ANSI_GREEN}${prefix} | ${statsStr} | ${totalElapsedStr}${ANSI_RESET}`;
   }
 
   // Running: default color (white/no color) with stats and ETA
@@ -231,16 +236,22 @@ export class ProgressDisplay {
     const progress = this.instances.get(instanceNumber);
     if (!progress) return;
     progress.priorRoundDurations.push(roundDurationMs);
-    progress.currentRound++;
-    progress.roundStartTime = Date.now();
-    progress.completedItems = 0;
-    progress.inProgressItems = 0;
+    // Only advance to next round if more rounds remain;
+    // on the final round, preserve the current round number and item counts
+    // so the completed line renders correctly.
+    if (progress.currentRound < progress.totalRounds) {
+      progress.currentRound++;
+      progress.roundStartTime = Date.now();
+      progress.completedItems = 0;
+      progress.inProgressItems = 0;
+    }
   }
 
   markCompleted(instanceNumber: number): void {
     const progress = this.instances.get(instanceNumber);
     if (!progress) return;
     progress.status = 'completed';
+    progress.completedTime = Date.now();
   }
 
   markFailed(instanceNumber: number, error: string): void {
@@ -345,9 +356,39 @@ export class ProgressDisplay {
     this.renderedLineCount = lines.length;
   }
 
+  /**
+   * Poll checkpoint and report files for all running instances and
+   * update their progress. Called once per render tick so the display
+   * reflects live subprocess progress.
+   */
+  pollCheckpoints(): void {
+    for (const [instanceNumber, progress] of this.instances) {
+      if (progress.status !== 'running') continue;
+
+      // Always try to read findings from the report file — this works even
+      // when the checkpoint hasn't been updated yet by the subprocess.
+      let findingsCount = progress.findingsCount;
+      const reportContent = readReportContent(instanceNumber);
+      if (reportContent) {
+        findingsCount = countFindings(reportContent);
+      }
+
+      const checkpoint = readCheckpoint(instanceNumber);
+      if (checkpoint) {
+        const { completed, inProgress, total } = getProgressFromCheckpoint(checkpoint);
+        this.updateProgress(instanceNumber, completed, inProgress, total, findingsCount);
+      } else if (findingsCount !== progress.findingsCount) {
+        // Checkpoint unreadable but findings changed — update just findings
+        progress.findingsCount = findingsCount;
+      }
+    }
+  }
+
   start(intervalMs = RENDER_INTERVAL_MS): void {
+    this.pollCheckpoints();
     this.renderToTerminal();
     this.pollTimer = setInterval(() => {
+      this.pollCheckpoints();
       this.renderToTerminal();
     }, intervalMs);
   }

@@ -16,6 +16,7 @@ export interface ParsedArgs {
   append: boolean;
   dryRun: boolean;
   verbose: boolean;
+  suppressOpen: boolean;
   maxRetries: number;
   instanceTimeout: number;
   rateLimitRetries: number;
@@ -48,6 +49,7 @@ Options:
   --max-retries <n>        Maximum normal retry attempts per instance (default: 3)
   --instance-timeout <min> Timeout per Claude instance in minutes (default: 30)
   --rate-limit-retries <n> Maximum rate-limit retry attempts globally (default: 10)
+  --suppress-open          Do not open the HTML report in the browser after completion
   --help                   Show this help message
   --version                Show the version number`;
 
@@ -112,7 +114,7 @@ function parseRawArgs(argv: string[]): Map<string, string | true> {
     const key = arg.slice(2);
 
     // Boolean flags (no value)
-    if (key === 'show-default-scope' || key === 'help' || key === 'version' || key === 'keep-temp' || key === 'append' || key === 'dry-run' || key === 'verbose') {
+    if (key === 'show-default-scope' || key === 'help' || key === 'version' || key === 'keep-temp' || key === 'append' || key === 'dry-run' || key === 'verbose' || key === 'suppress-open') {
       args.set(key, true);
       continue;
     }
@@ -152,7 +154,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   // Check for unknown flags
-  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'append', 'dry-run', 'verbose', 'max-retries', 'instance-timeout', 'rate-limit-retries', 'version']);
+  const knownFlags = new Set(['url', 'intro', 'plan', 'scope', 'instances', 'rounds', 'output', 'keep-temp', 'append', 'dry-run', 'verbose', 'suppress-open', 'max-retries', 'instance-timeout', 'rate-limit-retries', 'version']);
   for (const key of raw.keys()) {
     if (!knownFlags.has(key)) {
       printUsageAndExit(`Unknown option: --${key}`);
@@ -240,6 +242,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     append: raw.has('append'),
     dryRun: raw.has('dry-run'),
     verbose: raw.has('verbose'),
+    suppressOpen: raw.has('suppress-open'),
     maxRetries: maxRetriesRaw !== undefined && maxRetriesRaw !== true ? Number(maxRetriesRaw) : MAX_RETRIES,
     instanceTimeout: instanceTimeoutRaw !== undefined && instanceTimeoutRaw !== true ? Number(instanceTimeoutRaw) : INSTANCE_TIMEOUT_MS / 60_000,
     rateLimitRetries: rateLimitRetriesRaw !== undefined && rateLimitRetriesRaw !== true ? Number(rateLimitRetriesRaw) : MAX_RATE_LIMIT_RETRIES,

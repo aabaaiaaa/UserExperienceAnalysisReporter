@@ -44,19 +44,20 @@ export function readCheckpoint(instanceNumber: number): Checkpoint | null {
     const raw = readFileSync(paths.checkpoint, 'utf-8');
     const parsed = JSON.parse(raw);
 
-    // Validate required fields
-    if (
-      typeof parsed.instanceId !== 'number' ||
-      !Array.isArray(parsed.assignedAreas) ||
-      typeof parsed.currentRound !== 'number' ||
-      !Array.isArray(parsed.areas) ||
-      typeof parsed.lastAction !== 'string' ||
-      typeof parsed.timestamp !== 'string'
-    ) {
+    // Require areas array — this is the critical field for progress tracking
+    if (!Array.isArray(parsed.areas)) {
       return null;
     }
 
-    return parsed as Checkpoint;
+    // Coerce fields that Claude might write in slightly wrong types
+    return {
+      instanceId: Number(parsed.instanceId) || instanceNumber,
+      assignedAreas: Array.isArray(parsed.assignedAreas) ? parsed.assignedAreas : [],
+      currentRound: Number(parsed.currentRound) || 1,
+      areas: parsed.areas,
+      lastAction: String(parsed.lastAction ?? ''),
+      timestamp: String(parsed.timestamp ?? new Date().toISOString()),
+    } as Checkpoint;
   } catch {
     return null;
   }

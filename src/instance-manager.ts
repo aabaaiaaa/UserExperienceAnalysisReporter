@@ -99,19 +99,22 @@ Current round: ${roundNumber}
 ${buildDiscoveryInstructions(config.instanceNumber, paths.discovery)}
 
 ### 2. Checkpoint File: ${paths.checkpoint}
-After each significant step, write a JSON checkpoint with this structure:
+After each significant step, write a JSON checkpoint with this EXACT structure:
 \`\`\`json
 {
   "instanceId": ${config.instanceNumber},
   "assignedAreas": ["area1", "area2"],
-  "currentArea": "area being reviewed",
-  "areasComplete": ["completed areas"],
-  "areasInProgress": ["current area"],
-  "areasNotStarted": ["remaining areas"],
+  "currentRound": ${roundNumber},
+  "areas": [
+    { "name": "area1", "status": "complete" },
+    { "name": "area2", "status": "in-progress" },
+    { "name": "area3", "status": "not-started" }
+  ],
   "lastAction": "description of last completed step",
   "timestamp": "ISO timestamp"
 }
 \`\`\`
+Each area's status must be exactly one of: "complete", "in-progress", or "not-started".
 
 ${buildReportInstructions(config.instanceNumber, paths.report)}
 

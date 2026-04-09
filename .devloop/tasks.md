@@ -1,55 +1,61 @@
-# Iteration 5 — Tasks
+# Iteration 6 Tasks
 
-### TASK-001: Fix flaky cross-run resume test timeouts
-- **Status**: done
+### TASK-001: Add screenshot counting to progress display
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: In `tests/consolidation-resume.test.ts`, increase the timeout on the four cross-run resume tests (lines 788, 823, 847, 870) from `{ timeout: 15000 }` to `{ timeout: 30000 }`. These tests use `vi.importActual()` for real filesystem I/O and intermittently time out on Windows at the current 15-second limit. See requirements.md section 1 for full context.
-- **Verification**: `npx vitest run tests/consolidation-resume.test.ts` — all tests pass. Confirm the four tests at lines 788, 823, 847, 870 now have `{ timeout: 30000 }`.
+- **Description**: In `progress-display.ts`, modify `pollCheckpoints()` to count screenshots for each running instance using `listScreenshots()` from `screenshots.ts`. Store the total count. In `formatProgressLine()`, append `, N screenshots` after the findings count when N > 0. See requirements.md §1 for display format and design decisions.
+- **Verification**: `npx vitest run tests/progress-display.test.ts` — all existing tests pass plus new test(s) verifying screenshot count appears in the formatted progress line when count > 0 and is absent when count is 0.
 
-### TASK-002: Add single-quote escaping to escapeHtml
-- **Status**: done
-- **Dependencies**: none
-- **Description**: In `src/html-report.ts:43-48`, add `.replace(/'/g, '&#39;')` to the `escapeHtml()` function's escape chain, after the existing `&quot;` replacement. Then add or update a test in the HTML report test file to verify that single quotes are escaped to `&#39;`. See requirements.md section 2.
-- **Verification**: `npx vitest run tests/html-report.test.ts` — all tests pass, including a test that asserts `escapeHtml("it's")` produces `it&#39;s`.
-
-### TASK-003: Add parseConsolidatedReport unit tests
-- **Status**: done
-- **Dependencies**: none
-- **Description**: Add a new test file `tests/parse-consolidated-report.test.ts` with dedicated unit tests for `parseConsolidatedReport()` from `src/consolidation.ts`. Cover these cases: (1) empty input → empty array, (2) no finding headings → empty array, (3) single finding with all fields → correctly parsed, (4) missing severity line → still parsed, (5) multiple findings across multiple areas → correct area assignment, (6) deeply nested findings (####, #####, ######) → all heading levels recognized, (7) malformed heading without `UXR-` prefix → skipped, (8) area heading starting with `## UXR-` → treated as finding context not area heading, (9) multi-line description → full description captured. See requirements.md section 3.
-- **Verification**: `npx vitest run tests/parse-consolidated-report.test.ts` — all new tests pass.
-
-### TASK-004: Improve file-manager.ts coverage and fix bare catch block
-- **Status**: done
-- **Dependencies**: none
-- **Description**: Two changes in `src/file-manager.ts` plus new tests. (A) Fix the bare `catch` at line 104 in `hasExistingCheckpointData()`: change to `catch (err)` and add a `debug()` call logging the error before returning false. Import `debug` from `./logger.js` if not already imported. (B) Add tests (in a new or existing file-manager test file) that: (1) simulate an `EBUSY` error on the first `rmSync` call, verify `cleanupTempDir()` retries and succeeds on subsequent attempt; (2) simulate `EBUSY` on all 5 attempts, verify `cleanupTempDir()` throws; (3) verify `hasExistingCheckpointData()` returns false when `readdirSync` throws; (4) verify the debug log is called when the catch block fires. See requirements.md sections 4 and 6.
-- **Verification**: `npx vitest run tests/file-manager*.test.ts` — all tests pass. Run `npx vitest run --coverage tests/file-manager*.test.ts` and confirm `file-manager.ts` coverage is above 95% statements.
-
-### TASK-005: Remove unused countFindings re-export from progress-display.ts
-- **Status**: done
-- **Dependencies**: none
-- **Description**: Remove line 95 (`export { countFindings } from './report.js';`) from `src/progress-display.ts`. Before removing, verify with grep that no source or test file imports `countFindings` from `progress-display`. If any file does, update its import to reference `report.js` instead. See requirements.md section 5.
-- **Verification**: `npx vitest run tests/progress-display*.test.ts` — all tests pass. Grep for `countFindings.*progress-display` across `src/` and `tests/` returns zero matches.
-
-### TASK-006a: Refactor ConsolidationCheckpoint interface to use structured types
-- **Status**: done
+### TASK-002: Add file liveness signal to progress display
+- **Status**: pending
 - **Dependencies**: TASK-001
-- **Description**: In `src/consolidation-checkpoint.ts`, change the `ConsolidationCheckpoint` interface fields from `string | null` to structured types for the three double-serialized fields: `dedupOutput: ConsolidationResult | null`, `reassignOutput: Finding[] | null`, `hierarchyOutput: UIAreaGroup[] | null`. Import the required types (`ConsolidationResult`, `Finding`, `UIAreaGroup`) from their source modules. Keep `formatReportOutput` and `discoveryMergeOutput` as `string | null` since they hold actual text content. Update `readConsolidationCheckpoint()` validation: for the three changed fields, validate they are objects/arrays or null instead of strings. Update `createEmptyConsolidationCheckpoint()` if needed (the null defaults should still work). See requirements.md section 7.
-- **Verification**: `npx vitest run tests/consolidation-checkpoint*.test.ts` — all tests pass. `npx tsc --noEmit src/consolidation-checkpoint.ts` — no type errors.
+- **Description**: In `progress-display.ts`, extend `pollCheckpoints()` to check `mtime` (via `fs.statSync`) of each running instance's files: `discovery.md`, `report.md`, `checkpoint.json`, and the `screenshots/` directory. Track the most recent mtime across all instances. In `formatProgressLine()`, append ` · active Xs ago` when file activity has been observed, where X is seconds since the most recent mtime. Silently skip files that don't exist yet; catch `statSync` errors to avoid crashing the render loop. See requirements.md §2 for full details.
+- **Verification**: `npx vitest run tests/progress-display.test.ts` — all existing tests pass plus new test(s) verifying liveness signal appears with correct format when files have recent mtime, and is absent when no activity.
 
-### TASK-006b: Update orchestrator to use structured checkpoint data directly
-- **Status**: done
-- **Dependencies**: TASK-006a
-- **Description**: In `src/orchestrator.ts`, remove the `JSON.stringify()` wrappers when writing to checkpoint fields and remove the `JSON.parse()` calls when reading them. Specifically: (1) Line 348: change `checkpoint.dedupOutput = JSON.stringify(consolidation)` to `checkpoint.dedupOutput = consolidation`. (2) Line 385: change `checkpoint.reassignOutput = JSON.stringify(findings)` to `checkpoint.reassignOutput = findings`. (3) Line 398: change `checkpoint.hierarchyOutput = JSON.stringify(groups)` to `checkpoint.hierarchyOutput = groups`. (4) Line 320: change `consolidation = JSON.parse(checkpoint.dedupOutput)` to `consolidation = checkpoint.dedupOutput`. (5) Line 375: change `findings = JSON.parse(checkpoint.reassignOutput)` to `findings = checkpoint.reassignOutput`. (6) Line 394: change `groups = JSON.parse(checkpoint.hierarchyOutput)` to `groups = checkpoint.hierarchyOutput`. See requirements.md section 7.
-- **Verification**: `npx vitest run tests/orchestrator*.test.ts tests/consolidation-resume.test.ts` — all tests pass. `npx tsc --noEmit src/orchestrator.ts` — no type errors.
-
-### TASK-006c: Update consolidation checkpoint tests for structured types
-- **Status**: done
-- **Dependencies**: TASK-006a
-- **Description**: Update any existing tests that create `ConsolidationCheckpoint` objects with string values for `dedupOutput`, `reassignOutput`, or `hierarchyOutput`. These fields are now structured types (`ConsolidationResult | null`, `Finding[] | null`, `UIAreaGroup[] | null`). Update test fixtures to use the actual structured data instead of `JSON.stringify()`'d strings. Verify that round-trip tests (write checkpoint → read checkpoint) work with the structured data. See requirements.md section 7.
-- **Verification**: `npx vitest run tests/consolidation-checkpoint*.test.ts tests/consolidation-resume.test.ts` — all tests pass.
-
-### TASK-007: Add --version CLI flag
-- **Status**: done
+### TASK-003: Strengthen checkpoint update prompt in instance-manager
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Add a `--version` flag to the CLI in `src/cli.ts`. (1) Add `--version` to the USAGE string after `--help`, with description `Show the version number`. (2) Add `'version'` to the boolean flag check at line 113. (3) Add `'version'` to the `knownFlags` set at line 145. (4) After the `--help` handler (line 134), add a `--version` handler that reads the version from `package.json` and prints it, then calls `process.exit(0)`. Use `createRequire(import.meta.url)` from `node:module` to load `package.json`, or `readFileSync` + `JSON.parse`. (5) Add tests: verify `--version` outputs the version from `package.json` and exits, and that `--version` appears in the usage text. See requirements.md section 8.
-- **Verification**: `npx vitest run tests/cli*.test.ts` — all tests pass, including new `--version` tests.
+- **Description**: In `instance-manager.ts`, rewrite the checkpoint instruction section in `buildInstancePrompt()` (currently around line 102: "After each significant step, write a JSON checkpoint"). Replace with explicit, emphatic instructions demanding checkpoint updates after EVERY page navigation, EVERY screenshot, and EVERY finding. Emphasize that the checkpoint is how the user tracks progress in real time. See requirements.md §3 for tone and design decisions. The checkpoint JSON structure itself does not change.
+- **Verification**: `npx vitest run tests/instance-manager.test.ts` — existing tests pass. Add or update a test verifying the prompt string no longer contains "significant step" and does contain the stronger checkpoint language (e.g., check for keywords like "every screenshot" or "every navigation").
+
+### TASK-004a: Create shared test cleanup helper with EBUSY retry
+- **Status**: pending
+- **Dependencies**: none
+- **Description**: Create `tests/test-helpers.ts` with an async `cleanTestDirs(testBase: string)` function that mirrors the retry logic in `file-manager.ts:57-78`: up to 5 attempts, catches EBUSY/EPERM errors, linear backoff (100ms * attempt), throws immediately on other errors or after max attempts exhausted. Export this function for use by integration test files.
+- **Verification**: `npx vitest run tests/test-helpers.test.ts` — add a small test file verifying: (1) successful deletion on first attempt, (2) retry on EBUSY then success, (3) throw after max attempts. Mock `rmSync` to simulate errors.
+
+### TASK-004b: Replace cleanTestDirs in integration-happy-path and integration-failure-retry
+- **Status**: pending
+- **Dependencies**: TASK-004a
+- **Description**: In `tests/integration-happy-path.test.ts` and `tests/integration-failure-retry.test.ts`, replace the local `cleanTestDirs()` function with an import of the shared helper from `tests/test-helpers.ts`. Update the `afterEach` hook to be async (use `async () => { await cleanTestDirs(TEST_BASE); }`). Remove the old `cleanTestDirs` function and any now-unused `rmSync` import.
+- **Verification**: `npx vitest run tests/integration-happy-path.test.ts tests/integration-failure-retry.test.ts` — all tests pass.
+
+### TASK-004c: Replace cleanTestDirs in integration-edge-cases and integration-append-mode
+- **Status**: pending
+- **Dependencies**: TASK-004a
+- **Description**: Same as TASK-004b but for `tests/integration-edge-cases.test.ts` and `tests/integration-append-mode.test.ts`. Replace local `cleanTestDirs()` with the shared helper, make `afterEach` async, remove old function and unused imports.
+- **Verification**: `npx vitest run tests/integration-edge-cases.test.ts tests/integration-append-mode.test.ts` — all tests pass.
+
+### TASK-004d: Replace cleanTestDirs in remaining 3 integration test files
+- **Status**: pending
+- **Dependencies**: TASK-004a
+- **Description**: Same as TASK-004b but for `tests/integration-dedup-consolidation.test.ts`, `tests/integration-multi-instance.test.ts`, and `tests/consolidation-resume.test.ts`. Replace local `cleanTestDirs()` with the shared helper, make `afterEach` async, remove old function and unused imports.
+- **Verification**: `npx vitest run tests/integration-dedup-consolidation.test.ts tests/integration-multi-instance.test.ts tests/consolidation-resume.test.ts` — all tests pass.
+
+### TASK-005: Fix bare catch block in checkpoint.ts
+- **Status**: pending
+- **Dependencies**: none
+- **Description**: In `checkpoint.ts`, change the bare `catch` block in `readCheckpoint()` (line 61) to `catch (err)` and add a `debug()` call logging the error before returning `null`. Import `debug` from `./logger.js` if not already imported. This matches the pattern applied to `file-manager.ts` in iteration 5. See requirements.md §5.
+- **Verification**: `npx vitest run tests/checkpoint.test.ts` — all existing tests pass plus a new test verifying `readCheckpoint()` returns `null` when the checkpoint file contains invalid JSON.
+
+### TASK-006: Remove redundant undefined check in consolidation-checkpoint.ts
+- **Status**: pending
+- **Dependencies**: none
+- **Description**: In `consolidation-checkpoint.ts:112`, simplify the validation condition from `if (parsed[field] !== null && (typeof parsed[field] !== 'object' || parsed[field] === undefined))` to `if (parsed[field] !== null && typeof parsed[field] !== 'object')`. The `=== undefined` check is redundant because `typeof undefined` is `'undefined'`, which already fails the `typeof !== 'object'` check. See requirements.md §6.
+- **Verification**: `npx vitest run tests/consolidation-resume.test.ts` — all existing checkpoint validation tests pass.
+
+### TASK-007: Add help and show-default-scope to knownFlags set in cli.ts
+- **Status**: pending
+- **Dependencies**: none
+- **Description**: In `cli.ts:157`, add `'help'` and `'show-default-scope'` to the `knownFlags` set. These flags are handled before the unknown-flag check but are missing from the set. See requirements.md §7.
+- **Verification**: `npx vitest run tests/cli.test.ts` — all existing CLI tests pass.

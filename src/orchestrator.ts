@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { exec } from 'node:child_process';
 import { join } from 'node:path';
 import { ParsedArgs } from './cli.js';
 import { initWorkspace, cleanupTempDir } from './file-manager.js';
@@ -478,6 +479,16 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     console.log('');
     console.log('  Tip: The discovery document can be reused as the --intro for future');
     console.log('  runs to give the reviewer a head start on understanding the app.');
+
+    // Open the HTML report in the default browser
+    if (!args.suppressOpen) {
+      const openCmd = process.platform === 'win32' ? `start "" "${reportPath}"`
+        : process.platform === 'darwin' ? `open "${reportPath}"`
+        : `xdg-open "${reportPath}"`;
+      exec(openCmd, (err) => {
+        if (err) debug(`Failed to open report in browser: ${err.message}`);
+      });
+    }
   } finally {
     process.removeListener('SIGINT', signalHandler);
     process.removeListener('SIGTERM', signalHandler);

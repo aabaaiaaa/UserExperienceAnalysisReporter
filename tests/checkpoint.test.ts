@@ -122,7 +122,7 @@ describe('writeCheckpoint / readCheckpoint', () => {
     expect(result).toBeNull();
   });
 
-  it('returns null when field types are wrong', () => {
+  it('coerces wrong field types when areas array is present', () => {
     const dir = ensureInstanceDir(4);
     writeFileSync(
       join(dir, 'checkpoint.json'),
@@ -131,6 +131,27 @@ describe('writeCheckpoint / readCheckpoint', () => {
         assignedAreas: ['Nav'],
         currentRound: 1,
         areas: [],
+        lastAction: 'test',
+        timestamp: '2026-04-02T12:00:00.000Z',
+      }),
+      'utf-8',
+    );
+
+    const result = readCheckpoint(4);
+    expect(result).not.toBeNull();
+    expect(result!.instanceId).toBe(4); // coerced from NaN to instanceNumber fallback
+    expect(result!.areas).toEqual([]);
+  });
+
+  it('returns null when areas field is not an array', () => {
+    const dir = ensureInstanceDir(4);
+    writeFileSync(
+      join(dir, 'checkpoint.json'),
+      JSON.stringify({
+        instanceId: 4,
+        assignedAreas: ['Nav'],
+        currentRound: 1,
+        areas: 'not-an-array',
         lastAction: 'test',
         timestamp: '2026-04-02T12:00:00.000Z',
       }),

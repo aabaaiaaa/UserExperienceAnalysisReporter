@@ -371,6 +371,7 @@ function makeArgs(overrides?: Partial<ParsedArgs>): ParsedArgs {
     maxRetries: 3,
     instanceTimeout: 30,
     rateLimitRetries: 10,
+    suppressOpen: true,
     ...overrides,
   };
 }

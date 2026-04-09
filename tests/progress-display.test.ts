@@ -382,7 +382,7 @@ describe('ProgressDisplay', () => {
   });
 
   describe('markRoundComplete', () => {
-    it('advances round and resets items', () => {
+    it('advances round and resets items on non-final round', () => {
       const display = new ProgressDisplay([1], 3);
       display.setProgress(1, { completedItems: 5, inProgressItems: 0, totalItems: 5 });
 
@@ -393,6 +393,55 @@ describe('ProgressDisplay', () => {
       expect(p!.completedItems).toBe(0);
       expect(p!.inProgressItems).toBe(0);
       expect(p!.priorRoundDurations).toEqual([30000]);
+    });
+
+    it('preserves round and items on final round (single round)', () => {
+      const display = new ProgressDisplay([1], 1);
+      display.updateProgress(1, 5, 0, 5, 3);
+
+      display.markRoundComplete(1, 25000);
+
+      const p = display.getProgress(1);
+      expect(p!.currentRound).toBe(1);
+      expect(p!.completedItems).toBe(5);
+      expect(p!.inProgressItems).toBe(0);
+      expect(p!.findingsCount).toBe(3);
+      expect(p!.priorRoundDurations).toEqual([25000]);
+    });
+
+    it('preserves round and items on final round (multi-round)', () => {
+      const display = new ProgressDisplay([1], 2);
+      display.updateProgress(1, 3, 0, 3, 2);
+
+      // Round 1 -> round 2: advances and resets
+      display.markRoundComplete(1, 10000);
+      expect(display.getProgress(1)!.currentRound).toBe(2);
+      expect(display.getProgress(1)!.completedItems).toBe(0);
+
+      // Set up round 2 progress
+      display.updateProgress(1, 4, 0, 4, 5);
+
+      // Round 2 (final): preserves
+      display.markRoundComplete(1, 20000);
+      const p = display.getProgress(1);
+      expect(p!.currentRound).toBe(2);
+      expect(p!.completedItems).toBe(4);
+      expect(p!.findingsCount).toBe(5);
+      expect(p!.priorRoundDurations).toEqual([10000, 20000]);
+    });
+
+    it('completed line shows correct round and areas after final round', () => {
+      const display = new ProgressDisplay([1], 1);
+      display.updateProgress(1, 5, 0, 5, 3);
+      display.markRoundComplete(1, 30000);
+      display.markCompleted(1);
+
+      const lines = display.renderLines();
+      expect(lines[0]).toContain('R1/1');
+      expect(lines[0]).toContain('5/5 areas');
+      expect(lines[0]).toContain('3 findings');
+      // Green color for completed
+      expect(lines[0]).toContain('\x1B[32m');
     });
   });
 

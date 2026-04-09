@@ -1,8 +1,8 @@
 # uxreview
 
-A TypeScript CLI tool that orchestrates multiple Claude Code instances to autonomously explore and review a web application's user experience via Playwright MCP. It produces a consolidated markdown report of UX findings, each uniquely identified and grouped by UI area in a hierarchical structure suitable for parallel work planning.
+A TypeScript CLI tool that orchestrates multiple Claude Code instances to autonomously explore and review a web application's user experience via Playwright MCP. It produces both a self-contained HTML report and a markdown report of UX findings, each uniquely identified and grouped by UI area in a hierarchical structure suitable for parallel work planning.
 
-The tool runs unattended. You provide a URL, context about the app, and a review plan. The tool handles everything else -- splitting work across instances, managing Claude sessions, tracking progress, retrying failures, and consolidating results.
+The tool runs unattended. You provide a URL, context about the app, and a review plan. The tool handles everything else -- splitting work across instances, managing Claude sessions, tracking progress, retrying failures, and consolidating results. When finished, the HTML report opens automatically in your browser.
 
 ## Prerequisites
 
@@ -47,18 +47,19 @@ uxreview --show-default-scope
 |-----------|---------|-------------|
 | `--scope <text\|filepath>` | Built-in default | UX evaluation criteria defining what Claude should look for. Inline text or file path. If omitted, the built-in default scope is used. |
 | `--show-default-scope` | — | Print the built-in default evaluation scope to stdout and exit. No other parameters required. |
-| `--instances <n>` | `1` | Number of parallel Claude Code instances to run. |
+| `--instances <n>` | auto | Number of parallel Claude Code instances to run. When omitted, auto-detected from the number of areas in the plan (max 5). |
 | `--rounds <n>` | `1` | Number of review rounds per instance. Additional rounds use findings from prior rounds to go deeper. |
 | `--output <dir>` | `./uxreview-output` | Output directory for final deliverables. |
 | `--keep-temp` | `false` | Preserve the `.uxreview-temp/` working directory after the run. Useful for debugging. By default, the temp directory is deleted on completion. |
 | `--max-retries <n>` | `3` | Maximum normal retry attempts per instance when a round fails. |
 | `--instance-timeout <min>` | `30` | Timeout per Claude instance in minutes. Increase for complex apps that need longer analysis time. |
 | `--rate-limit-retries <n>` | `10` | Maximum rate-limit retry attempts globally across all rounds and retries. Rate-limit retries use exponential backoff. |
-| `--format <format>` | `markdown` | Output report format: `markdown` or `html`. HTML reports are self-contained with inline CSS, embedded base64 screenshots, severity color coding, and collapsible sections. |
 | `--append` | `false` | Append new findings to the existing output directory instead of overwriting. New findings are deduplicated against previous results, screenshots are preserved, and the report is regenerated with all findings. |
 | `--dry-run` | `false` | Preview work distribution without running analysis instances. Shows instance count, plan chunks, assigned areas, and evaluation scope, then exits. Only the distribution Claude call runs (or none for single-instance). |
 | `--verbose` | `false` | Enable debug logging to stderr. Logs subprocess spawn/exit, file operations, retry decisions, and phase timing. |
+| `--suppress-open` | `false` | Do not open the HTML report in the browser after completion. By default, the report opens automatically. |
 | `--help` | — | Show usage information and exit. |
+| `--version` | — | Show the version number and exit. |
 
 ## Examples
 
@@ -120,14 +121,19 @@ After a run completes, the output directory contains:
 
 ```
 uxreview-output/          # or your --output path
-  report.md               # Final consolidated report
+  report.html             # Self-contained HTML report (opens automatically)
+  report.md               # Markdown version of the report
   discovery.md            # Consolidated discovery document
   screenshots/            # Screenshots as evidence for findings
 ```
 
+### report.html
+
+A self-contained HTML report with inline CSS, embedded base64 screenshots, severity color coding, collapsible sections per UI area, and a table of contents. Opens automatically in your default browser after the run completes (use `--suppress-open` to disable).
+
 ### report.md
 
-The consolidated UX report with all findings. Each finding has:
+The markdown version of the same report. Each finding has:
 
 - A unique sequential ID (`UXR-001`, `UXR-002`, ...)
 - UI area, title, description, and suggestion
