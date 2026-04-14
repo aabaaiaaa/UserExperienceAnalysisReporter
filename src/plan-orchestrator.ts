@@ -19,7 +19,6 @@ import { buildProgressCallback } from './progress-callbacks.js';
 import { formatDiscoveryHtml, DiscoveryMetadata } from './discovery-html.js';
 import { openInBrowser } from './browser-open.js';
 import { setVerbose, debug } from './logger.js';
-import { MAX_AUTO_INSTANCES } from './config.js';
 import { createSignalManager } from './signal-handler.js';
 import { extractAreasFromPlanChunk } from './orchestrator.js';
 
@@ -89,16 +88,6 @@ function copyScreenshotsToOutput(instanceNumbers: number[], outputDir: string): 
 export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
   // Enable verbose logging if requested
   setVerbose(args.verbose);
-
-  // 0. Auto-detect instance count from plan areas if not specified
-  if (args.instances === 0 && args.plan.trim().length > 0) {
-    const areas = extractAreasFromPlanChunk(args.plan);
-    args.instances = Math.max(1, Math.min(areas.length, MAX_AUTO_INSTANCES));
-    debug(`Auto-detected ${areas.length} area(s) in plan, using ${args.instances} instance(s)`);
-  } else if (args.instances === 0) {
-    args.instances = 1;
-    debug('No plan provided, using 1 instance for free exploration');
-  }
 
   // 1. Initialize workspace
   const workspace = await initWorkspace(args.instances, args.output);

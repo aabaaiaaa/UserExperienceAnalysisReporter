@@ -134,36 +134,40 @@ function printUsageAndExit(error?: string): never {
   process.exit(error ? 1 : 0);
 }
 
+const MAIN_BOOLEAN_FLAGS = new Set(['show-default-scope', 'help', 'version', 'keep-temp', 'append', 'dry-run', 'verbose', 'suppress-open']);
+const PLAN_BOOLEAN_FLAGS = new Set(['help', 'keep-temp', 'dry-run', 'verbose', 'suppress-open', 'append']);
+
+function parseRawArgv(
+  argv: string[],
+  booleanFlags: Set<string>,
+  onError: (msg: string) => never,
+): Map<string, string | true> {
+  const args = new Map<string, string | true>();
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith('--')) {
+      onError(`Unexpected argument: ${arg}`);
+    }
+    const key = arg.slice(2);
+    if (booleanFlags.has(key)) {
+      args.set(key, true);
+      continue;
+    }
+    const next = argv[i + 1];
+    if (next === undefined || next.startsWith('--')) {
+      onError(`Missing value for --${key}`);
+    }
+    args.set(key, next);
+    i++;
+  }
+  return args;
+}
+
 /**
  * Parse raw argv (process.argv.slice(2)) into a key-value map.
  */
 function parseRawArgs(argv: string[]): Map<string, string | true> {
-  const args = new Map<string, string | true>();
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) {
-      printUsageAndExit(`Unexpected argument: ${arg}`);
-    }
-
-    const key = arg.slice(2);
-
-    // Boolean flags (no value)
-    if (key === 'show-default-scope' || key === 'help' || key === 'version' || key === 'keep-temp' || key === 'append' || key === 'dry-run' || key === 'verbose' || key === 'suppress-open') {
-      args.set(key, true);
-      continue;
-    }
-
-    // All other flags require a value
-    const next = argv[i + 1];
-    if (next === undefined || next.startsWith('--')) {
-      printUsageAndExit(`Missing value for --${key}`);
-    }
-    args.set(key, next);
-    i++; // skip value
-  }
-
-  return args;
+  return parseRawArgv(argv, MAIN_BOOLEAN_FLAGS, printUsageAndExit);
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -307,32 +311,7 @@ function printPlanUsageAndExit(error?: string): never {
  * Parse raw argv for the plan subcommand (argv should NOT include the 'plan' word).
  */
 function parsePlanRawArgs(argv: string[]): Map<string, string | true> {
-  const args = new Map<string, string | true>();
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) {
-      printPlanUsageAndExit(`Unexpected argument: ${arg}`);
-    }
-
-    const key = arg.slice(2);
-
-    // Boolean flags (no value)
-    if (key === 'help' || key === 'keep-temp' || key === 'dry-run' || key === 'verbose' || key === 'suppress-open' || key === 'append') {
-      args.set(key, true);
-      continue;
-    }
-
-    // All other flags require a value
-    const next = argv[i + 1];
-    if (next === undefined || next.startsWith('--')) {
-      printPlanUsageAndExit(`Missing value for --${key}`);
-    }
-    args.set(key, next);
-    i++; // skip value
-  }
-
-  return args;
+  return parseRawArgv(argv, PLAN_BOOLEAN_FLAGS, printPlanUsageAndExit);
 }
 
 export function parsePlanArgs(argv: string[]): ParsedPlanArgs {

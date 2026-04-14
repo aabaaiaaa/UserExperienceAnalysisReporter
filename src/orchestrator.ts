@@ -24,7 +24,7 @@ import {
   UIAreaGroup,
   Finding,
 } from './consolidation.js';
-import { ProgressDisplay } from './progress-display.js';
+import { ProgressDisplay, formatDuration } from './progress-display.js';
 import { buildProgressCallback } from './progress-callbacks.js';
 import { formatHtmlReport, ReportMetadata } from './html-report.js';
 import { openInBrowser } from './browser-open.js';
@@ -391,13 +391,6 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
     // 6. Show final output paths and summary
     display.completeConsolidation(reportPath, discoveryPath);
     display.stop();
-
-    const formatDuration = (ms: number): string => {
-      const totalSec = Math.round(ms / 1000);
-      const min = Math.floor(totalSec / 60);
-      const sec = totalSec % 60;
-      return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
-    };
 
     console.log('');
     console.log(`  Findings:      ${findings.length}`);

@@ -1,31 +1,31 @@
 # Iteration 9 — Tasks
 
 ### TASK-001: Fix e2e test missing `suppressOpen` and other required fields
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add the missing fields (`verbose`, `suppressOpen`, `maxRetries`, `instanceTimeout`, `rateLimitRetries`, `append`) to the `ParsedArgs` object in `tests/e2e.test.ts:89-99`. The critical fix is `suppressOpen: true` which prevents the test from opening the HTML report in the browser. Other fields should match CLI defaults. See requirements Item 0.
 - **Verification**: Run `npx vitest run tests/e2e.test.ts --passWithNoTests` (the e2e test requires Claude CLI so it won't run in CI, but type-check with `npx tsc --noEmit`). Grep for `suppressOpen` in the file to confirm it's present.
 
 ### TASK-002: Extract inline `formatDuration` from `orchestrator.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Remove the inline `formatDuration` arrow function at `orchestrator.ts:395-400`. Import `formatDuration` from `progress-display.ts` instead — add it to the existing `ProgressDisplay` import at line 27. See requirements Item 1.
 - **Verification**: Run `npx vitest run tests/orchestrator.test.ts`. Grep `src/orchestrator.ts` and `src/plan-orchestrator.ts` for `const formatDuration` — should return zero matches.
 
 ### TASK-003: Handle signal interrupts gracefully in `index.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `index.ts`, import `SignalInterruptError` from `orchestrator.js` and `PlanSignalInterruptError` from `plan-orchestrator.js`. In each `.catch()` handler, check if the error is a signal interrupt and silently return (the signal handler already sets `process.exitCode`). Only print "Fatal error:" and call `process.exit(1)` for non-signal errors. See requirements Item 2.
 - **Verification**: Add a targeted test verifying that when `orchestrate` rejects with `SignalInterruptError`, `console.error` is NOT called with "Fatal error" and `process.exit(1)` is NOT called. Run `npx vitest run tests/index.test.ts` (create the test file if it doesn't exist, placing it alongside other test files).
 
 ### TASK-004: Remove dead auto-detect code in `plan-orchestrator.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Delete the dead `if (args.instances === 0 ...)` block at `plan-orchestrator.ts:93-101`. Remove the `extractAreasFromPlanChunk` import if it becomes unused. Remove the `MAX_AUTO_INSTANCES` import if it becomes unused. See requirements Item 3.
 - **Verification**: Run `npx vitest run tests/plan-orchestrator.test.ts`. Grep `src/plan-orchestrator.ts` for `args.instances === 0` — should return zero matches.
 
 ### TASK-005: Shared arg parser for CLI
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Extract a shared `parseRawArgv(argv, booleanFlags, onError)` function in `cli.ts` that both `parseRawArgs` and `parsePlanRawArgs` delegate to. Define the boolean flag sets as constants. The two existing functions become thin wrappers. This is a pure refactoring — no behavior change. See requirements Item 6.
 - **Verification**: Run `npx vitest run tests/cli.test.ts` — all existing tests pass. Grep `src/cli.ts` for `parseRawArgv` to confirm the shared function exists.
