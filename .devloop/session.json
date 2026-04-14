@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 2,
+  "lastIteration": 3,
   "startedAt": "2026-04-14T21:41:16.026Z",
   "iteration": 9,
   "devloopVersion": "4.0.2",
   "activeTask": {
-    "taskId": "TASK-006b",
-    "taskTitle": "Batch: TASK-006b, TASK-006c",
-    "iterationNumber": 3,
-    "startedAt": "2026-04-14T21:47:37.120Z"
+    "taskId": "TASK-006d",
+    "taskTitle": "Extract round execution into instance-manager/rounds.ts",
+    "iterationNumber": 4,
+    "startedAt": "2026-04-14T21:50:58.021Z"
   }
 }

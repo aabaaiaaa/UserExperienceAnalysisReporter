@@ -49,7 +49,7 @@
 - **Verification**: Run `npx tsc --noEmit` — no type errors.
 
 ### TASK-006d: Extract round execution into instance-manager/rounds.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-006a, TASK-006b, TASK-006c
 - **Description**: Create `src/instance-manager/rounds.ts` containing `handleRateLimitRetries` (private, lines 406-452), `emitProgressUpdate` (private, lines 458-476), and `runInstanceRounds` (exported, lines 490-639) from `src/instance-manager.ts`. Import types from `./types.js`, spawning functions from `./spawning.js`, and other dependencies from their original modules (`../checkpoint.js`, `../discovery.js`, `../report.js`, `../rate-limit.js`, `../config.js`, `../logger.js`). Move these functions exactly as-is. See requirements.md Item 4 for full context.
 - **Verification**: Run `npx tsc --noEmit` — no type errors.
