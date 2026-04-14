@@ -1,49 +1,61 @@
-# Iteration 9 — Tasks
+# Iteration 10 Tasks
 
-### TASK-001: Fix e2e test missing `suppressOpen` and other required fields
-- **Status**: done
+### TASK-001: Stabilize flaky consolidation-resume checkpoint preservation test
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Add the missing fields (`verbose`, `suppressOpen`, `maxRetries`, `instanceTimeout`, `rateLimitRetries`, `append`) to the `ParsedArgs` object in `tests/e2e.test.ts:89-99`. The critical fix is `suppressOpen: true` which prevents the test from opening the HTML report in the browser. Other fields should match CLI defaults. See requirements Item 0.
-- **Verification**: Run `npx vitest run tests/e2e.test.ts --passWithNoTests` (the e2e test requires Claude CLI so it won't run in CI, but type-check with `npx tsc --noEmit`). Grep for `suppressOpen` in the file to confirm it's present.
+- **Description**: Fix the intermittently failing test "preserves consolidation checkpoint when initTempDir is called on existing temp dir" in `tests/consolidation-resume.test.ts:788-821`. The test fails on Windows due to filesystem timing — `initTempDir(2)` called twice in quick succession sometimes deletes the checkpoint file despite `hasExistingCheckpointData()` returning true. Either add a filesystem settle delay between the write and re-initialization, or restructure the test to verify the preservation logic more directly without relying on rapid sequential filesystem operations. See requirements.md Item 1 for full analysis.
+- **Verification**: Run `npx vitest run tests/consolidation-resume.test.ts` three times — all tests must pass every time.
 
-### TASK-002: Extract inline `formatDuration` from `orchestrator.ts`
-- **Status**: done
+### TASK-002: Raise instance-manager.ts branch coverage — scope-empty path
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Remove the inline `formatDuration` arrow function at `orchestrator.ts:395-400`. Import `formatDuration` from `progress-display.ts` instead — add it to the existing `ProgressDisplay` import at line 27. See requirements Item 1.
-- **Verification**: Run `npx vitest run tests/orchestrator.test.ts`. Grep `src/orchestrator.ts` and `src/plan-orchestrator.ts` for `const formatDuration` — should return zero matches.
+- **Description**: Add a targeted test to `tests/instance-manager.test.ts` for the uncovered branch at `src/instance-manager.ts:166` — the `buildDiscoveryPrompt` scope-empty path. Call `buildDiscoveryPrompt` with an empty/whitespace-only scope string and verify the returned prompt does NOT contain "Exploration Guidance". See requirements.md Item 2.
+- **Verification**: Run `npx vitest run --coverage tests/instance-manager.test.ts` and confirm branch coverage is above 95%.
 
-### TASK-003: Handle signal interrupts gracefully in `index.ts`
-- **Status**: done
+### TASK-003: Raise html-report.ts branch coverage — screenshot encoding fallbacks
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: In `index.ts`, import `SignalInterruptError` from `orchestrator.js` and `PlanSignalInterruptError` from `plan-orchestrator.js`. In each `.catch()` handler, check if the error is a signal interrupt and silently return (the signal handler already sets `process.exitCode`). Only print "Fatal error:" and call `process.exit(1)` for non-signal errors. See requirements Item 2.
-- **Verification**: Add a targeted test verifying that when `orchestrate` rejects with `SignalInterruptError`, `console.error` is NOT called with "Fatal error" and `process.exit(1)` is NOT called. Run `npx vitest run tests/index.test.ts` (create the test file if it doesn't exist, placing it alongside other test files).
+- **Description**: Add targeted tests to the html-report test file covering: (1) `encodeScreenshotBase64` with a non-existent file path returns `null`, (2) `encodeScreenshotBase64` when `readFileSync` throws returns `null`, (3) `renderScreenshots` when all screenshot refs fail to encode falls back to escaped plain text. See requirements.md Item 3 for line numbers and details.
+- **Verification**: Run `npx vitest run --coverage tests/html-report.test.ts` and confirm branch coverage is above 95%.
 
-### TASK-004: Remove dead auto-detect code in `plan-orchestrator.ts`
-- **Status**: done
+### TASK-004: Raise progress-display.ts branch coverage — edge states
+- **Status**: pending
 - **Dependencies**: none
-- **Description**: Delete the dead `if (args.instances === 0 ...)` block at `plan-orchestrator.ts:93-101`. Remove the `extractAreasFromPlanChunk` import if it becomes unused. Remove the `MAX_AUTO_INSTANCES` import if it becomes unused. See requirements Item 3.
-- **Verification**: Run `npx vitest run tests/plan-orchestrator.test.ts`. Grep `src/plan-orchestrator.ts` for `args.instances === 0` — should return zero matches.
+- **Description**: Add targeted tests to `tests/progress-display.test.ts` covering: (1) corrupt/unparseable checkpoint file — verify `findingsCount` still updates from filesystem without crashing (lines 431-432), (2) timer setup via `start()` — verify polling interval is created and callbacks fire using `vi.useFakeTimers()` (lines 440-441). See requirements.md Item 4.
+- **Verification**: Run `npx vitest run --coverage tests/progress-display.test.ts` and confirm branch coverage is above 95%.
 
-### TASK-005: Shared arg parser for CLI
-- **Status**: done
-- **Dependencies**: none
-- **Description**: Extract a shared `parseRawArgv(argv, booleanFlags, onError)` function in `cli.ts` that both `parseRawArgs` and `parsePlanRawArgs` delegate to. Define the boolean flag sets as constants. The two existing functions become thin wrappers. This is a pure refactoring — no behavior change. See requirements Item 6.
-- **Verification**: Run `npx vitest run tests/cli.test.ts` — all existing tests pass. Grep `src/cli.ts` for `parseRawArgv` to confirm the shared function exists.
-
-### TASK-006: Raise `instance-manager.ts` branch coverage — Promise rejection path
-- **Status**: done
-- **Dependencies**: none
-- **Description**: Add a test to `tests/instance-manager.test.ts` for the `Promise.allSettled` rejection path in `runParallelInstances()` at lines 277-279. Mock `spawnInstance` to reject (throw, not return a failure status). Verify the handler creates a proper failed result with the rejection reason as the error message. See requirements Item 5.
-- **Verification**: Run `npx vitest run tests/instance-manager.test.ts` — all tests pass including the new one.
-
-### TASK-007: Raise `instance-manager.ts` branch coverage — synthetic failure path
-- **Status**: done
-- **Dependencies**: none
-- **Description**: Add a test to `tests/instance-manager.test.ts` for the synthetic failure path at lines 435-440 in `runSingleInstanceWithRetries()`. Set up a scenario where `respawn()` catches an error internally so `latestState.result` is undefined but `latestState.error` is set. Verify the synthetic failure object has `stdout: ''`, `stderr` containing the error, `exitCode: 1`, `success: false`. See requirements Item 5.
-- **Verification**: Run `npx vitest run --coverage tests/instance-manager.test.ts` — branch coverage should be above 95%.
-
-### TASK-008: Add end-to-end test for plan subcommand
-- **Status**: done
+### TASK-005a: Extract consolidation types into consolidation/types.ts
+- **Status**: pending
 - **Dependencies**: TASK-001
-- **Description**: Create `tests/e2e-plan.test.ts` mirroring the structure of `tests/e2e.test.ts`. Start the test fixture web app, construct a complete `ParsedPlanArgs` object (with `suppressOpen: true` and all required fields), call `runPlanDiscovery(args)` with 1 instance and 1 round. Verify: `discovery.html` exists and has content, `plan.md` exists and has content, `discovery.html` contains at least one discovery area, `plan.md` contains structured plan sections. Clean up output and temp dirs. This test should NOT run in the normal `vitest run` suite — configure it like the existing e2e test. See requirements Item 4.
-- **Verification**: Run `npx vitest run tests/e2e-plan.test.ts` (requires Claude CLI and Playwright MCP). The test should pass and no browser should open.
+- **Description**: Create `src/consolidation/` directory. Extract all shared interfaces and type definitions from the top of `src/consolidation.ts` (lines ~1-50) into `src/consolidation/types.ts`. This includes `DuplicateGroup`, `DeduplicationResult`, `ConsolidationResult`, and any other shared types. Keep the original `consolidation.ts` intact for now — just create the new types file. Other submodules will import from this file.
+- **Verification**: Run `npx tsc --noEmit src/consolidation/types.ts` — no type errors.
+
+### TASK-005b: Extract deduplication logic into consolidation/deduplication.ts
+- **Status**: pending
+- **Dependencies**: TASK-005a
+- **Description**: Move deduplication functions from `src/consolidation.ts` (lines ~51-313) into `src/consolidation/deduplication.ts`. Functions: `buildDeduplicationPrompt`, `parseDeduplicationResponse`, `mergeDuplicateGroup`, `applyDeduplication`, `collectFindings`, `detectDuplicates`, `consolidateReports`. Import types from `./types.ts`. Keep original functions in `consolidation.ts` for now (they'll be removed in TASK-005f).
+- **Verification**: Run `npx tsc --noEmit src/consolidation/deduplication.ts` — no type errors.
+
+### TASK-005c: Extract ID reassignment logic into consolidation/reassignment.ts
+- **Status**: pending
+- **Dependencies**: TASK-005a
+- **Description**: Move ID reassignment and screenshot functions from `src/consolidation.ts` (lines ~315-662) into `src/consolidation/reassignment.ts`. Functions: `buildFinalId`, `parseScreenshotRefs`, `extractInstanceFromScreenshot`, `buildNewScreenshotFilenames`, `parseConsolidatedReport`, `detectCrossRunDuplicates`, `filterCrossRunDuplicates`, `parseExistingReportIds`, `reassignIds`, `copyScreenshots`, `reassignAndRemapScreenshots`. Import types from `./types.ts`.
+- **Verification**: Run `npx tsc --noEmit src/consolidation/reassignment.ts` — no type errors.
+
+### TASK-005d: Extract hierarchy logic into consolidation/hierarchy.ts
+- **Status**: pending
+- **Dependencies**: TASK-005a
+- **Description**: Move hierarchical grouping functions from `src/consolidation.ts` (lines ~664-969) into `src/consolidation/hierarchy.ts`. Functions: `groupFindingsByArea`, `buildHierarchyPrompt`, `parseHierarchyResponse`, `buildHierarchy`, `determineHierarchy`, `organizeHierarchically`, `formatFindingMetadata`, `renderHierarchicalFindingMd`, `formatConsolidatedReport`. Import types from `./types.ts`.
+- **Verification**: Run `npx tsc --noEmit src/consolidation/hierarchy.ts` — no type errors.
+
+### TASK-005e: Extract discovery consolidation into consolidation/discovery.ts
+- **Status**: pending
+- **Dependencies**: TASK-005a
+- **Description**: Move discovery consolidation functions from `src/consolidation.ts` (lines ~971-1153) into `src/consolidation/discovery.ts`. Functions: `readAllDiscoveryDocs`, `buildDiscoveryConsolidationPrompt`, `consolidateDiscoveryDocs`, `writeConsolidatedDiscovery`, `generatePlanTemplate`. Import types from `./types.ts`.
+- **Verification**: Run `npx tsc --noEmit src/consolidation/discovery.ts` — no type errors.
+
+### TASK-005f: Create barrel index.ts, update all imports, delete original consolidation.ts
+- **Status**: pending
+- **Dependencies**: TASK-005b, TASK-005c, TASK-005d, TASK-005e
+- **Description**: Create `src/consolidation/index.ts` that re-exports all public APIs from the submodules (types, deduplication, reassignment, hierarchy, discovery). Update ALL import paths throughout the codebase that reference `./consolidation.js` to reference `./consolidation/index.js`. Update ALL test file imports (`tests/consolidation.test.ts`, `tests/consolidation-resume.test.ts`, and any others) to use the new paths. Delete the original `src/consolidation.ts`. Verify the barrel file exports match exactly what the old file exported — no public API changes.
+- **Verification**: Run `npx vitest run tests/consolidation.test.ts tests/consolidation-resume.test.ts` — all tests pass. Run `npx tsc --noEmit` — no type errors across the entire project. Grep for any remaining imports of the old path: `grep -rn "from.*['\"].*\/consolidation\.js['\"]" src/` should return zero matches outside `src/consolidation/`.
