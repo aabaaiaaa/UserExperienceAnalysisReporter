@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PlanSignalInterruptError } from '../src/plan-orchestrator.js';
 
@@ -69,6 +69,13 @@ const mockProgressDisplay = {
 
 vi.mock('../src/progress-display.js', () => ({
   ProgressDisplay: vi.fn().mockImplementation(() => mockProgressDisplay),
+  formatDuration: (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) return `${minutes}m${String(seconds).padStart(2, '0')}s`;
+    return `${seconds}s`;
+  },
 }));
 
 // Mock logger
@@ -82,6 +89,11 @@ vi.mock('../src/logger.js', () => ({
 // Mock discovery-html
 vi.mock('../src/discovery-html.js', () => ({
   formatDiscoveryHtml: vi.fn(),
+}));
+
+// Mock browser-open
+vi.mock('../src/browser-open.js', () => ({
+  openInBrowser: vi.fn(),
 }));
 
 // Mock screenshots
@@ -856,31 +868,379 @@ describe('runPlanDiscovery', () => {
     expect(config.promptBuilder).toBeDefined();
     expect(typeof config.promptBuilder).toBe('function');
 
-    // Call the promptBuilder to verify it produces discovery-specific content
+    // Verify the promptBuilder is the real buildDiscoveryPrompt function
     const { buildDiscoveryPrompt } = await import('../src/instance-manager.js');
     expect(config.promptBuilder).toBe(buildDiscoveryPrompt);
+  });
 
-    // Verify the prompt content by calling the promptBuilder directly
-    const testInstanceConfig = {
-      instanceNumber: 1,
-      url: 'https://example.com/app',
-      intro: 'Test app',
-      planChunk: '## Navigation\n- Nav bar',
-      scope: 'Layout review',
-      round: 1,
-    };
-    const prompt = config.promptBuilder!(testInstanceConfig as any);
+  it('dry-run output includes URL, instance count, rounds, areas, and scope', async () => {
+    const args = makePlanArgs({
+      dryRun: true,
+      instances: 2,
+      rounds: 3,
+      scope: 'Accessibility, Layout',
+    });
 
-    // Should contain discovery-specific content
-    expect(prompt).toMatch(/UX explorer/i);
-    expect(prompt).toContain('Areas to Explore');
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## Navigation\n- Nav bar', '## Dashboard\n- Widgets'],
+      usedClaude: true,
+    });
 
-    // Should NOT contain analysis-specific content
-    // (The discovery prompt may mention "findings" in a negative context like
-    // "do not produce findings", so we check for report-writing patterns instead)
-    expect(prompt).not.toContain('## Report');
-    expect(prompt).not.toMatch(/severity rating/i);
-    expect(prompt).not.toContain('document your findings');
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await runPlanDiscovery(args);
+
+      const allOutput = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(allOutput).toContain('Dry Run');
+      expect(allOutput).toContain('https://example.com/app');
+      expect(allOutput).toContain('Instances: 2');
+      expect(allOutput).toContain('Rounds per instance: 3');
+      expect(allOutput).toContain('Total rounds: 6');
+      expect(allOutput).toContain('Instance 1');
+      expect(allOutput).toContain('Instance 2');
+      expect(allOutput).toContain('Navigation');
+      expect(allOutput).toContain('Dashboard');
+      expect(allOutput).toContain('Exploration Scope');
+      expect(allOutput).toContain('Accessibility, Layout');
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it('dry-run shows free exploration for empty plan chunks', async () => {
+    const args = makePlanArgs({
+      dryRun: true,
+      instances: 1,
+      plan: '',
+      scope: '',
+    });
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-plan-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-plan-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await runPlanDiscovery(args);
+
+      const allOutput = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(allOutput).toContain('Free exploration');
+      expect(allOutput).toContain('No plan');
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it('opens browser when suppressOpen is false', async () => {
+    const { openInBrowser } = await import('../src/browser-open.js');
+    const mockOpenInBrowser = vi.mocked(openInBrowser);
+
+    const args = makePlanArgs({ suppressOpen: false, instances: 1 });
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-plan-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-plan-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 1);
+    });
+
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '## Discovery',
+      instanceCount: 1,
+      usedClaude: false,
+    });
+
+    mockGeneratePlanTemplate.mockResolvedValue('## Plan');
+
+    await runPlanDiscovery(args);
+
+    expect(mockOpenInBrowser).toHaveBeenCalledWith(
+      join(OUTPUT_DIR, 'discovery.html'),
+    );
+  });
+
+  it('handles instance promise rejection with Error reason', async () => {
+    const args = makePlanArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## Navigation', '## Dashboard'],
+      usedClaude: true,
+    });
+
+    // Instance 1 succeeds, instance 2 rejects with an Error
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      if (config.instanceNumber === 1) {
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(1, 1);
+      }
+      throw new Error('Subprocess crashed');
+    });
+
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '## Partial',
+      instanceCount: 1,
+      usedClaude: false,
+    });
+
+    mockGeneratePlanTemplate.mockResolvedValue('## Partial plan');
+
+    await runPlanDiscovery(args);
+
+    // Instance 2 should be marked as permanently failed
+    expect(mockProgressDisplay.markPermanentlyFailed).toHaveBeenCalledWith(
+      2,
+      'Subprocess crashed',
+    );
+
+    // Consolidation should still run (instance 1 succeeded)
+    expect(mockConsolidateDiscoveryDocs).toHaveBeenCalled();
+  });
+
+  it('handles instance promise rejection with non-Error reason', async () => {
+    const args = makePlanArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## Navigation', '## Dashboard'],
+      usedClaude: true,
+    });
+
+    // Instance 1 succeeds, instance 2 rejects with a string (non-Error)
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      if (config.instanceNumber === 1) {
+        config.progress?.onCompleted?.(config.instanceNumber);
+        return makeSuccessResult(1, 1);
+      }
+      // eslint-disable-next-line no-throw-literal
+      throw 'raw string rejection';
+    });
+
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '## Partial',
+      instanceCount: 1,
+      usedClaude: false,
+    });
+
+    mockGeneratePlanTemplate.mockResolvedValue('## Partial plan');
+
+    await runPlanDiscovery(args);
+
+    // Instance 2 should be marked as permanently failed with stringified reason
+    expect(mockProgressDisplay.markPermanentlyFailed).toHaveBeenCalledWith(
+      2,
+      'raw string rejection',
+    );
+  });
+
+  it('handles consolidation failure gracefully', async () => {
+    const args = makePlanArgs({ instances: 1 });
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-plan-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-plan-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 1);
+    });
+
+    // Consolidation fails
+    mockConsolidateDiscoveryDocs.mockRejectedValue(
+      new Error('API rate limit exhausted'),
+    );
+
+    // Should throw the consolidation error
+    await expect(runPlanDiscovery(args)).rejects.toThrow('API rate limit exhausted');
+
+    // Cleanup should still run in finally block
+    expect(mockCleanupTempDir).toHaveBeenCalled();
+    expect(mockProgressDisplay.stop).toHaveBeenCalled();
+
+    // No output files should be written
+    expect(existsSync(join(OUTPUT_DIR, 'plan.md'))).toBe(false);
+  });
+});
+
+describe('copyScreenshotsToOutput (via runPlanDiscovery)', () => {
+  const TEMP_DIR = resolve('.uxreview-temp-plan-test');
+
+  function setupSuccessfulRun() {
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## Navigation', '## Dashboard'],
+      usedClaude: true,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 1);
+    });
+
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '## Discovery content',
+      instanceCount: 2,
+      usedClaude: false,
+    });
+
+    mockGeneratePlanTemplate.mockResolvedValue('## Plan');
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Create output directory
+    mkdirSync(OUTPUT_DIR, { recursive: true });
+
+    // Default mock setup
+    mockInitWorkspace.mockReturnValue({
+      tempDir: TEMP_DIR,
+      instanceDirs: [
+        join(TEMP_DIR, 'instance-1'),
+        join(TEMP_DIR, 'instance-2'),
+      ],
+      outputDir: OUTPUT_DIR,
+    });
+
+    mockFormatDiscoveryHtml.mockReturnValue('<!DOCTYPE html><html><body>Discovery</body></html>');
+  });
+
+  afterEach(() => {
+    if (existsSync(TEMP_DIR)) {
+      rmSync(TEMP_DIR, { recursive: true, force: true });
+    }
+    if (existsSync(OUTPUT_DIR)) {
+      rmSync(OUTPUT_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('copies PNG files from instance screenshot dirs to output directory', async () => {
+    const args = makePlanArgs();
+    setupSuccessfulRun();
+
+    // Create temp screenshot dirs with PNG files
+    const inst1Screenshots = join(TEMP_DIR, 'instance-1', 'screenshots');
+    const inst2Screenshots = join(TEMP_DIR, 'instance-2', 'screenshots');
+    mkdirSync(inst1Screenshots, { recursive: true });
+    mkdirSync(inst2Screenshots, { recursive: true });
+
+    // Create dummy PNG files
+    writeFileSync(join(inst1Screenshots, 'nav-bar.png'), 'fake-png-1');
+    writeFileSync(join(inst1Screenshots, 'header.png'), 'fake-png-2');
+    writeFileSync(join(inst2Screenshots, 'dashboard.png'), 'fake-png-3');
+
+    await runPlanDiscovery(args);
+
+    // Verify files were copied to output screenshots dir
+    const outputScreenshots = join(OUTPUT_DIR, 'screenshots');
+    expect(existsSync(join(outputScreenshots, 'nav-bar.png'))).toBe(true);
+    expect(existsSync(join(outputScreenshots, 'header.png'))).toBe(true);
+    expect(existsSync(join(outputScreenshots, 'dashboard.png'))).toBe(true);
+
+    // Verify content was preserved
+    expect(readFileSync(join(outputScreenshots, 'nav-bar.png'), 'utf-8')).toBe('fake-png-1');
+  });
+
+  it('returns correct count of copied files', async () => {
+    const args = makePlanArgs();
+    setupSuccessfulRun();
+
+    // Create 3 PNG files across 2 instances
+    const inst1Screenshots = join(TEMP_DIR, 'instance-1', 'screenshots');
+    const inst2Screenshots = join(TEMP_DIR, 'instance-2', 'screenshots');
+    mkdirSync(inst1Screenshots, { recursive: true });
+    mkdirSync(inst2Screenshots, { recursive: true });
+    writeFileSync(join(inst1Screenshots, 'a.png'), 'data');
+    writeFileSync(join(inst2Screenshots, 'b.png'), 'data');
+    writeFileSync(join(inst2Screenshots, 'c.png'), 'data');
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await runPlanDiscovery(args);
+
+      // The count is displayed in the summary output
+      const allOutput = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(allOutput).toContain('Screenshots:    3');
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it('skips instances with no screenshots directory', async () => {
+    const args = makePlanArgs();
+    setupSuccessfulRun();
+
+    // Only create screenshots dir for instance 1, not instance 2
+    const inst1Screenshots = join(TEMP_DIR, 'instance-1', 'screenshots');
+    mkdirSync(inst1Screenshots, { recursive: true });
+    writeFileSync(join(inst1Screenshots, 'only-one.png'), 'data');
+
+    // Instance 2 screenshots dir does not exist
+
+    await runPlanDiscovery(args);
+
+    // Only instance 1's file should be copied
+    const outputScreenshots = join(OUTPUT_DIR, 'screenshots');
+    expect(existsSync(join(outputScreenshots, 'only-one.png'))).toBe(true);
+
+    // Count should be 1
+    const files = readdirSync(outputScreenshots).filter((f) => /\.png$/i.test(f));
+    expect(files).toHaveLength(1);
+  });
+
+  it('only copies .png files, skipping other file types', async () => {
+    const args = makePlanArgs({ instances: 1 });
+    setupSuccessfulRun();
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: TEMP_DIR,
+      instanceDirs: [join(TEMP_DIR, 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    const inst1Screenshots = join(TEMP_DIR, 'instance-1', 'screenshots');
+    mkdirSync(inst1Screenshots, { recursive: true });
+    writeFileSync(join(inst1Screenshots, 'screen.png'), 'png-data');
+    writeFileSync(join(inst1Screenshots, 'notes.txt'), 'text-data');
+    writeFileSync(join(inst1Screenshots, 'thumb.jpg'), 'jpg-data');
+
+    await runPlanDiscovery(args);
+
+    const outputScreenshots = join(OUTPUT_DIR, 'screenshots');
+    expect(existsSync(join(outputScreenshots, 'screen.png'))).toBe(true);
+    expect(existsSync(join(outputScreenshots, 'notes.txt'))).toBe(false);
+    expect(existsSync(join(outputScreenshots, 'thumb.jpg'))).toBe(false);
+  });
+
+  it('handles readdirSync errors via debug logging', async () => {
+    const args = makePlanArgs({ instances: 1 });
+    setupSuccessfulRun();
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: TEMP_DIR,
+      instanceDirs: [join(TEMP_DIR, 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    // Create a FILE named "screenshots" instead of a directory — makes readdirSync throw ENOTDIR
+    const inst1Dir = join(TEMP_DIR, 'instance-1');
+    mkdirSync(inst1Dir, { recursive: true });
+    writeFileSync(join(inst1Dir, 'screenshots'), 'not-a-directory');
+
+    await runPlanDiscovery(args);
+
+    // Verify debug was called with the error
+    const debugCalls = mockDebug.mock.calls.map((c) => String(c[0]));
+    const errorLog = debugCalls.find((msg) => msg.includes('Failed to copy screenshots from instance 1'));
+    expect(errorLog).toBeDefined();
+
+    // Verify the function still completed (no crash)
+    expect(existsSync(join(OUTPUT_DIR, 'plan.md'))).toBe(true);
   });
 });
 

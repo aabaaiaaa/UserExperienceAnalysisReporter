@@ -77,13 +77,13 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — add a targeted test that mocks all instances to fail, verifies `process.exitCode` is 1, the error message is printed to stderr, and no output files (`plan.md`, `discovery.html`) are written.
 
 ### TASK-010: Raise `plan-orchestrator.ts` test coverage — `copyScreenshotsToOutput`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009
 - **Description**: Add tests to `tests/plan-orchestrator.test.ts` for `copyScreenshotsToOutput()`: (1) copies PNG files from instance screenshot directories to output directory, (2) returns correct count of copied files, (3) skips instances with no screenshots directory, (4) handles `readdirSync`/`copyFileSync` errors via debug logging. See requirements Item 1.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — all tests pass.
 
 ### TASK-011: Raise `plan-orchestrator.ts` test coverage — dry-run and remaining paths
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009
 - **Description**: Add tests to `tests/plan-orchestrator.test.ts` for remaining uncovered paths: (1) dry-run output — verify printed content includes URL, instance count, rounds, areas, and scope, (2) consolidation failure path, (3) any remaining uncovered branches after the refactoring. Target 95%+ statement, branch, and function coverage for `plan-orchestrator.ts`. See requirements Item 1.
 - **Verification**: `npx vitest run --coverage tests/plan-orchestrator.test.ts` — `plan-orchestrator.ts` shows 95%+ on all coverage metrics.
