@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 vi.mock('../src/logger.js', () => ({
   debug: vi.fn(),
 }));
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { debug } from '../src/logger.js';
 import { openInBrowser } from '../src/browser-open.js';
 
-const mockExec = vi.mocked(exec);
+const mockExecFile = vi.mocked(execFile);
 const mockDebug = vi.mocked(debug);
 
 describe('openInBrowser', () => {
@@ -23,13 +23,14 @@ describe('openInBrowser', () => {
     vi.clearAllMocks();
   });
 
-  it('uses start command on win32', () => {
+  it('uses cmd /c start on win32', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
 
     openInBrowser('/path/to/report.html');
 
-    expect(mockExec).toHaveBeenCalledOnce();
-    expect(mockExec.mock.calls[0][0]).toBe('start "" "/path/to/report.html"');
+    expect(mockExecFile).toHaveBeenCalledOnce();
+    expect(mockExecFile.mock.calls[0][0]).toBe('cmd');
+    expect(mockExecFile.mock.calls[0][1]).toEqual(['/c', 'start', '""', '/path/to/report.html']);
   });
 
   it('uses open command on darwin', () => {
@@ -37,8 +38,9 @@ describe('openInBrowser', () => {
 
     openInBrowser('/path/to/report.html');
 
-    expect(mockExec).toHaveBeenCalledOnce();
-    expect(mockExec.mock.calls[0][0]).toBe('open "/path/to/report.html"');
+    expect(mockExecFile).toHaveBeenCalledOnce();
+    expect(mockExecFile.mock.calls[0][0]).toBe('open');
+    expect(mockExecFile.mock.calls[0][1]).toEqual(['/path/to/report.html']);
   });
 
   it('uses xdg-open command on linux', () => {
@@ -46,15 +48,16 @@ describe('openInBrowser', () => {
 
     openInBrowser('/path/to/report.html');
 
-    expect(mockExec).toHaveBeenCalledOnce();
-    expect(mockExec.mock.calls[0][0]).toBe('xdg-open "/path/to/report.html"');
+    expect(mockExecFile).toHaveBeenCalledOnce();
+    expect(mockExecFile.mock.calls[0][0]).toBe('xdg-open');
+    expect(mockExecFile.mock.calls[0][1]).toEqual(['/path/to/report.html']);
   });
 
-  it('calls debug when exec callback reports an error', () => {
+  it('calls debug when execFile callback reports an error', () => {
     Object.defineProperty(process, 'platform', { value: 'linux' });
 
-    // Make exec invoke its callback with an error
-    mockExec.mockImplementation((_cmd: any, callback: any) => {
+    // Make execFile invoke its callback with an error
+    mockExecFile.mockImplementation((_cmd: any, _args: any, callback: any) => {
       callback(new Error('spawn xdg-open ENOENT'));
       return undefined as any;
     });
@@ -67,10 +70,10 @@ describe('openInBrowser', () => {
     );
   });
 
-  it('does not call debug when exec succeeds', () => {
+  it('does not call debug when execFile succeeds', () => {
     Object.defineProperty(process, 'platform', { value: 'linux' });
 
-    mockExec.mockImplementation((_cmd: any, callback: any) => {
+    mockExecFile.mockImplementation((_cmd: any, _args: any, callback: any) => {
       callback(null);
       return undefined as any;
     });

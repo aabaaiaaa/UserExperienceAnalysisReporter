@@ -13,7 +13,7 @@
 - **Verification**: Run `npx vitest run tests/integration-edge-cases.test.ts tests/integration-failure-retry.test.ts tests/integration-dedup-consolidation.test.ts tests/consolidation-resume.test.ts` — all tests pass. Grep each file for `browser-open` to confirm the mock is present.
 
 ### TASK-002: Migrate browser-open.ts from exec() to execFile()
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001a, TASK-001b
 - **Description**: In `src/browser-open.ts`, replace `exec()` with `execFile()` from `node:child_process`. Platform-specific commands: Windows uses `execFile('cmd', ['/c', 'start', '""', filePath], cb)`, macOS uses `execFile('open', [filePath], cb)`, Linux uses `execFile('xdg-open', [filePath], cb)`. Update `tests/browser-open.test.ts` to mock `execFile` instead of `exec` and assert command + args array instead of a command string. Preserve all 5 existing test scenarios (3 platform + 2 error handling). See requirements.md Item 2 for full context.
 - **Verification**: Run `npx vitest run tests/browser-open.test.ts` — all tests pass. Grep `src/browser-open.ts` for `execFile` (should be present) and `exec(` or `import.*\bexec\b` (should NOT be present — only `execFile`).
