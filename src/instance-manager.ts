@@ -26,6 +26,8 @@ export interface InstanceConfig {
   round?: number;
   /** Timeout in milliseconds (default: INSTANCE_TIMEOUT_MS from config) */
   timeoutMs?: number;
+  /** Custom prompt builder function. Defaults to buildInstancePrompt. */
+  promptBuilder?: (config: InstanceConfig) => string;
 }
 
 export interface InstanceState {
@@ -230,7 +232,7 @@ export async function spawnInstance(config: InstanceConfig): Promise<InstanceSta
     status: 'running',
   };
 
-  const prompt = buildInstancePrompt(config);
+  const prompt = config.promptBuilder?.(config) ?? buildInstancePrompt(config);
   const paths = getInstancePaths(config.instanceNumber);
 
   try {
@@ -295,7 +297,7 @@ export async function spawnInstanceWithResume(
     status: 'running',
   };
 
-  const basePrompt = buildInstancePrompt(config);
+  const basePrompt = config.promptBuilder?.(config) ?? buildInstancePrompt(config);
   const resumePrompt = buildResumePrompt(checkpoint);
   const fullPrompt = basePrompt + '\n\n' + resumePrompt;
 
@@ -371,6 +373,8 @@ export interface RoundExecutionConfig {
   rateLimitRetries?: number;
   /** Optional callbacks for progress reporting to the orchestrator */
   progress?: ProgressCallback;
+  /** Custom prompt builder function. Defaults to buildInstancePrompt. */
+  promptBuilder?: (config: InstanceConfig) => string;
 }
 
 export interface RoundExecutionResult {
@@ -524,6 +528,7 @@ export async function runInstanceRounds(config: RoundExecutionConfig): Promise<R
       scope: config.scope,
       round,
       timeoutMs: instanceTimeoutMs,
+      promptBuilder: config.promptBuilder,
     };
 
     let state = await spawnInstance(instanceConfig);

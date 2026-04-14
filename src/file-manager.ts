@@ -65,10 +65,11 @@ export async function cleanupTempDir(): Promise<void> {
       rmSync(tempDir, { recursive: true, force: true });
       return;
     } catch (err: unknown) {
-      const isLockError = err instanceof Error && 'code' in err &&
+      const isRetryableError = err instanceof Error && 'code' in err &&
         ((err as NodeJS.ErrnoException).code === 'EBUSY' ||
-         (err as NodeJS.ErrnoException).code === 'EPERM');
-      if (!isLockError || attempt === maxAttempts) {
+         (err as NodeJS.ErrnoException).code === 'EPERM' ||
+         (err as NodeJS.ErrnoException).code === 'ENOTEMPTY');
+      if (!isRetryableError || attempt === maxAttempts) {
         throw err;
       }
       // Non-blocking delay before retry (100ms * attempt)

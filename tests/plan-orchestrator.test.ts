@@ -10,6 +10,13 @@ vi.mock('../src/work-distribution.js', () => ({
   distributePlan: vi.fn(),
 }));
 
+// Mock claude-cli (killAllChildProcesses is now used by signal-handler.ts)
+vi.mock('../src/claude-cli.js', () => ({
+  killAllChildProcesses: vi.fn(),
+  runClaude: vi.fn(),
+  getActiveProcessCount: vi.fn().mockReturnValue(0),
+}));
+
 // Mock instance-manager
 vi.mock('../src/instance-manager.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../src/instance-manager.js')>();
@@ -106,7 +113,8 @@ vi.mock('../src/orchestrator.js', () => ({
 
 // Import mocked modules
 import { distributePlan } from '../src/work-distribution.js';
-import { runInstanceRounds, RoundExecutionResult, killAllChildProcesses } from '../src/instance-manager.js';
+import { runInstanceRounds, RoundExecutionResult } from '../src/instance-manager.js';
+import { killAllChildProcesses } from '../src/claude-cli.js';
 import {
   consolidateDiscoveryDocs,
   writeConsolidatedDiscovery,

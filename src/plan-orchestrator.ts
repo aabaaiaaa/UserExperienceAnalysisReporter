@@ -8,8 +8,6 @@ import {
   runInstanceRounds,
   RoundExecutionConfig,
   RoundExecutionResult,
-  ProgressCallback,
-  killAllChildProcesses,
 } from './instance-manager.js';
 import {
   consolidateDiscoveryDocs,
@@ -17,9 +15,11 @@ import {
   generatePlanTemplate,
 } from './consolidation.js';
 import { ProgressDisplay } from './progress-display.js';
+import { buildProgressCallback } from './progress-callbacks.js';
 import { formatDiscoveryHtml, DiscoveryMetadata } from './discovery-html.js';
 import { setVerbose, debug } from './logger.js';
 import { MAX_AUTO_INSTANCES } from './config.js';
+import { createSignalManager } from './signal-handler.js';
 import { extractAreasFromPlanChunk } from './orchestrator.js';
 
 /**
@@ -31,51 +31,6 @@ export class PlanSignalInterruptError extends Error {
     super(`Process interrupted by ${signal}`);
     this.name = 'PlanSignalInterruptError';
   }
-}
-
-/**
- * Build a ProgressCallback that wires runInstanceRounds state transitions
- * into the ProgressDisplay.
- */
-function buildProgressCallback(display: ProgressDisplay): ProgressCallback {
-  return {
-    onRoundStart(instanceNumber: number, _round: number) {
-      display.markRunning(instanceNumber);
-    },
-    onRoundComplete(instanceNumber: number, _round: number, durationMs: number) {
-      display.markRoundComplete(instanceNumber, durationMs);
-    },
-    onFailure(instanceNumber: number, _round: number, error: string) {
-      display.markFailed(instanceNumber, error);
-    },
-    onRetry(instanceNumber: number, _round: number, attempt: number, maxRetries: number) {
-      display.markRetrying(instanceNumber, attempt, maxRetries);
-    },
-    onRetrySuccess(instanceNumber: number, _round: number) {
-      display.markRunning(instanceNumber);
-    },
-    onRateLimited(instanceNumber: number, _round: number, backoffMs: number) {
-      display.markRateLimited(instanceNumber, backoffMs);
-    },
-    onRateLimitResolved(instanceNumber: number, _round: number) {
-      display.markRunning(instanceNumber);
-    },
-    onCompleted(instanceNumber: number) {
-      display.markCompleted(instanceNumber);
-    },
-    onPermanentlyFailed(instanceNumber: number, error: string) {
-      display.markPermanentlyFailed(instanceNumber, error);
-    },
-    onProgressUpdate(
-      instanceNumber: number,
-      completedItems: number,
-      inProgressItems: number,
-      totalItems: number,
-      findingsCount: number,
-    ) {
-      display.updateProgress(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount);
-    },
-  };
 }
 
 /**
@@ -152,34 +107,7 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
   const display = new ProgressDisplay(instanceNumbers, args.rounds);
   const progressCallback = buildProgressCallback(display);
 
-  // Flag-based signal handling: instead of process.exit(), set a flag and
-  // reject a promise so the try block unwinds and the finally block runs cleanup.
-  let signalReceived = false;
-  let rejectOnSignal: ((err: PlanSignalInterruptError) => void) | undefined;
-  const signalPromise = new Promise<never>((_, reject) => {
-    rejectOnSignal = reject;
-  });
-  // Prevent unhandled rejection if signal fires between raceSignal calls
-  signalPromise.catch(() => {});
-
-  function raceSignal<T>(promise: Promise<T>): Promise<T> {
-    if (signalReceived) {
-      return Promise.reject(new PlanSignalInterruptError('signal'));
-    }
-    return Promise.race([promise, signalPromise]);
-  }
-
-  const signalHandler = (signal: NodeJS.Signals) => {
-    if (signalReceived) return;
-    signalReceived = true;
-    killAllChildProcesses();
-    process.exitCode = signal === 'SIGINT' ? 130 : 143;
-    if (rejectOnSignal) {
-      rejectOnSignal(new PlanSignalInterruptError(signal));
-    }
-  };
-  process.on('SIGINT', signalHandler);
-  process.on('SIGTERM', signalHandler);
+  const signals = createSignalManager(PlanSignalInterruptError);
 
   display.start();
 
@@ -188,7 +116,7 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
     let chunks: string[];
     if (args.plan.trim().length > 0 && args.instances > 1) {
       const distributionStart = Date.now();
-      const distribution = await raceSignal(distributePlan(args.plan, args.instances));
+      const distribution = await signals.raceSignal(distributePlan(args.plan, args.instances));
       chunks = distribution.chunks;
       debug(`Distribution phase completed in ${Date.now() - distributionStart}ms`);
     } else {
@@ -244,7 +172,7 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
 
     debug(`Spawning ${configs.length} instance(s) for ${args.rounds} round(s) of discovery`);
     const executionStart = Date.now();
-    const settled = await raceSignal(Promise.allSettled(
+    const settled = await signals.raceSignal(Promise.allSettled(
       configs.map((config) => runInstanceRounds(config)),
     ));
     const executionDurationMs = Date.now() - executionStart;
@@ -275,11 +203,11 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
     const consolidationStart = Date.now();
 
     // 5a. Consolidate discovery documents
-    const discoveryResult = await raceSignal(consolidateDiscoveryDocs(instanceNumbers));
+    const discoveryResult = await signals.raceSignal(consolidateDiscoveryDocs(instanceNumbers));
     debug(`Discovery consolidation complete: ${discoveryResult.instanceCount} doc(s), usedClaude=${discoveryResult.usedClaude}`);
 
     // 5b. Generate plan template from consolidated discovery
-    const planContent = await raceSignal(generatePlanTemplate(discoveryResult.content));
+    const planContent = await signals.raceSignal(generatePlanTemplate(discoveryResult.content));
     debug('Plan template generation complete');
 
     // 5c. Copy screenshots to output directory
@@ -342,8 +270,7 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
       });
     }
   } finally {
-    process.removeListener('SIGINT', signalHandler);
-    process.removeListener('SIGTERM', signalHandler);
+    signals.cleanup();
     display.stop();
     if (!args.keepTemp) {
       await cleanupTempDir();

@@ -62,7 +62,23 @@ describe('cleanupTempDir EBUSY retry', () => {
     expect(mockedRmSync).toHaveBeenCalledTimes(5);
   });
 
-  it('throws immediately on non-EBUSY/EPERM errors without retrying', async () => {
+  it('retries on ENOTEMPTY and succeeds on subsequent attempt', async () => {
+    const tempDir = getTempDir();
+
+    mockedExistsSync.mockReturnValue(true);
+
+    const enotemptyError = Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' });
+    mockedRmSync
+      .mockImplementationOnce(() => { throw enotemptyError; })
+      .mockImplementationOnce(() => undefined);
+
+    await expect(cleanupTempDir()).resolves.toBeUndefined();
+
+    expect(mockedRmSync).toHaveBeenCalledTimes(2);
+    expect(mockedRmSync).toHaveBeenCalledWith(tempDir, { recursive: true, force: true });
+  });
+
+  it('throws immediately on non-retryable errors without retrying', async () => {
     mockedExistsSync.mockReturnValue(true);
 
     const enoentError = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });

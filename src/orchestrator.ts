@@ -8,8 +8,6 @@ import {
   runInstanceRounds,
   RoundExecutionConfig,
   RoundExecutionResult,
-  ProgressCallback,
-  killAllChildProcesses,
 } from './instance-manager.js';
 import {
   consolidateReports,
@@ -28,9 +26,11 @@ import {
   Finding,
 } from './consolidation.js';
 import { ProgressDisplay } from './progress-display.js';
+import { buildProgressCallback } from './progress-callbacks.js';
 import { formatHtmlReport, ReportMetadata } from './html-report.js';
 import { setVerbose, debug } from './logger.js';
 import { MAX_AUTO_INSTANCES } from './config.js';
+import { createSignalManager } from './signal-handler.js';
 import {
   readConsolidationCheckpoint,
   writeConsolidationCheckpoint,
@@ -80,51 +80,6 @@ export function extractAreasFromPlanChunk(chunk: string): string[] {
 }
 
 /**
- * Build a ProgressCallback that wires runInstanceRounds state transitions
- * into the ProgressDisplay.
- */
-function buildProgressCallback(display: ProgressDisplay): ProgressCallback {
-  return {
-    onRoundStart(instanceNumber: number, _round: number) {
-      display.markRunning(instanceNumber);
-    },
-    onRoundComplete(instanceNumber: number, _round: number, durationMs: number) {
-      display.markRoundComplete(instanceNumber, durationMs);
-    },
-    onFailure(instanceNumber: number, _round: number, error: string) {
-      display.markFailed(instanceNumber, error);
-    },
-    onRetry(instanceNumber: number, _round: number, attempt: number, maxRetries: number) {
-      display.markRetrying(instanceNumber, attempt, maxRetries);
-    },
-    onRetrySuccess(instanceNumber: number, _round: number) {
-      display.markRunning(instanceNumber);
-    },
-    onRateLimited(instanceNumber: number, _round: number, backoffMs: number) {
-      display.markRateLimited(instanceNumber, backoffMs);
-    },
-    onRateLimitResolved(instanceNumber: number, _round: number) {
-      display.markRunning(instanceNumber);
-    },
-    onCompleted(instanceNumber: number) {
-      display.markCompleted(instanceNumber);
-    },
-    onPermanentlyFailed(instanceNumber: number, error: string) {
-      display.markPermanentlyFailed(instanceNumber, error);
-    },
-    onProgressUpdate(
-      instanceNumber: number,
-      completedItems: number,
-      inProgressItems: number,
-      totalItems: number,
-      findingsCount: number,
-    ) {
-      display.updateProgress(instanceNumber, completedItems, inProgressItems, totalItems, findingsCount);
-    },
-  };
-}
-
-/**
  * Error thrown when the orchestrator is interrupted by a signal (SIGINT/SIGTERM).
  * Allows callers to distinguish signal interruptions from other errors.
  */
@@ -164,41 +119,14 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
   const display = new ProgressDisplay(instanceNumbers, args.rounds);
   const progressCallback = buildProgressCallback(display);
 
-  // Flag-based signal handling: instead of process.exit(), set a flag and
-  // reject a promise so the try block unwinds and the finally block runs cleanup.
-  let signalReceived = false;
-  let rejectOnSignal: ((err: SignalInterruptError) => void) | undefined;
-  const signalPromise = new Promise<never>((_, reject) => {
-    rejectOnSignal = reject;
-  });
-  // Prevent unhandled rejection if signal fires between raceSignal calls
-  signalPromise.catch(() => {});
-
-  function raceSignal<T>(promise: Promise<T>): Promise<T> {
-    if (signalReceived) {
-      return Promise.reject(new SignalInterruptError('signal'));
-    }
-    return Promise.race([promise, signalPromise]);
-  }
-
-  const signalHandler = (signal: NodeJS.Signals) => {
-    if (signalReceived) return;
-    signalReceived = true;
-    killAllChildProcesses();
-    process.exitCode = signal === 'SIGINT' ? 130 : 143;
-    if (rejectOnSignal) {
-      rejectOnSignal(new SignalInterruptError(signal));
-    }
-  };
-  process.on('SIGINT', signalHandler);
-  process.on('SIGTERM', signalHandler);
+  const signals = createSignalManager(SignalInterruptError);
 
   display.start();
 
   try {
     // 3. Distribute work across instances
     const distributionStart = Date.now();
-    const distribution = await raceSignal(distributePlan(args.plan, args.instances));
+    const distribution = await signals.raceSignal(distributePlan(args.plan, args.instances));
     debug(`Distribution phase completed in ${Date.now() - distributionStart}ms`);
 
     // 3a. Dry-run mode: print distribution info and exit
@@ -240,7 +168,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
 
     debug(`Spawning ${configs.length} instance(s) for ${args.rounds} round(s)`);
     const executionStart = Date.now();
-    const settled = await raceSignal(Promise.allSettled(
+    const settled = await signals.raceSignal(Promise.allSettled(
       configs.map((config) => runInstanceRounds(config)),
     ));
     debug(`Instance execution phase completed in ${Date.now() - executionStart}ms`);
@@ -280,7 +208,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       // Just read the instance output, reassign IDs, format reports, copy files.
       debug('Single instance: skipping consolidation, copying output directly');
 
-      const consolidation = await raceSignal(consolidateReports(instanceNumbers));
+      const consolidation = await signals.raceSignal(consolidateReports(instanceNumbers));
       const reassignResult = reassignAndRemapScreenshots(
         consolidation, workspace.outputDir, 1, false,
       );
@@ -305,7 +233,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
 
       // Copy discovery doc
       writeConsolidatedDiscovery(workspace.outputDir,
-        (await raceSignal(consolidateDiscoveryDocs(instanceNumbers))).content);
+        (await signals.raceSignal(consolidateDiscoveryDocs(instanceNumbers))).content);
     } else {
       // Multi-instance or append mode: full consolidation with checkpointing
       display.startConsolidation();
@@ -320,7 +248,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
         consolidation = checkpoint.dedupOutput;
         debug('Resuming consolidation: skipping dedup (already completed)');
       } else {
-        consolidation = await raceSignal(consolidateReports(instanceNumbers));
+        consolidation = await signals.raceSignal(consolidateReports(instanceNumbers));
 
         // In append mode, run cross-run deduplication against existing findings
         if (args.append) {
@@ -330,7 +258,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
             const existingFindings = parseConsolidatedReport(existingContent);
             if (existingFindings.length > 0) {
               debug(`Append mode: cross-run dedup against ${existingFindings.length} existing finding(s)`);
-              const crossRunDedup = await raceSignal(detectCrossRunDuplicates(existingFindings, consolidation.findings));
+              const crossRunDedup = await signals.raceSignal(detectCrossRunDuplicates(existingFindings, consolidation.findings));
               if (crossRunDedup.duplicateGroups.length > 0) {
                 const filtered = filterCrossRunDuplicates(
                   existingFindings,
@@ -394,7 +322,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
         groups = checkpoint.hierarchyOutput;
         debug('Resuming consolidation: skipping hierarchy (already completed)');
       } else {
-        groups = await raceSignal(organizeHierarchically(findings));
+        groups = await signals.raceSignal(organizeHierarchically(findings));
         checkpoint.hierarchyOutput = groups;
         checkpoint.completedSteps = [...checkpoint.completedSteps, 'hierarchy'];
         checkpoint.timestamp = new Date().toISOString();
@@ -427,7 +355,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       if (isStepCompleted(checkpoint, 'discovery-merge') && checkpoint.discoveryMergeOutput) {
         debug('Resuming consolidation: skipping discovery-merge (already completed)');
       } else {
-        const discoveryResult = await raceSignal(consolidateDiscoveryDocs(instanceNumbers));
+        const discoveryResult = await signals.raceSignal(consolidateDiscoveryDocs(instanceNumbers));
         // In append mode, merge with existing discovery document
         let mergedDiscovery = discoveryResult.content;
         if (args.append && existsSync(discoveryPath)) {
@@ -489,8 +417,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
       });
     }
   } finally {
-    process.removeListener('SIGINT', signalHandler);
-    process.removeListener('SIGTERM', signalHandler);
+    signals.cleanup();
     display.stop();
     if (!args.keepTemp) {
       await cleanupTempDir();

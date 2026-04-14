@@ -5,7 +5,7 @@ See `.devloop/requirements.md` for full context on each item.
 ---
 
 ### TASK-001: Add `promptBuilder` field to InstanceConfig and RoundExecutionConfig
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add an optional `promptBuilder?: (config: InstanceConfig) => string` field to both `InstanceConfig` and `RoundExecutionConfig` in `instance-manager.ts`. Modify `spawnInstance()` (line 233) to use `config.promptBuilder?.(config) ?? buildInstancePrompt(config)` instead of hardcoding `buildInstancePrompt(config)`. Modify `runInstanceRounds()` to pass `promptBuilder` from `RoundExecutionConfig` through to the `InstanceConfig` it constructs (around line 519-527). Also pass it through in the `respawn` lambda and `spawnInstanceWithResume`. See requirements Item 0 for full details.
 - **Verification**: `npx vitest run tests/instance-manager.test.ts` — all existing tests pass. Add a test that creates an `InstanceConfig` with a custom `promptBuilder`, calls `spawnInstance`, and verifies the custom prompt builder was used (mock `runClaude` and check the prompt argument).
@@ -17,19 +17,19 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — all existing tests pass. The integration test added in TASK-012 will provide deeper verification.
 
 ### TASK-003: Fix `cleanupTempDir()` to catch ENOTEMPTY
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `file-manager.ts:68-70`, add `ENOTEMPTY` to the list of retryable error codes alongside EBUSY and EPERM. Rename `isLockError` to `isRetryableError` for clarity. See requirements Item 2.
 - **Verification**: `npx vitest run tests/file-manager.test.ts` — the previously failing test passes. Add a targeted test that mocks `rmSync` to throw ENOTEMPTY on the first call and succeed on the second, verifying the retry works.
 
 ### TASK-004: Add `debug()` logging to `discovery-html.ts` bare catch
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `discovery-html.ts`, import `debug` from `./logger.js`. Change the bare catch at line 265-266 in `listAllScreenshots()` to `catch (err)` and add `debug(\`Failed to read screenshots directory ${screenshotsDir}: ${err}\`)` before returning `[]`. See requirements Item 3.
 - **Verification**: `npx vitest run tests/discovery-html.test.ts` — all existing tests pass. Add a test that mocks `readdirSync` to throw, verifies `listAllScreenshots()` returns `[]`, and verifies `debug()` was called with the error message.
 
 ### TASK-005: Extract `buildProgressCallback()` to `progress-callbacks.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Create `src/progress-callbacks.ts` containing the shared `buildProgressCallback(display: ProgressDisplay): ProgressCallback` function (currently duplicated in `orchestrator.ts:86-125` and `plan-orchestrator.ts:40-79`). Remove the local definitions from both orchestrator files and replace with imports from the new module. See requirements Item 4.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` — all existing tests pass.
@@ -41,7 +41,7 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/progress-callbacks.test.ts` — all tests pass.
 
 ### TASK-006: Extract signal handling to `signal-handler.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Create `src/signal-handler.ts` with a `createSignalManager(ErrorClass)` factory function that encapsulates the flag-based signal handling pattern duplicated between `orchestrator.ts:167-194` and `plan-orchestrator.ts:155-182`. The returned `SignalManager` object should provide: `raceSignal<T>(promise)`, `signalReceived` (readonly boolean), and `cleanup()`. Both orchestrators should import and use `createSignalManager()` instead of their inline implementations. `orchestrator.ts` passes `SignalInterruptError`, `plan-orchestrator.ts` passes `PlanSignalInterruptError`. See requirements Item 6a.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` — all existing tests pass.

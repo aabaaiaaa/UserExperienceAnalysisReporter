@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { encodeScreenshotBase64 } from './html-report.js';
+import { debug } from './logger.js';
 
 /**
  * Metadata about the discovery run, displayed in the report header.
@@ -262,7 +263,8 @@ function listAllScreenshots(screenshotsDir: string): string[] {
   }
   try {
     return readdirSync(screenshotsDir).filter((f) => /^I\d+-UXR-\d+(-[a-z])?\.png$/.test(f));
-  } catch {
+  } catch (err) {
+    debug(`Failed to read screenshots directory ${screenshotsDir}: ${err}`);
     return [];
   }
 }

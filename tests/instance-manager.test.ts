@@ -270,6 +270,28 @@ describe('spawnInstance', () => {
     expect(callArgs.cwd).toContain('instance-3');
     expect(callArgs.prompt).toContain('I3-UXR-');
   });
+
+  it('uses custom promptBuilder when provided', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    const customPromptBuilder = vi.fn().mockReturnValue('Custom discovery prompt');
+    const config: InstanceConfig = {
+      ...BASE_CONFIG,
+      promptBuilder: customPromptBuilder,
+    };
+
+    await spawnInstance(config);
+
+    expect(customPromptBuilder).toHaveBeenCalledOnce();
+    expect(customPromptBuilder).toHaveBeenCalledWith(config);
+    const callArgs = mockRunClaude.mock.calls[0][0];
+    expect(callArgs.prompt).toBe('Custom discovery prompt');
+  });
 });
 
 describe('spawnInstances', () => {

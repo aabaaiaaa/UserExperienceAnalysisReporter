@@ -1,7 +1,30 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { formatDiscoveryHtml, DiscoveryMetadata } from '../src/discovery-html.js';
+
+// Mock logger
+const mockDebug = vi.fn();
+vi.mock('../src/logger.js', () => ({
+  debug: (...args: unknown[]) => mockDebug(...args),
+  setVerbose: vi.fn(),
+}));
+
+// Track whether readdirSync should throw for a specific path
+let readdirSyncErrorPath: string | null = null;
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    readdirSync: (...args: Parameters<typeof actual.readdirSync>) => {
+      if (readdirSyncErrorPath && String(args[0]).includes(readdirSyncErrorPath)) {
+        throw new Error('Permission denied');
+      }
+      return actual.readdirSync(...args);
+    },
+  };
+});
 
 // Minimal valid 1x1 PNG
 const TINY_PNG = Buffer.from(
@@ -308,5 +331,29 @@ describe('screenshot embedding', () => {
     expect(imgMatches).toHaveLength(2);
     expect(html).toContain('alt="I1-UXR-001.png"');
     expect(html).toContain('alt="I1-UXR-002.png"');
+  });
+
+  it('logs debug message when readdirSync throws in screenshot listing', () => {
+    // Create the screenshots directory so existsSync returns true,
+    // then make readdirSync throw via the mock trigger
+    mkdirSync(screenshotsDir, { recursive: true });
+    readdirSyncErrorPath = screenshotsDir;
+    mockDebug.mockClear();
+
+    try {
+      // This should not throw — the catch returns [] and logs debug
+      const html = formatDiscoveryHtml(
+        '## Test Area\n- item one',
+        makeMetadata(),
+        screenshotsDir,
+      );
+
+      expect(html).toContain('Test Area');
+      expect(mockDebug).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to read screenshots directory'),
+      );
+    } finally {
+      readdirSyncErrorPath = null;
+    }
   });
 });
