@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import {
   formatDuration,
@@ -1369,5 +1369,46 @@ describe('safeStatMtimeMs debug logging', () => {
     // Access private method via type cast
     const result = (display as any).safeStatMtimeMs('/nonexistent/path/to/file');
     expect(result).toBeNull();
+  });
+});
+
+describe('ProgressDisplay start() timer', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('creates interval that calls pollCheckpoints and renderToTerminal on each tick', () => {
+    vi.useFakeTimers();
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const display = new ProgressDisplay([1], 1);
+    const pollSpy = vi.spyOn(display, 'pollCheckpoints').mockImplementation(() => {});
+    const renderSpy = vi.spyOn(display, 'renderToTerminal').mockImplementation(() => {});
+
+    display.start(500);
+
+    // start() calls pollCheckpoints and renderToTerminal once immediately
+    expect(pollSpy).toHaveBeenCalledTimes(1);
+    expect(renderSpy).toHaveBeenCalledTimes(1);
+
+    // Advance past the first interval tick
+    vi.advanceTimersByTime(500);
+    expect(pollSpy).toHaveBeenCalledTimes(2);
+    expect(renderSpy).toHaveBeenCalledTimes(2);
+
+    // Advance past a second interval tick
+    vi.advanceTimersByTime(500);
+    expect(pollSpy).toHaveBeenCalledTimes(3);
+    expect(renderSpy).toHaveBeenCalledTimes(3);
+
+    // Stop clears the interval — no more ticks after stop
+    display.stop();
+    vi.advanceTimersByTime(1000);
+    // stop() itself calls renderToTerminal once, so count is 4
+    expect(renderSpy).toHaveBeenCalledTimes(4);
+    // pollCheckpoints is NOT called by stop(), so stays at 3
+    expect(pollSpy).toHaveBeenCalledTimes(3);
+
+    stderrSpy.mockRestore();
   });
 });

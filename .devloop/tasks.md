@@ -1,25 +1,25 @@
 # Iteration 10 Tasks
 
 ### TASK-001: Stabilize flaky consolidation-resume checkpoint preservation test
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Fix the intermittently failing test "preserves consolidation checkpoint when initTempDir is called on existing temp dir" in `tests/consolidation-resume.test.ts:788-821`. The test fails on Windows due to filesystem timing — `initTempDir(2)` called twice in quick succession sometimes deletes the checkpoint file despite `hasExistingCheckpointData()` returning true. Either add a filesystem settle delay between the write and re-initialization, or restructure the test to verify the preservation logic more directly without relying on rapid sequential filesystem operations. See requirements.md Item 1 for full analysis.
 - **Verification**: Run `npx vitest run tests/consolidation-resume.test.ts` three times — all tests must pass every time.
 
 ### TASK-002: Raise instance-manager.ts branch coverage — scope-empty path
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a targeted test to `tests/instance-manager.test.ts` for the uncovered branch at `src/instance-manager.ts:166` — the `buildDiscoveryPrompt` scope-empty path. Call `buildDiscoveryPrompt` with an empty/whitespace-only scope string and verify the returned prompt does NOT contain "Exploration Guidance". See requirements.md Item 2.
 - **Verification**: Run `npx vitest run --coverage tests/instance-manager.test.ts` and confirm branch coverage is above 95%.
 
 ### TASK-003: Raise html-report.ts branch coverage — screenshot encoding fallbacks
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add targeted tests to the html-report test file covering: (1) `encodeScreenshotBase64` with a non-existent file path returns `null`, (2) `encodeScreenshotBase64` when `readFileSync` throws returns `null`, (3) `renderScreenshots` when all screenshot refs fail to encode falls back to escaped plain text. See requirements.md Item 3 for line numbers and details.
 - **Verification**: Run `npx vitest run --coverage tests/html-report.test.ts` and confirm branch coverage is above 95%.
 
 ### TASK-004: Raise progress-display.ts branch coverage — edge states
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add targeted tests to `tests/progress-display.test.ts` covering: (1) corrupt/unparseable checkpoint file — verify `findingsCount` still updates from filesystem without crashing (lines 431-432), (2) timer setup via `start()` — verify polling interval is created and callbacks fire using `vi.useFakeTimers()` (lines 440-441). See requirements.md Item 4.
 - **Verification**: Run `npx vitest run --coverage tests/progress-display.test.ts` and confirm branch coverage is above 95%.

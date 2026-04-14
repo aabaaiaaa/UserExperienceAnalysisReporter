@@ -191,4 +191,30 @@ describe('ProgressDisplay.pollCheckpoints', () => {
     const p = display.getProgress(1)!;
     expect(p.screenshotCount).toBe(0);
   });
+
+  it('updates only findingsCount when checkpoint is corrupt but findings changed', () => {
+    const display = new ProgressDisplay([1], 1);
+
+    // Set initial progress with known findingsCount
+    display.updateProgress(1, 2, 1, 5, 3);
+
+    // Checkpoint is corrupt/unreadable (returns null)
+    mockReadCheckpoint.mockReturnValue(null);
+
+    // But the report file has new findings (different from current 3)
+    mockReadReportContent.mockReturnValue(
+      '## I1-UXR-001: Bug\n## I1-UXR-002: Bug\n## I1-UXR-003: Bug\n## I1-UXR-004: New bug\n## I1-UXR-005: Another new bug',
+    );
+    mockCountFindings.mockReturnValue(5);
+
+    display.pollCheckpoints();
+
+    const p = display.getProgress(1)!;
+    // findingsCount should be updated to 5 (from the report)
+    expect(p.findingsCount).toBe(5);
+    // Area progress should remain unchanged since checkpoint was unreadable
+    expect(p.completedItems).toBe(2);
+    expect(p.inProgressItems).toBe(1);
+    expect(p.totalItems).toBe(5);
+  });
 });

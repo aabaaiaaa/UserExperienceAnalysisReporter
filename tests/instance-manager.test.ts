@@ -875,4 +875,24 @@ describe('buildDiscoveryPrompt', () => {
     const prompt2 = buildDiscoveryPrompt({ ...BASE_CONFIG, instanceNumber: 3 });
     expect(prompt2).toContain('I3-UXR-');
   });
+
+  it('omits exploration guidance section when scope is empty', () => {
+    const emptyScopeConfig: InstanceConfig = {
+      ...BASE_CONFIG,
+      scope: '',
+    };
+    const prompt = buildDiscoveryPrompt(emptyScopeConfig);
+    expect(prompt).not.toContain('Exploration Guidance');
+    expect(prompt).not.toContain('things to look for during exploration');
+  });
+
+  it('omits exploration guidance section when scope is whitespace only', () => {
+    const whitespaceScopeConfig: InstanceConfig = {
+      ...BASE_CONFIG,
+      scope: '   \n  ',
+    };
+    const prompt = buildDiscoveryPrompt(whitespaceScopeConfig);
+    expect(prompt).not.toContain('Exploration Guidance');
+    expect(prompt).not.toContain('things to look for during exploration');
+  });
 });

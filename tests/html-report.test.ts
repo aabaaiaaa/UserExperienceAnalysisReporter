@@ -609,4 +609,56 @@ describe('screenshot base64 embedding', () => {
     expect(html).toContain('.screenshot');
     expect(html).toContain('max-width: 100%');
   });
+
+  it('encodeScreenshotBase64 returns null when readFileSync throws', () => {
+    // Create a directory with the same name as the expected file.
+    // existsSync returns true for directories, but readFileSync throws EISDIR,
+    // exercising the catch branch at html-report.ts:65-66.
+    const dirAsFile = join(screenshotsDir, 'fake-screenshot.png');
+    mkdirSync(dirAsFile, { recursive: true });
+
+    const result = encodeScreenshotBase64(screenshotsDir, 'fake-screenshot.png');
+
+    expect(result).toBeNull();
+  });
+
+  it('renderScreenshots falls back to escaped plain text when all screenshot refs fail to encode', () => {
+    // screenshotsDir exists but none of the referenced files do.
+    // renderScreenshots should produce <dd> with escaped text, not <img> tags.
+    const finding = makeFinding({ screenshot: 'gone-a.png, gone-b.png' });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Fallback Area',
+        findings: [{ finding, children: [] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata(), screenshotsDir);
+
+    // No img tags — all refs failed
+    expect(html).not.toContain('<img');
+    // The raw screenshot field text is rendered as escaped HTML inside a <dd>
+    expect(html).toContain('<dd>gone-a.png, gone-b.png</dd>');
+  });
+
+  it('renderScreenshots falls back to escaped text when readFileSync throws for all refs', () => {
+    // Create directories where files are expected so existsSync passes but readFileSync throws
+    mkdirSync(join(screenshotsDir, 'broken-a.png'), { recursive: true });
+    mkdirSync(join(screenshotsDir, 'broken-b.png'), { recursive: true });
+
+    const finding = makeFinding({ screenshot: 'broken-a.png, broken-b.png' });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Broken Area',
+        findings: [{ finding, children: [] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata(), screenshotsDir);
+
+    expect(html).not.toContain('<img');
+    expect(html).toContain('<dd>broken-a.png, broken-b.png</dd>');
+  });
 });

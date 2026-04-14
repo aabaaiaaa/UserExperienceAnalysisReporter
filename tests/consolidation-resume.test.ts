@@ -805,6 +805,9 @@ describe('Integration: Consolidation checkpoint resumability', () => {
       const cpPath = join(tempDir, 'consolidation-checkpoint.json');
       writeFileSync(cpPath, JSON.stringify(checkpoint, null, 2), 'utf-8');
 
+      // Let Windows release file handles before re-initializing (TOCTTOU mitigation)
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Verify checkpoint data is detected
       expect(real.hasExistingCheckpointData()).toBe(true);
 
