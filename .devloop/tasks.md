@@ -37,13 +37,13 @@
 - **Verification**: Run `npx tsc --noEmit` — no type errors.
 
 ### TASK-006b: Extract prompt builders into instance-manager/prompts.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-006a
 - **Description**: Create `src/instance-manager/prompts.ts` containing `buildInstancePrompt` (lines 62-138) and `buildDiscoveryPrompt` (lines 146-221) from `src/instance-manager.ts`. Import types from `./types.js` and other dependencies from their original modules (`../file-manager.js`, `../discovery.js`, `../report.js`, `../screenshots.js`, `../checkpoint.js`). Move these functions exactly as-is. See requirements.md Item 4 for full context.
 - **Verification**: Run `npx tsc --noEmit` — no type errors.
 
 ### TASK-006c: Extract instance spawning into instance-manager/spawning.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-006a
 - **Description**: Create `src/instance-manager/spawning.ts` containing `spawnInstance` (lines 229-260), `spawnInstances` (lines 269-283), and `spawnInstanceWithResume` (lines 291-328) from `src/instance-manager.ts`. Import types from `./types.js`, `buildInstancePrompt` from `./prompts.js`, and other dependencies from their original modules (`../claude-cli.js`, `../file-manager.js`, `../checkpoint.js`, `../config.js`). Move these functions exactly as-is. See requirements.md Item 4 for full context.
 - **Verification**: Run `npx tsc --noEmit` — no type errors.
