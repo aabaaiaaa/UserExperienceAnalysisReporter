@@ -20,21 +20,31 @@ vi.mock('../src/cli.js', () => ({
   }),
 }));
 
-// Mock orchestrator — preserve real error classes, mock the function
-vi.mock('../src/orchestrator.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/orchestrator.js')>();
+// Mock orchestrator — define error class inline to avoid importOriginal loading real module
+vi.mock('../src/orchestrator.js', () => {
+  class SignalInterruptError extends Error {
+    constructor(signal: string) {
+      super(`Process interrupted by ${signal}`);
+      this.name = 'SignalInterruptError';
+    }
+  }
   return {
-    ...actual,
     orchestrate: vi.fn(),
+    SignalInterruptError,
   };
 });
 
-// Mock plan-orchestrator — preserve real error classes, mock the function
-vi.mock('../src/plan-orchestrator.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/plan-orchestrator.js')>();
+// Mock plan-orchestrator — define error class inline to avoid importOriginal loading real module
+vi.mock('../src/plan-orchestrator.js', () => {
+  class PlanSignalInterruptError extends Error {
+    constructor(signal: string) {
+      super(`Process interrupted by ${signal}`);
+      this.name = 'PlanSignalInterruptError';
+    }
+  }
   return {
-    ...actual,
     runPlanDiscovery: vi.fn(),
+    PlanSignalInterruptError,
   };
 });
 
