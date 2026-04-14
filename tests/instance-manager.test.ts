@@ -537,6 +537,62 @@ describe('runInstanceRounds with custom config values', () => {
     expect(mockRunClaude).toHaveBeenCalledTimes(3);
   });
 
+  it('round fails, retries exhaust, and permanentlyFailed callbacks fire with error accumulation', async () => {
+    // All calls fail with a non-rate-limit error
+    mockRunClaude.mockResolvedValue({
+      stdout: '',
+      stderr: 'MCP connection lost',
+      exitCode: 1,
+      success: false,
+    });
+
+    const callbacks: ProgressCallback = {
+      onFailure: vi.fn(),
+      onRetry: vi.fn(),
+      onPermanentlyFailed: vi.fn(),
+      onRoundStart: vi.fn(),
+      onProgressUpdate: vi.fn(),
+    };
+
+    const result = await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      maxRetries: 1,
+      progress: callbacks,
+    });
+
+    // The instance should be permanently failed
+    expect(result.status).toBe('failed');
+    expect(result.permanentlyFailed).toBe(true);
+    expect(result.completedRounds).toBe(0);
+    expect(result.error).toBe('MCP connection lost');
+
+    // onFailure should have been called once (on initial failure, before entering retry loop)
+    expect(callbacks.onFailure).toHaveBeenCalledOnce();
+    expect(callbacks.onFailure).toHaveBeenCalledWith(1, 1, 'MCP connection lost');
+
+    // onRetry should have been called once (maxRetries: 1 means one retry attempt)
+    expect(callbacks.onRetry).toHaveBeenCalledOnce();
+    expect(callbacks.onRetry).toHaveBeenCalledWith(1, 1, 1, 1); // instance, round, attempt, maxRetries
+
+    // onPermanentlyFailed should have been called when retries were exhausted
+    expect(callbacks.onPermanentlyFailed).toHaveBeenCalledOnce();
+    expect(callbacks.onPermanentlyFailed).toHaveBeenCalledWith(1, 'MCP connection lost');
+
+    // retries array should have one entry for round 1
+    expect(result.retries).toHaveLength(1);
+    expect(result.retries[0].round).toBe(1);
+    expect(result.retries[0].attempts).toBe(1);
+    expect(result.retries[0].succeeded).toBe(false);
+
+    // errors array: initial error + 1 retry error = 2 entries
+    expect(result.retries[0].errors).toHaveLength(2);
+    expect(result.retries[0].errors[0]).toBe('MCP connection lost');
+    expect(result.retries[0].errors[1]).toBe('MCP connection lost');
+
+    // 1 initial + 1 retry = 2 total calls
+    expect(mockRunClaude).toHaveBeenCalledTimes(2);
+  });
+
   it('uses custom rateLimitRetries to limit rate-limit retry attempts', async () => {
     // All calls return rate-limit errors
     mockRunClaude.mockResolvedValue({

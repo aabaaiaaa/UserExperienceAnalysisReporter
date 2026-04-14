@@ -106,6 +106,11 @@ vi.mock('../src/html-report.js', () => ({
   formatHtmlReport: vi.fn(),
 }));
 
+// Mock browser-open (safety net — prevents real browser opens if suppressOpen is missed)
+vi.mock('../src/browser-open.js', () => ({
+  openInBrowser: vi.fn(),
+}));
+
 // Import mocked modules
 import { distributePlan } from '../src/work-distribution.js';
 import { runInstanceRounds, RoundExecutionResult } from '../src/instance-manager.js';

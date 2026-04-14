@@ -661,4 +661,25 @@ describe('screenshot base64 embedding', () => {
     expect(html).not.toContain('<img');
     expect(html).toContain('<dd>broken-a.png, broken-b.png</dd>');
   });
+
+  it('renderScreenshots falls back to escaped text when screenshot field is only whitespace and commas', () => {
+    // When the screenshot field is " , , ", splitting by comma and trimming yields
+    // all empty strings. After filtering, refs.length === 0 and the function should
+    // fall back to rendering the raw field as escaped HTML text.
+    const finding = makeFinding({ screenshot: ' , , ' });
+
+    const groups: UIAreaGroup[] = [
+      {
+        area: 'Empty Refs Area',
+        findings: [{ finding, children: [] }],
+      },
+    ];
+
+    const html = formatHtmlReport(groups, makeMetadata(), screenshotsDir);
+
+    // No img tags — refs array is empty after filtering
+    expect(html).not.toContain('<img');
+    // The raw screenshot field text is rendered as escaped HTML inside a <dd>
+    expect(html).toContain('<dd> , , </dd>');
+  });
 });

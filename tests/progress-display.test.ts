@@ -1372,6 +1372,20 @@ describe('safeStatMtimeMs debug logging', () => {
   });
 });
 
+describe('pollCheckpoints latestMtime coalescing', () => {
+  it('sets latestMtime to undefined when no instance files exist', () => {
+    // Use a high instance number (999) to ensure no temp files exist on disk.
+    // With no files present, all safeStatMtimeMs calls return null, so
+    // latestMtime stays null and the ?? coalescing assigns undefined.
+    const display = new ProgressDisplay([999], 1);
+    display.pollCheckpoints();
+
+    const progress = display.getProgress(999);
+    expect(progress).toBeDefined();
+    expect(progress!.latestMtime).toBeUndefined();
+  });
+});
+
 describe('ProgressDisplay start() timer', () => {
   afterEach(() => {
     vi.useRealTimers();

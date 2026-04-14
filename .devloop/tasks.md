@@ -1,31 +1,31 @@
 # Iteration 11 Tasks
 
 ### TASK-001: Add browser-open mock to orchestrator.test.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a module-level `vi.mock('../src/browser-open.js', () => ({ openInBrowser: vi.fn() }))` to `tests/orchestrator.test.ts` as a defensive safety net. This follows the same pattern already used in `tests/plan-orchestrator.test.ts` (lines 94-97). No new test assertions needed — this prevents real browser opens if any test accidentally sets `suppressOpen: false`. See requirements.md Item 1 for full context.
 - **Verification**: Run `npx vitest run tests/orchestrator.test.ts` — all existing tests pass. Grep for `browser-open` in the file to confirm the mock is present.
 
 ### TASK-002: Raise instance-manager.ts branch coverage — retry exhaust path
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a targeted test covering the "round fails → retry loop → retries exhaust → permanently failed" path in `runInstanceRounds` (lines 562-568, 603, 611 of `src/instance-manager.ts`). First check `tests/round-execution.test.ts` and `tests/coverage-gaps.test.ts` for existing similar tests — add the missing coverage there if possible, otherwise add to `tests/instance-manager.test.ts`. The test should: configure `runInstanceRounds` with a small `maxRetries` (e.g., 1), mock `runClaude` to always fail with a non-rate-limit error, and assert that `permanentlyFailed: true`, `progress.onFailure` was called, `progress.onPermanentlyFailed` was called, and `retries[0].errors` has the expected entries. See requirements.md Item 2 for full context.
 - **Verification**: Run `npx vitest run --coverage tests/instance-manager.test.ts tests/round-execution.test.ts tests/coverage-gaps.test.ts` and confirm `instance-manager.ts` branch coverage is above 95%.
 
 ### TASK-003: Raise html-report.ts branch coverage — empty refs fallback
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a targeted test in `tests/html-report.test.ts` covering the `refs.length === 0` fallback in `renderScreenshots` (lines 85-87 of `src/html-report.ts`). Call `formatHtmlReport` with a finding whose screenshot field is `" , , "` (whitespace and commas only — after split+filter, no valid refs remain). Verify the output contains the raw screenshot field as escaped HTML text, not `<img>` tags. See requirements.md Item 2 for full context.
 - **Verification**: Run `npx vitest run --coverage tests/html-report.test.ts` and confirm `html-report.ts` branch coverage is above 95%.
 
 ### TASK-004: Raise progress-display.ts branch coverage — null mtime path
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a targeted test in `tests/progress-display.test.ts` covering the null `latestMtime` coalescing path in `pollCheckpoints` (lines 420-421 of `src/progress-display.ts`). Set up a `ProgressDisplay` with an instance directory where none of the expected files exist (no checkpoint, report, discovery, or screenshots files). Call `pollCheckpoints()` and verify the instance's `latestMtime` is `undefined`. See requirements.md Item 2 for full context.
 - **Verification**: Run `npx vitest run --coverage tests/progress-display.test.ts` and confirm `progress-display.ts` branch coverage is above 95%.
 
 ### TASK-005: Add debug logging to hierarchy fallback
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/consolidation/hierarchy.ts`, add a `debug()` call at line 207 (before the flat-structure fallback return) when `result.success` is false: `debug('Hierarchy determination failed — falling back to flat structure')`. Import `debug` from `../logger.js` if not already imported. See requirements.md Item 3 for full context.
 - **Verification**: Run `npx vitest run tests/consolidation.test.ts` — all existing tests pass. Grep for `falling back to flat structure` in `src/consolidation/hierarchy.ts` to confirm the debug call is present.

@@ -1,4 +1,5 @@
 import { runClaude } from '../claude-cli.js';
+import { debug } from '../logger.js';
 import { withRateLimitRetry, sleep } from '../rate-limit.js';
 import { Finding } from './types.js';
 
@@ -204,6 +205,7 @@ export async function determineHierarchy(findings: Finding[]): Promise<Hierarchi
   const result = await withRateLimitRetry(() => runClaude({ prompt }), { sleepFn: sleep });
 
   if (!result.success) {
+    debug('Hierarchy determination failed \u2014 falling back to flat structure');
     // On failure, fall back to flat structure (all top-level)
     return findings.map((f) => ({ finding: f, children: [] }));
   }
