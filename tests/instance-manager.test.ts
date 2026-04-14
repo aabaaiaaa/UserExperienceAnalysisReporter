@@ -6,11 +6,13 @@ import {
   buildDiscoveryPrompt,
   spawnInstance,
   spawnInstances,
+  spawnInstanceWithResume,
   runInstanceRounds,
   InstanceConfig,
   RoundExecutionConfig,
   ProgressCallback,
 } from '../src/instance-manager/index.js';
+import type { Checkpoint } from '../src/checkpoint.js';
 
 // Mock the claude-cli module
 vi.mock('../src/claude-cli.js', () => ({
@@ -423,6 +425,80 @@ describe('spawnInstances', () => {
     expect(states[1].instanceNumber).toBe(2);
     expect(states[1].status).toBe('failed');
     expect(states[1].error).toBe('string rejection reason');
+  });
+});
+
+describe('spawnInstanceWithResume', () => {
+  const MOCK_CHECKPOINT: Checkpoint = {
+    instanceId: 1,
+    assignedAreas: ['Navigation'],
+    currentRound: 1,
+    areas: [{ name: 'Navigation', status: 'in-progress' }],
+    lastAction: 'Started navigation review',
+    timestamp: '2026-04-15T10:00:00.000Z',
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uses custom promptBuilder when provided', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    const customPromptBuilder = vi.fn().mockReturnValue('Custom resume base prompt');
+    const config: InstanceConfig = {
+      ...BASE_CONFIG,
+      promptBuilder: customPromptBuilder,
+    };
+
+    await spawnInstanceWithResume(config, MOCK_CHECKPOINT);
+
+    expect(customPromptBuilder).toHaveBeenCalledOnce();
+    expect(customPromptBuilder).toHaveBeenCalledWith(config);
+    const callArgs = mockRunClaude.mock.calls[0][0];
+    expect(callArgs.prompt).toContain('Custom resume base prompt');
+  });
+
+  it('uses stderr as error when runClaude returns failure with truthy stderr', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: '',
+      stderr: 'Some error message',
+      exitCode: 1,
+      success: false,
+    });
+
+    const state = await spawnInstanceWithResume(BASE_CONFIG, MOCK_CHECKPOINT);
+
+    expect(state.status).toBe('failed');
+    expect(state.error).toBe('Some error message');
+  });
+
+  it('uses exitCode fallback when stderr is empty', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: '',
+      stderr: '',
+      exitCode: 2,
+      success: false,
+    });
+
+    const state = await spawnInstanceWithResume(BASE_CONFIG, MOCK_CHECKPOINT);
+
+    expect(state.status).toBe('failed');
+    expect(state.error).toBe('Instance exited with code 2');
+  });
+
+  it('handles non-Error throw from runClaude', async () => {
+    mockRunClaude.mockRejectedValue('connection lost');
+
+    const state = await spawnInstanceWithResume(BASE_CONFIG, MOCK_CHECKPOINT);
+
+    expect(state.status).toBe('failed');
+    expect(state.error).toBe('connection lost');
   });
 });
 

@@ -76,6 +76,10 @@ vi.mock('../src/rate-limit.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../src/browser-open.js', () => ({
+  openInBrowser: vi.fn(),
+}));
+
 // --- Imports (after mocks are declared) ---
 import { runClaude } from '../src/claude-cli.js';
 import { initWorkspace } from '../src/file-manager.js';

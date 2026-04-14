@@ -70,6 +70,10 @@ vi.mock('../src/progress-display.js', () => ({
   },
 }));
 
+vi.mock('../src/browser-open.js', () => ({
+  openInBrowser: vi.fn(),
+}));
+
 // --- Imports (after mocks are declared) ---
 import { runClaude } from '../src/claude-cli.js';
 import { initWorkspace } from '../src/file-manager.js';

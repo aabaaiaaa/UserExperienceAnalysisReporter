@@ -5,7 +5,9 @@ import {
   buildInstancePrompt,
   runInstanceRounds,
   RoundExecutionConfig,
+  RoundExecutionResult,
   InstanceConfig,
+  ProgressCallback,
 } from '../src/instance-manager/index.js';
 
 const TEST_TEMP_DIR = resolve('.uxreview-temp-round-test');
@@ -408,6 +410,57 @@ describe('runInstanceRounds', () => {
     expect(round3Call.prompt).toContain('Area A');
     expect(round3Call.prompt).toContain('Area B');
     expect(round3Call.prompt).toContain('Form fields');
+  });
+
+  it('fires onFailure and onPermanentlyFailed when retries exhaust with missing checkpoint', async () => {
+    let callCount = 0;
+    const checkpointPath = join(TEST_TEMP_DIR, 'instance-1', 'checkpoint.json');
+
+    mockRunClaude.mockImplementation(async () => {
+      callCount++;
+      // Delete checkpoint on first call to force else branch (fresh restart) on retry
+      if (callCount === 1) {
+        if (existsSync(checkpointPath)) {
+          rmSync(checkpointPath);
+        }
+      }
+      return { stdout: '', stderr: 'MCP crash', exitCode: 1, success: false };
+    });
+
+    const callbacks: ProgressCallback = {
+      onFailure: vi.fn(),
+      onRetry: vi.fn(),
+      onPermanentlyFailed: vi.fn(),
+      onRoundStart: vi.fn(),
+      onProgressUpdate: vi.fn(),
+    };
+
+    const result = await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      totalRounds: 1,
+      maxRetries: 1,
+      progress: callbacks,
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.permanentlyFailed).toBe(true);
+    expect(result.completedRounds).toBe(0);
+
+    // onFailure fires on initial failure
+    expect(callbacks.onFailure).toHaveBeenCalledOnce();
+    expect(callbacks.onFailure).toHaveBeenCalledWith(1, 1, 'MCP crash');
+
+    // onPermanentlyFailed fires when retries exhaust
+    expect(callbacks.onPermanentlyFailed).toHaveBeenCalledOnce();
+    expect(callbacks.onPermanentlyFailed).toHaveBeenCalledWith(1, 'MCP crash');
+
+    // Retry errors accumulated
+    expect(result.retries).toHaveLength(1);
+    expect(result.retries[0].errors).toHaveLength(2);
+    expect(result.retries[0].succeeded).toBe(false);
+
+    // 1 initial + 1 retry = 2 total
+    expect(mockRunClaude).toHaveBeenCalledTimes(2);
   });
 
   it('defaults assignedAreas to empty when not provided', async () => {
