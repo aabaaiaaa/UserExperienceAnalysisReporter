@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 0,
+  "lastIteration": 1,
   "startedAt": "2026-04-14T21:41:16.026Z",
   "iteration": 9,
   "devloopVersion": "4.0.2",
   "activeTask": {
-    "taskId": "TASK-001",
-    "taskTitle": "Batch: TASK-001, TASK-002, TASK-003, TASK-004, TASK-005",
-    "iterationNumber": 1,
-    "startedAt": "2026-04-14T21:41:16.085Z"
+    "taskId": "TASK-006a",
+    "taskTitle": "Extract instance-manager types into instance-manager/types.ts",
+    "iterationNumber": 2,
+    "startedAt": "2026-04-14T21:45:29.476Z"
   }
 }

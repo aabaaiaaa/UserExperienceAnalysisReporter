@@ -31,7 +31,7 @@
 - **Verification**: Run `npx vitest run tests/consolidation.test.ts` — all existing tests pass. Grep for `falling back to flat structure` in `src/consolidation/hierarchy.ts` to confirm the debug call is present.
 
 ### TASK-006a: Extract instance-manager types into instance-manager/types.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002
 - **Description**: Create `src/instance-manager/types.ts` containing all type/interface exports from `src/instance-manager.ts`: `InstanceStatus` (line 12), `InstanceConfig` (lines 14-31), `InstanceState` (lines 33-40), `DEFAULT_MAX_RETRIES` (lines 42-43), `RetryInfo` (lines 45-54), `ProgressCallback` (lines 334-351), `RoundExecutionConfig` (lines 353-378), `RoundExecutionResult` (lines 380-394). Move these definitions exactly as-is. Import only what's needed from other modules (e.g., `ClaudeCliResult` from `../claude-cli.js`, `MAX_RETRIES` from `../config.js`). This is a pure extraction — zero behavior changes. See requirements.md Item 4 for full context.
 - **Verification**: Run `npx tsc --noEmit` — no type errors.
