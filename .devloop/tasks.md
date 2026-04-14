@@ -25,7 +25,7 @@
 - **Verification**: Run `npx vitest run --coverage tests/progress-display.test.ts` and confirm branch coverage is above 95%.
 
 ### TASK-005a: Extract consolidation types into consolidation/types.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: Create `src/consolidation/` directory. Extract all shared interfaces and type definitions from the top of `src/consolidation.ts` (lines ~1-50) into `src/consolidation/types.ts`. This includes `DuplicateGroup`, `DeduplicationResult`, `ConsolidationResult`, and any other shared types. Keep the original `consolidation.ts` intact for now — just create the new types file. Other submodules will import from this file.
 - **Verification**: Run `npx tsc --noEmit src/consolidation/types.ts` — no type errors.
