@@ -1,14 +1,9 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 4,
+  "lastIteration": 5,
   "startedAt": "2026-04-14T14:21:27.817Z",
   "iteration": 6,
   "devloopVersion": "4.0.2",
-  "activeTask": {
-    "taskId": "TASK-013",
-    "taskTitle": "Final coverage verification",
-    "iterationNumber": 5,
-    "startedAt": "2026-04-14T14:49:54.404Z"
-  }
+  "activeTask": null
 }
