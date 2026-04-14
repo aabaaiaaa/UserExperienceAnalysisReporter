@@ -1,14 +1,9 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 4,
+  "lastIteration": 5,
   "startedAt": "2026-04-14T21:41:16.026Z",
   "iteration": 9,
   "devloopVersion": "4.0.2",
-  "activeTask": {
-    "taskId": "TASK-006e",
-    "taskTitle": "Create barrel index.ts, update all imports, delete original instance-manager.ts",
-    "iterationNumber": 5,
-    "startedAt": "2026-04-14T21:53:30.072Z"
-  }
+  "activeTask": null
 }

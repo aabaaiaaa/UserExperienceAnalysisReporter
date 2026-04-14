@@ -790,7 +790,7 @@ describe('runPlanDiscovery', () => {
     expect(typeof config.promptBuilder).toBe('function');
 
     // Verify the promptBuilder is the real buildDiscoveryPrompt function
-    const { buildDiscoveryPrompt } = await import('../src/instance-manager.js');
+    const { buildDiscoveryPrompt } = await import('../src/instance-manager/index.js');
     expect(config.promptBuilder).toBe(buildDiscoveryPrompt);
   });
 
