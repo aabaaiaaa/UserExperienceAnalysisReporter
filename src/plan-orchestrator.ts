@@ -201,6 +201,16 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
       };
     });
 
+    // 4a. Check if any instance succeeded
+    const anySucceeded = results.some(r => r.status === 'completed');
+    if (!anySucceeded) {
+      display.stop();
+      console.error('\nAll discovery instances failed — no output generated.');
+      console.error('Check --verbose output for details, or retry with fewer instances.\n');
+      process.exitCode = 1;
+      return;
+    }
+
     // 5. Consolidation phase
     const consolidationStart = Date.now();
 

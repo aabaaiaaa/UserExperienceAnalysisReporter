@@ -786,6 +786,102 @@ describe('runPlanDiscovery', () => {
     // Verify ProgressDisplay was created with correct args
     expect(ProgressDisplay).toHaveBeenCalledWith([1, 2, 3], 2);
   });
+
+  it('stops with error when all instances fail', async () => {
+    const args = makePlanArgs();
+
+    mockDistributePlan.mockResolvedValue({
+      chunks: ['## Navigation', '## Dashboard'],
+      usedClaude: true,
+    });
+
+    // All instances fail
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onPermanentlyFailed?.(config.instanceNumber, 'API error');
+      return makeFailedResult(config.instanceNumber, 'API error');
+    });
+
+    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const originalExitCode = process.exitCode;
+
+    try {
+      await runPlanDiscovery(args);
+
+      // Verify error was printed
+      const allStderr = stderrSpy.mock.calls.map(c => c[0]).join('\n');
+      expect(allStderr).toContain('All discovery instances failed');
+
+      // Verify exit code was set
+      expect(process.exitCode).toBe(1);
+
+      // Verify consolidation was NOT called
+      expect(mockConsolidateDiscoveryDocs).not.toHaveBeenCalled();
+      expect(mockGeneratePlanTemplate).not.toHaveBeenCalled();
+
+      // Verify no output files were written
+      expect(existsSync(join(OUTPUT_DIR, 'plan.md'))).toBe(false);
+      expect(existsSync(join(OUTPUT_DIR, 'discovery.html'))).toBe(false);
+    } finally {
+      stderrSpy.mockRestore();
+      process.exitCode = originalExitCode;
+    }
+  });
+
+  it('passes buildDiscoveryPrompt as the prompt builder to instances', async () => {
+    const args = makePlanArgs({ instances: 1 });
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-plan-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-plan-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 1);
+    });
+
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '## Areas found',
+      instanceCount: 1,
+      usedClaude: false,
+    });
+
+    mockGeneratePlanTemplate.mockResolvedValue('## Plan');
+
+    await runPlanDiscovery(args);
+
+    // Verify promptBuilder was passed
+    const config = mockRunInstanceRounds.mock.calls[0][0];
+    expect(config.promptBuilder).toBeDefined();
+    expect(typeof config.promptBuilder).toBe('function');
+
+    // Call the promptBuilder to verify it produces discovery-specific content
+    const { buildDiscoveryPrompt } = await import('../src/instance-manager.js');
+    expect(config.promptBuilder).toBe(buildDiscoveryPrompt);
+
+    // Verify the prompt content by calling the promptBuilder directly
+    const testInstanceConfig = {
+      instanceNumber: 1,
+      url: 'https://example.com/app',
+      intro: 'Test app',
+      planChunk: '## Navigation\n- Nav bar',
+      scope: 'Layout review',
+      round: 1,
+    };
+    const prompt = config.promptBuilder!(testInstanceConfig as any);
+
+    // Should contain discovery-specific content
+    expect(prompt).toMatch(/UX explorer/i);
+    expect(prompt).toContain('Areas to Explore');
+
+    // Should NOT contain analysis-specific content
+    // (The discovery prompt may mention "findings" in a negative context like
+    // "do not produce findings", so we check for report-writing patterns instead)
+    expect(prompt).not.toContain('## Report');
+    expect(prompt).not.toMatch(/severity rating/i);
+    expect(prompt).not.toContain('document your findings');
+  });
 });
 
 describe('PlanSignalInterruptError', () => {

@@ -59,7 +59,7 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` — all existing tests pass.
 
 ### TASK-007b: Add tests for `browser-open.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-007
 - **Description**: Create `tests/browser-open.test.ts` with targeted tests: (1) on `win32`, `exec` is called with `start "" "path"`, (2) on `darwin`, `exec` is called with `open "path"`, (3) on linux, `exec` is called with `xdg-open "path"`, (4) when `exec` callback reports an error, `debug()` is called. Mock `process.platform`, `exec`, and `debug`.
 - **Verification**: `npx vitest run tests/browser-open.test.ts` — all tests pass.
@@ -71,7 +71,7 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — all existing tests pass.
 
 ### TASK-009: Guard consolidation against all-instances-failed
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `plan-orchestrator.ts`, after the instance results processing loop (around line 272), add a check: if no instance has `status === 'completed'`, stop the display, print an error message ("All discovery instances failed — no output generated."), set `process.exitCode = 1`, and return early before the consolidation phase. The `finally` block still handles cleanup. See requirements Item 5.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — add a targeted test that mocks all instances to fail, verifies `process.exitCode` is 1, the error message is printed to stderr, and no output files (`plan.md`, `discovery.html`) are written.
@@ -89,7 +89,7 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run --coverage tests/plan-orchestrator.test.ts` — `plan-orchestrator.ts` shows 95%+ on all coverage metrics.
 
 ### TASK-012: Integration test verifying discovery prompt wiring
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002
 - **Description**: Add an integration test in `tests/plan-orchestrator.test.ts` that calls `runPlanDiscovery()` with mocked dependencies and captures the prompt passed to `runClaude`. Assert the prompt contains discovery-specific content ("UX explorer" or "Areas to Explore") and does NOT contain analysis-specific content ("## Report", "findings", "severity rating"). See requirements Item 7.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — the new integration test passes.
