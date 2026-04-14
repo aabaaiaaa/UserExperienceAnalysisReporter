@@ -31,25 +31,25 @@
 - **Verification**: Run `npx tsc --noEmit src/consolidation/types.ts` — no type errors.
 
 ### TASK-005b: Extract deduplication logic into consolidation/deduplication.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005a
 - **Description**: Move deduplication functions from `src/consolidation.ts` (lines ~51-313) into `src/consolidation/deduplication.ts`. Functions: `buildDeduplicationPrompt`, `parseDeduplicationResponse`, `mergeDuplicateGroup`, `applyDeduplication`, `collectFindings`, `detectDuplicates`, `consolidateReports`. Import types from `./types.ts`. Keep original functions in `consolidation.ts` for now (they'll be removed in TASK-005f).
 - **Verification**: Run `npx tsc --noEmit src/consolidation/deduplication.ts` — no type errors.
 
 ### TASK-005c: Extract ID reassignment logic into consolidation/reassignment.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005a
 - **Description**: Move ID reassignment and screenshot functions from `src/consolidation.ts` (lines ~315-662) into `src/consolidation/reassignment.ts`. Functions: `buildFinalId`, `parseScreenshotRefs`, `extractInstanceFromScreenshot`, `buildNewScreenshotFilenames`, `parseConsolidatedReport`, `detectCrossRunDuplicates`, `filterCrossRunDuplicates`, `parseExistingReportIds`, `reassignIds`, `copyScreenshots`, `reassignAndRemapScreenshots`. Import types from `./types.ts`.
 - **Verification**: Run `npx tsc --noEmit src/consolidation/reassignment.ts` — no type errors.
 
 ### TASK-005d: Extract hierarchy logic into consolidation/hierarchy.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005a
 - **Description**: Move hierarchical grouping functions from `src/consolidation.ts` (lines ~664-969) into `src/consolidation/hierarchy.ts`. Functions: `groupFindingsByArea`, `buildHierarchyPrompt`, `parseHierarchyResponse`, `buildHierarchy`, `determineHierarchy`, `organizeHierarchically`, `formatFindingMetadata`, `renderHierarchicalFindingMd`, `formatConsolidatedReport`. Import types from `./types.ts`.
 - **Verification**: Run `npx tsc --noEmit src/consolidation/hierarchy.ts` — no type errors.
 
 ### TASK-005e: Extract discovery consolidation into consolidation/discovery.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005a
 - **Description**: Move discovery consolidation functions from `src/consolidation.ts` (lines ~971-1153) into `src/consolidation/discovery.ts`. Functions: `readAllDiscoveryDocs`, `buildDiscoveryConsolidationPrompt`, `consolidateDiscoveryDocs`, `writeConsolidatedDiscovery`, `generatePlanTemplate`. Import types from `./types.ts`.
 - **Verification**: Run `npx tsc --noEmit src/consolidation/discovery.ts` — no type errors.
