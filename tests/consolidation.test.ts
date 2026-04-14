@@ -32,7 +32,7 @@ import {
   HierarchicalFinding,
   UIAreaGroup,
   generatePlanTemplate,
-} from '../src/consolidation.js';
+} from '../src/consolidation/index.js';
 import { Finding, InstanceReport } from '../src/report.js';
 
 // Mock the claude-cli module

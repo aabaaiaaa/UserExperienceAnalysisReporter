@@ -23,7 +23,7 @@ import {
   ConsolidationResult,
   UIAreaGroup,
   Finding,
-} from './consolidation.js';
+} from './consolidation/index.js';
 import { ProgressDisplay, formatDuration } from './progress-display.js';
 import { buildProgressCallback } from './progress-callbacks.js';
 import { formatHtmlReport, ReportMetadata } from './html-report.js';

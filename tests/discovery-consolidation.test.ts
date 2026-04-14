@@ -7,7 +7,7 @@ import {
   consolidateDiscoveryDocs,
   writeConsolidatedDiscovery,
   DiscoveryConsolidationResult,
-} from '../src/consolidation.js';
+} from '../src/consolidation/index.js';
 
 // Mock the claude-cli module
 vi.mock('../src/claude-cli.js', () => ({

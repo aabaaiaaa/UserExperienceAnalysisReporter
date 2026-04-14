@@ -92,7 +92,7 @@ import {
   writeConsolidatedDiscovery,
   parseDeduplicationResponse,
   parseHierarchyResponse,
-} from '../src/consolidation.js';
+} from '../src/consolidation/index.js';
 import { Finding, InstanceReport } from '../src/report.js';
 
 const mockRunClaude = vi.mocked(runClaude);

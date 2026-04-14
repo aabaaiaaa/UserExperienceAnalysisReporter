@@ -13,7 +13,7 @@ import {
   consolidateDiscoveryDocs,
   writeConsolidatedDiscovery,
   generatePlanTemplate,
-} from './consolidation.js';
+} from './consolidation/index.js';
 import { ProgressDisplay, formatDuration } from './progress-display.js';
 import { buildProgressCallback } from './progress-callbacks.js';
 import { formatDiscoveryHtml, DiscoveryMetadata } from './discovery-html.js';

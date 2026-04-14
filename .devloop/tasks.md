@@ -55,7 +55,7 @@
 - **Verification**: Run `npx tsc --noEmit src/consolidation/discovery.ts` — no type errors.
 
 ### TASK-005f: Create barrel index.ts, update all imports, delete original consolidation.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005b, TASK-005c, TASK-005d, TASK-005e
 - **Description**: Create `src/consolidation/index.ts` that re-exports all public APIs from the submodules (types, deduplication, reassignment, hierarchy, discovery). Update ALL import paths throughout the codebase that reference `./consolidation.js` to reference `./consolidation/index.js`. Update ALL test file imports (`tests/consolidation.test.ts`, `tests/consolidation-resume.test.ts`, and any others) to use the new paths. Delete the original `src/consolidation.ts`. Verify the barrel file exports match exactly what the old file exported — no public API changes.
 - **Verification**: Run `npx vitest run tests/consolidation.test.ts tests/consolidation-resume.test.ts` — all tests pass. Run `npx tsc --noEmit` — no type errors across the entire project. Grep for any remaining imports of the old path: `grep -rn "from.*['\"].*\/consolidation\.js['\"]" src/` should return zero matches outside `src/consolidation/`.

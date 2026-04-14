@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { UIAreaGroup, HierarchicalFinding } from './consolidation.js';
+import { UIAreaGroup, HierarchicalFinding } from './consolidation/index.js';
 import { Finding, Severity } from './report.js';
 
 /**

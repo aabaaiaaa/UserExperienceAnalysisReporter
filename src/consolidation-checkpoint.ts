@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { getTempDir } from './file-manager.js';
 import { debug } from './logger.js';
-import type { ConsolidationResult, UIAreaGroup } from './consolidation.js';
+import type { ConsolidationResult, UIAreaGroup } from './consolidation/index.js';
 import type { Finding } from './report.js';
 
 /**

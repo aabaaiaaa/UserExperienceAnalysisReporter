@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { formatHtmlReport, ReportMetadata, encodeScreenshotBase64 } from '../src/html-report.js';
-import { UIAreaGroup } from '../src/consolidation.js';
+import { UIAreaGroup } from '../src/consolidation/index.js';
 import { Finding } from '../src/report.js';
 
 function makeFinding(overrides: Partial<Finding> = {}): Finding {

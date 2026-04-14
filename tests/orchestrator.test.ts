@@ -28,7 +28,7 @@ vi.mock('../src/instance-manager.js', async (importOriginal) => {
 });
 
 // Mock consolidation
-vi.mock('../src/consolidation.js', () => ({
+vi.mock('../src/consolidation/index.js', () => ({
   consolidateReports: vi.fn(),
   reassignAndRemapScreenshots: vi.fn(),
   organizeHierarchically: vi.fn(),
@@ -117,7 +117,7 @@ import {
   formatConsolidatedReport,
   consolidateDiscoveryDocs,
   writeConsolidatedDiscovery,
-} from '../src/consolidation.js';
+} from '../src/consolidation/index.js';
 import { initWorkspace, cleanupTempDir } from '../src/file-manager.js';
 import { ProgressDisplay } from '../src/progress-display.js';
 import { formatHtmlReport } from '../src/html-report.js';

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseConsolidatedReport } from '../src/consolidation.js';
+import { parseConsolidatedReport } from '../src/consolidation/index.js';
 
 describe('parseConsolidatedReport', () => {
   it('returns empty array for empty input', () => {
