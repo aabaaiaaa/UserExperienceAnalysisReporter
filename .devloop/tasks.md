@@ -95,7 +95,7 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — the new integration test passes.
 
 ### TASK-013: Final coverage verification
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-010, TASK-011, TASK-012, TASK-003, TASK-004, TASK-005b, TASK-006b, TASK-007b
 - **Description**: Run the full test suite with coverage and verify: (1) all tests pass (981+ tests, 0 failures), (2) overall branch coverage is 95%+, (3) `plan-orchestrator.ts` is at 95%+ on all metrics, (4) no regressions in any other module's coverage. If any gaps remain, add targeted tests to close them.
 - **Verification**: `npx vitest run --coverage` — all tests pass, all coverage thresholds met.
