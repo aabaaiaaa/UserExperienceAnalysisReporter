@@ -1,315 +1,286 @@
-# UX Analysis Reporter — Iteration 8 Requirements
+# UX Analysis Reporter — Iteration 9 Requirements
 
 ## Overview
 
-This iteration stabilizes the iteration 7 codebase: fixing a functional bug in the plan subcommand's prompt wiring, closing the test coverage gap, fixing a Windows-specific test failure, and extracting duplicated code from the two orchestrator modules into shared utilities.
+This iteration addresses all remaining items from the iteration 8 code review: three "should fix" consistency/correctness issues, three "nice to have" improvements, and a bug in the e2e test that opens the HTML report in the browser during test runs.
 
-No new features are added. All changes are bug fixes, test coverage, consistency fixes, and refactoring.
+No new features are added. All changes are bug fixes, consistency fixes, test coverage improvements, and refactoring.
 
-The prior iteration left the project at 980/981 tests passing across 39 test files (1 ENOTEMPTY test failure on Windows) with 96.89% statement coverage but 94.86% branch coverage — below the 95% threshold, primarily due to `plan-orchestrator.ts` at 82% statement / 64.7% function / 80% branch coverage.
+The prior iteration left the project at 1020/1020 tests passing across 42 test files with 98.49% statement, 95.75% branch, 99.48% function coverage — all above the 95% threshold.
 
 ---
 
-## Item 0: Wire `buildDiscoveryPrompt` into plan orchestrator instance spawning
+## Item 0: Fix e2e test missing `suppressOpen` and other required fields
 
 ### Problem
 
-`buildDiscoveryPrompt()` is exported from `instance-manager.ts:144` but is **never called anywhere in the codebase**. The plan orchestrator calls `runInstanceRounds()`, which internally calls `spawnInstance()`, which hardcodes `buildInstancePrompt(config)` at line 233. This means `uxreview plan` sends Claude the full analysis/findings prompt instead of the discovery-only prompt.
+`tests/e2e.test.ts:89-99` constructs a `ParsedArgs` object missing five required fields: `verbose`, `suppressOpen`, `maxRetries`, `instanceTimeout`, and `rateLimitRetries`. At runtime, `args.suppressOpen` is `undefined` (falsy), so `!args.suppressOpen` is `true` and `openInBrowser(reportPath)` fires — actually launching the HTML report in the default browser during the test run.
 
-This is a functional bug — the plan subcommand's entire purpose is discovery-only exploration, but instances receive report-writing instructions they shouldn't.
+The other missing fields (`verbose`, `maxRetries`, `instanceTimeout`, `rateLimitRetries`) default to `undefined` at runtime, which happens to work because the orchestrator treats them as falsy/0, but this is fragile and technically a type violation.
 
 ### Fix
 
-Add an optional `promptBuilder` field to `RoundExecutionConfig`:
+Add the missing fields to the `ParsedArgs` object in `tests/e2e.test.ts:89-99`:
 
 ```typescript
-export interface RoundExecutionConfig {
-  // ... existing fields ...
-  /** Custom prompt builder function. Defaults to buildInstancePrompt. */
-  promptBuilder?: (config: InstanceConfig) => string;
+const args: ParsedArgs = {
+  url: serverUrl,
+  intro: E2E_INTRO,
+  plan: E2E_PLAN,
+  scope: DEFAULT_SCOPE,
+  instances: 2,
+  rounds: 1,
+  output: E2E_OUTPUT_DIR,
+  keepTemp: false,
+  append: false,
+  dryRun: false,
+  verbose: false,
+  suppressOpen: true,
+  maxRetries: 3,
+  instanceTimeout: 30,
+  rateLimitRetries: 10,
+};
+```
+
+The key fix is `suppressOpen: true` which prevents browser opening. The other fields match CLI defaults for completeness and type correctness.
+
+### Verification
+
+Run `npx tsc --noEmit tests/e2e.test.ts` to confirm no type errors. Visually inspect the args object has all `ParsedArgs` fields.
+
+---
+
+## Item 1: Extract inline `formatDuration` from `orchestrator.ts`
+
+### Problem
+
+The plan orchestrator correctly imports `formatDuration` from `progress-display.ts` (fixed in iteration 8), but the main orchestrator at `orchestrator.ts:395-400` still defines its own inline version. The two implementations differ slightly: the inline version uses unpadded seconds (`1m 5s`) while `progress-display.ts` uses padded seconds (`1m05s`). This is a consistency issue.
+
+### Fix
+
+Remove the inline `formatDuration` definition at `orchestrator.ts:395-400` and import `formatDuration` from `progress-display.ts` instead. The import already exists for `ProgressDisplay` at line 27, so `formatDuration` can be added to that import.
+
+The slight formatting change (unpadded to padded seconds) is acceptable — padded seconds like `1m05s` are more readable than `1m 5s`.
+
+### Verification
+
+Run `npx vitest run tests/orchestrator.test.ts` — all tests pass. Grep to confirm no remaining inline `formatDuration` definitions in orchestrator files:
+```
+grep -n "const formatDuration" src/orchestrator.ts src/plan-orchestrator.ts
+```
+Should return zero matches.
+
+---
+
+## Item 2: Handle signal interrupts gracefully in `index.ts`
+
+### Problem
+
+`index.ts:13-14` and `index.ts:20-21` catch all errors from `runPlanDiscovery()` and `orchestrate()` with a `"Fatal error:"` prefix. When the user presses Ctrl+C, the `SignalInterruptError` or `PlanSignalInterruptError` is caught and printed as "Fatal error: Process interrupted by SIGINT". This is misleading — signal interrupts are normal user-initiated exits, not fatal errors.
+
+### Fix
+
+Import both error classes and check for them before printing:
+
+```typescript
+import { orchestrate, SignalInterruptError } from './orchestrator.js';
+import { runPlanDiscovery, PlanSignalInterruptError } from './plan-orchestrator.js';
+
+// In both catch handlers:
+.catch((err) => {
+  if (err instanceof SignalInterruptError || err instanceof PlanSignalInterruptError) {
+    // Normal exit — signal handler already set process.exitCode
+    return;
+  }
+  console.error('Fatal error:', err instanceof Error ? err.message : String(err));
+  process.exit(1);
+});
+```
+
+The plan handler only needs to check `PlanSignalInterruptError`; the main handler only needs to check `SignalInterruptError`. But importing both into the file is harmless and makes the pattern clear.
+
+### Verification
+
+Run `npx vitest run tests/index.test.ts` (if it exists) or `npx vitest run` and confirm all tests pass. Add a targeted test: mock `orchestrate` to reject with `SignalInterruptError`, verify that `console.error` is NOT called and `process.exit(1)` is NOT called.
+
+---
+
+## Item 3: Remove dead auto-detect code in `plan-orchestrator.ts`
+
+### Problem
+
+`plan-orchestrator.ts:93-101` checks `args.instances === 0` to trigger auto-detection from plan areas. But `parsePlanArgs()` in `cli.ts` defaults instances to `1` (not `0`), and CLI validation requires positive integers. The auto-detect block can never trigger for the plan subcommand via normal CLI usage.
+
+### Fix
+
+Remove the dead code block at lines 93-101 (the `if (args.instances === 0 ...)` block and its `else if` branch). The code directly after it (`initWorkspace`, progress display setup) works correctly without this block since `args.instances` is always >= 1.
+
+Also remove the `extractAreasFromPlanChunk` import if it becomes unused (check whether it's used elsewhere in the file), and the `MAX_AUTO_INSTANCES` import if it becomes unused.
+
+### Verification
+
+Run `npx vitest run tests/plan-orchestrator.test.ts` — all tests pass. Grep to confirm no dead references:
+```
+grep -n "args.instances === 0" src/plan-orchestrator.ts
+```
+Should return zero matches.
+
+---
+
+## Item 4: Add end-to-end test for the plan subcommand
+
+### Problem
+
+The main command has `tests/e2e.test.ts` but there's no equivalent for `uxreview plan`. The plan flow is tested via mocked integration tests but no test exercises the full plan flow from CLI args through output file generation with real Claude instances.
+
+### Fix
+
+Create `tests/e2e-plan.test.ts` that mirrors the structure of `tests/e2e.test.ts`:
+
+1. Start the test fixture web app (`tests/fixtures/e2e-app/server.js`)
+2. Construct `ParsedPlanArgs` with all required fields (including `suppressOpen: true`)
+3. Call `runPlanDiscovery(args)` with 1-2 instances, 1 round
+4. Verify output files exist:
+   - `discovery.html` exists and has content
+   - `plan.md` exists and has content
+   - `discovery.html` contains at least one discovery area heading
+   - `plan.md` contains structured plan template sections
+5. Clean up output and temp directories
+
+The test should be in the same `test:e2e` test config (or a separate `test:e2e-plan` script) so it doesn't run in the normal `vitest run` suite (it requires Claude CLI and takes time).
+
+### Verification
+
+Run `npx vitest run tests/e2e-plan.test.ts` (requires Claude CLI). The test should pass and produce plan output without opening the browser.
+
+---
+
+## Item 5: Raise `instance-manager.ts` branch coverage
+
+### Problem
+
+`instance-manager.ts` has the lowest branch coverage in the project at 88.78%. Key uncovered paths:
+
+- Lines 277-279: `Promise.allSettled` rejection path in `runParallelInstances()` — when a spawned instance's promise is rejected (not just returns a failure status)
+- Lines 435-440: Synthetic failure path in `runSingleInstanceWithRetries()` — when `respawn()` internally catches an error and `latestState.result` is undefined, the code creates a synthetic failure result
+
+### Fix
+
+Add targeted tests to `tests/instance-manager.test.ts`:
+
+1. **Promise rejection in `runParallelInstances`**: Mock `spawnInstance` to throw/reject (not return a failure result). Verify the `settled.map` handler at line 277 creates a proper failed result with the rejection reason.
+
+2. **Synthetic failure in retry loop**: Set up a scenario where `respawn()` catches an error internally (e.g., `runClaude` throws) and `latestState.result` is undefined but `latestState.error` is set. Verify the synthetic failure object is created with the correct fields.
+
+### Verification
+
+Run `npx vitest run --coverage tests/instance-manager.test.ts` and confirm branch coverage is above 95%.
+
+---
+
+## Item 6: Shared arg parser for CLI
+
+### Problem
+
+`parseRawArgs()` (cli.ts:140-167) and `parsePlanRawArgs()` (cli.ts:309-336) are structurally identical. Both:
+1. Iterate over argv
+2. Check for `--` prefix
+3. Match against a set of boolean flags (no value needed)
+4. Treat all other flags as key-value pairs
+5. Call a usage/exit function on errors
+
+The only differences are:
+- The boolean flag sets (`show-default-scope`, `help`, `version`, `keep-temp`, `append`, `dry-run`, `verbose`, `suppress-open` vs `help`, `keep-temp`, `dry-run`, `verbose`, `suppress-open`, `append`)
+- The error function called (`printUsageAndExit` vs `printPlanUsageAndExit`)
+
+### Fix
+
+Create a shared `parseRawArgv()` function parameterized by boolean flag set and error handler:
+
+```typescript
+function parseRawArgv(
+  argv: string[],
+  booleanFlags: Set<string>,
+  onError: (msg: string) => never,
+): Map<string, string | true> {
+  const args = new Map<string, string | true>();
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith('--')) {
+      onError(`Unexpected argument: ${arg}`);
+    }
+    const key = arg.slice(2);
+    if (booleanFlags.has(key)) {
+      args.set(key, true);
+      continue;
+    }
+    const next = argv[i + 1];
+    if (next === undefined || next.startsWith('--')) {
+      onError(`Missing value for --${key}`);
+    }
+    args.set(key, next);
+    i++;
+  }
+  return args;
 }
 ```
 
-In `runInstanceRounds()` (line 529), pass the `promptBuilder` through when constructing the `InstanceConfig` and spawning. The simplest approach: add the same optional field to `InstanceConfig`, and modify `spawnInstance()` line 233 to use it:
+Then `parseRawArgs` and `parsePlanRawArgs` become one-line wrappers:
 
 ```typescript
-const prompt = config.promptBuilder?.(config) ?? buildInstancePrompt(config);
-```
+function parseRawArgs(argv: string[]): Map<string, string | true> {
+  return parseRawArgv(argv, MAIN_BOOLEAN_FLAGS, printUsageAndExit);
+}
 
-The plan orchestrator then passes `buildDiscoveryPrompt` in its `RoundExecutionConfig`:
-
-```typescript
-const configs: RoundExecutionConfig[] = chunks.map((chunk, i) => ({
-  // ... existing fields ...
-  promptBuilder: buildDiscoveryPrompt,
-}));
-```
-
-The main orchestrator needs no changes — it doesn't set `promptBuilder`, so it defaults to `buildInstancePrompt` as before.
-
-### Verification
-
-Targeted test: mock `runClaude` and spawn an instance with `promptBuilder: buildDiscoveryPrompt`. Verify the prompt passed to `runClaude` contains discovery-only language ("UX explorer", "Areas to Explore") and does NOT contain analysis language ("report", "findings", "severity"). Run only the instance-manager and plan-orchestrator tests.
-
----
-
-## Item 1: Raise `plan-orchestrator.ts` test coverage to 95%+
-
-### Problem
-
-`plan-orchestrator.ts` has 82% statement, 64.7% function, and 80% branch coverage. This pulls the project below the 95% branch coverage threshold (currently at 94.86%).
-
-### Uncovered paths (from the review)
-
-- `copyScreenshotsToOutput()` (lines 88-116) — both with and without screenshots present
-- Dry-run output details (lines 200-228) — verify printed content
-- Browser open logic (lines 336-343) — verify `exec` is called with correct platform command
-- Error paths: all-instances-failed scenario (see Item 5), consolidation failure
-- Signal handling branches not covered by existing tests
-
-### Fix
-
-Add tests to `tests/plan-orchestrator.test.ts` covering each uncovered path. Tests should use mocks for filesystem operations, `exec`, and Claude calls — same patterns used in the existing test file.
-
-**Important:** Some of these paths will be moved by the refactoring in Items 4 and 6 (e.g., browser open logic moves to `browser-open.ts`, `buildProgressCallback` moves to `progress-callbacks.ts`). Write tests for the *new* locations after the refactoring is done. Tests for paths that stay in `plan-orchestrator.ts` (dry-run details, `copyScreenshotsToOutput`, all-instances-failed) should target plan-orchestrator directly.
-
-### Verification
-
-Run `npx vitest run --coverage` and confirm:
-- `plan-orchestrator.ts` is at 95%+ statement, branch, and function coverage
-- Overall project branch coverage is at 95%+
-- No new test failures
-
----
-
-## Item 2: Fix `cleanupTempDir()` to catch ENOTEMPTY
-
-### Problem
-
-`cleanupTempDir()` in `file-manager.ts:65-77` retries `rmSync` on EBUSY and EPERM but not ENOTEMPTY. On Windows, `rmSync` with `{ recursive: true }` can throw ENOTEMPTY when a directory isn't fully empty yet (race condition during deletion). This causes the sole test failure in the suite.
-
-### Fix
-
-Add ENOTEMPTY to the retryable error codes at `file-manager.ts:68-70`:
-
-```typescript
-const isLockError = err instanceof Error && 'code' in err &&
-  ((err as NodeJS.ErrnoException).code === 'EBUSY' ||
-   (err as NodeJS.ErrnoException).code === 'EPERM' ||
-   (err as NodeJS.ErrnoException).code === 'ENOTEMPTY');
-```
-
-Consider renaming `isLockError` to `isRetryableError` since ENOTEMPTY is not a lock error — it's a race condition.
-
-### Verification
-
-Run `npx vitest run tests/file-manager.test.ts` — the previously failing test (`initTempDir > creates the temp directory structure for 3 instances`) should now pass. Add a targeted test verifying that `cleanupTempDir()` retries on ENOTEMPTY.
-
----
-
-## Item 3: Add `debug()` logging to `discovery-html.ts` bare catch
-
-### Problem
-
-`listAllScreenshots()` in `discovery-html.ts:265-267` silently returns `[]` on `readdirSync` failure. This is the same pattern that was explicitly fixed in 3 other locations across iterations 5-7:
-- `file-manager.ts` (iteration 5)
-- `checkpoint.ts` (iteration 6)
-- `consolidation-checkpoint.ts` and `safeStatMtimeMs` (iteration 7, items A2/A3)
-
-### Fix
-
-Change the catch block to capture the error and log it:
-
-```typescript
-} catch (err) {
-  debug(`Failed to read screenshots directory ${screenshotsDir}: ${err}`);
-  return [];
+function parsePlanRawArgs(argv: string[]): Map<string, string | true> {
+  return parseRawArgv(argv, PLAN_BOOLEAN_FLAGS, printPlanUsageAndExit);
 }
 ```
 
-Import `debug` from `./logger.js` if not already imported (it is not currently imported in `discovery-html.ts`).
+The boolean flag sets should be defined as constants near their respective parsers for clarity.
 
 ### Verification
 
-Targeted test: mock `readdirSync` to throw, verify `listAllScreenshots()` returns `[]` and `debug()` is called with the error. Run only `npx vitest run tests/discovery-html.test.ts`.
-
----
-
-## Item 4: Extract `buildProgressCallback()` to `progress-callbacks.ts`
-
-### Problem
-
-`buildProgressCallback()` is defined identically in both `plan-orchestrator.ts:40-79` and `orchestrator.ts:86-125`. The function wires `ProgressCallback` events to `ProgressDisplay` methods.
-
-### Fix
-
-Create a new module `src/progress-callbacks.ts` with the shared function:
-
-```typescript
-import { ProgressDisplay } from './progress-display.js';
-import { ProgressCallback } from './instance-manager.js';
-
-export function buildProgressCallback(display: ProgressDisplay): ProgressCallback {
-  // ... the existing implementation (identical in both files)
-}
-```
-
-Update both `orchestrator.ts` and `plan-orchestrator.ts` to import from the new module instead of defining the function locally. Remove the local definitions.
-
-### Verification
-
-Run `npx vitest run tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` — all existing tests pass. Add a targeted test in `tests/progress-callbacks.test.ts` verifying the callback wiring (each callback method calls the corresponding display method).
-
----
-
-## Item 5: Guard consolidation against all-instances-failed
-
-### Problem
-
-In `plan-orchestrator.ts:278`, consolidation runs unconditionally after instance execution. If every instance failed and produced no discovery docs, `consolidateDiscoveryDocs` returns empty content, and the plan orchestrator writes empty `plan.md` and `discovery.html` files — confusing to the user.
-
-### Fix
-
-After processing instance results (around line 272), check if any instance succeeded:
-
-```typescript
-const anySucceeded = results.some(r => r.status === 'completed');
-if (!anySucceeded) {
-  display.stop();
-  console.error('\nAll discovery instances failed — no output generated.');
-  console.error('Check --verbose output for details, or retry with fewer instances.\n');
-  process.exitCode = 1;
-  return;
-}
-```
-
-This prints a clear error message and exits with code 1 without writing empty output files. The `finally` block still runs for cleanup.
-
-### Verification
-
-Targeted test: mock all instances to fail, verify that `process.exitCode` is set to 1, the error message is printed, and no output files are written. Run only `npx vitest run tests/plan-orchestrator.test.ts`.
-
----
-
-## Item 6: Extract shared orchestration utilities
-
-### Problem
-
-Four patterns are duplicated between `orchestrator.ts` and `plan-orchestrator.ts`:
-
-1. **Signal handling** — Flag-based signal setup, `raceSignal()`, signal handler, and cleanup (orchestrator 167-194, plan-orchestrator 155-182)
-2. **Browser open** — Platform-specific `exec()` to open an HTML file (orchestrator 483-490, plan-orchestrator 336-343)
-3. **`formatDuration()`** — `plan-orchestrator.ts:314-319` defines its own version when `progress-display.ts:52-60` already exports one
-
-### Fix — Three new modules
-
-**6a. `src/signal-handler.ts`** — Shared signal management
-
-Extract the signal handling pattern into a reusable class or factory function. It needs to:
-- Create a `signalPromise` with a rejection function
-- Register SIGINT/SIGTERM handlers that set a flag, kill child processes, set exit code, and reject the promise
-- Provide a `raceSignal<T>(promise)` helper that races any promise against the signal
-- Provide a cleanup method that removes signal listeners
-- Accept the error class to throw (so orchestrator uses `SignalInterruptError` and plan-orchestrator uses `PlanSignalInterruptError`)
-
-Example API:
-```typescript
-export interface SignalManager {
-  raceSignal<T>(promise: Promise<T>): Promise<T>;
-  readonly signalReceived: boolean;
-  cleanup(): void;
-}
-
-export function createSignalManager(
-  ErrorClass: new (signal: string) => Error,
-): SignalManager;
-```
-
-Both orchestrators replace their inline signal setup with `createSignalManager(SignalInterruptError)` / `createSignalManager(PlanSignalInterruptError)`.
-
-**6b. `src/browser-open.ts`** — Browser open utility
-
-Extract the platform-specific browser open logic:
-```typescript
-export function openInBrowser(filePath: string): void;
-```
-
-Uses the same `exec()` pattern with platform detection (`win32` → `start ""`, `darwin` → `open`, else → `xdg-open`). Logs failures via `debug()`.
-
-Both orchestrators replace their inline browser open with `openInBrowser(path)`.
-
-**6c. Reuse `formatDuration` from `progress-display.ts`**
-
-`progress-display.ts:52-60` already exports `formatDuration()`. Remove the inline definition from `plan-orchestrator.ts:314-319` and import from `progress-display.ts` instead. The slight formatting difference (padded seconds in progress-display vs unpadded in plan-orchestrator) should be resolved by using the progress-display version — padded seconds (`1m05s`) are more readable.
-
-### Verification
-
-- `signal-handler.ts`: Targeted tests verifying signal registration, `raceSignal` behavior, flag setting, and cleanup.
-- `browser-open.ts`: Targeted tests verifying correct platform command for win32, darwin, and linux.
-- `formatDuration`: No new tests needed — `progress-display.ts`'s version is already tested. Just verify `plan-orchestrator.ts` uses the import.
-- All existing orchestrator and plan-orchestrator tests continue to pass.
-
----
-
-## Item 7: Integration test verifying `buildDiscoveryPrompt` is used by plan orchestrator
-
-### Problem
-
-Even after Item 0 wires `buildDiscoveryPrompt` correctly, there's no integration-level test confirming the plan orchestrator actually uses the discovery prompt (not the analysis prompt) when spawning instances.
-
-### Fix
-
-Add an integration test in `tests/plan-orchestrator.test.ts` that:
-1. Calls `runPlanDiscovery()` with mocked dependencies (same pattern as existing integration tests)
-2. Captures the prompt passed to `runClaude`
-3. Asserts the prompt contains discovery-specific content:
-   - Contains "UX explorer" or "Areas to Explore"
-   - Does NOT contain "report" instructions, "findings", or "severity"
-4. Confirms `buildDiscoveryPrompt` was the prompt builder used (not `buildInstancePrompt`)
-
-### Verification
-
-Run only `npx vitest run tests/plan-orchestrator.test.ts`.
+Run `npx vitest run tests/cli.test.ts` — all existing tests pass. The refactoring should be behavior-preserving.
 
 ---
 
 ## Dependencies Between Items
 
 ```
-Item 0 (prompt wiring bug) ── independent, but Item 7 depends on it
-Item 2 (ENOTEMPTY fix)     ── independent
-Item 3 (bare catch logging)── independent
-Item 4 (extract buildProgressCallback) ── independent
-Item 5 (all-failed guard)  ── independent
-Item 6 (extract shared utilities) ── independent of Items 0-5
-Item 1 (coverage) ── depends on Items 0, 4, 5, 6 (coverage tests should target final code locations)
-Item 7 (integration test)  ── depends on Item 0
+Item 0 (e2e test fix)          — independent
+Item 1 (formatDuration)        — independent
+Item 2 (signal interrupt)      — independent
+Item 3 (dead auto-detect code) — independent
+Item 4 (e2e plan test)         — independent (but should come after Item 0 to follow the same pattern)
+Item 5 (instance-manager cov)  — independent
+Item 6 (shared arg parser)     — independent
 ```
 
-Items 0, 2, 3, 4, 5, and 6 are all independent of each other and can be done in any order. Item 1 (coverage) should come last since the refactoring in Items 4 and 6 moves code to new modules, and coverage tests should target the final locations. Item 7 depends on Item 0.
+All items are independent of each other and can be done in any order. Item 4 (e2e plan test) should reference Item 0's pattern for constructing complete args objects.
 
 ---
 
 ## Testing Strategy
 
-All changes must maintain the 95% coverage threshold. The primary goal of this iteration is to get coverage *above* that threshold (currently at 94.86% branch).
+All changes must maintain the 95% coverage threshold (currently at 95.75% branch). This iteration should raise coverage slightly through Item 5.
 
 ### New test files
-- `tests/progress-callbacks.test.ts` — tests for extracted `buildProgressCallback()`
-- `tests/signal-handler.test.ts` — tests for extracted signal management
-- `tests/browser-open.test.ts` — tests for extracted browser open utility
+- `tests/e2e-plan.test.ts` — end-to-end test for plan subcommand (e2e suite, not normal suite)
 
 ### Modified test files
-- `tests/plan-orchestrator.test.ts` — new tests for dry-run details, `copyScreenshotsToOutput`, all-instances-failed, integration test for discovery prompt wiring
-- `tests/instance-manager.test.ts` — test for `promptBuilder` field in `spawnInstance`
-- `tests/file-manager.test.ts` — test for ENOTEMPTY retry, fix existing test failure
-- `tests/discovery-html.test.ts` — test for `debug()` logging on `readdirSync` failure
+- `tests/e2e.test.ts` — add missing `ParsedArgs` fields (Item 0)
+- `tests/instance-manager.test.ts` — new tests for uncovered branch paths (Item 5)
+- `tests/index.test.ts` or `tests/orchestrator.test.ts` — test for graceful signal handling (Item 2)
+- `tests/cli.test.ts` — existing tests validate shared parser refactoring (Item 6)
 
 ---
 
 ## Out of Scope
 
 The following remain deferred:
+- Shell metacharacter risk in `browser-open.ts:9-11` (pre-existing accepted risk, low severity)
+- `Number() || fallback` masking instance 0 in `checkpoint.ts:54` (unreachable, instance numbering starts at 1)
 - Finding severity filtering (`--min-severity`)
 - Claude Agent SDK migration
 - Structured IPC (replacing file-based communication)
@@ -321,4 +292,5 @@ The following remain deferred:
 - AbortController for cancellation
 - Large dataset / performance testing
 - Concurrent write race condition tests
-- Filesystem error tests (EACCES, ENOSPC) beyond EBUSY/ENOTEMPTY
+- Base orchestrator / composition pattern for the two parallel orchestrators
+- Persistent rate-limit retry budget across sequential runs
