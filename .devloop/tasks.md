@@ -31,19 +31,19 @@
 - **Verification**: Run `npx vitest run tests/cli.test.ts` — all existing tests pass. Grep `src/cli.ts` for `parseRawArgv` to confirm the shared function exists.
 
 ### TASK-006: Raise `instance-manager.ts` branch coverage — Promise rejection path
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a test to `tests/instance-manager.test.ts` for the `Promise.allSettled` rejection path in `runParallelInstances()` at lines 277-279. Mock `spawnInstance` to reject (throw, not return a failure status). Verify the handler creates a proper failed result with the rejection reason as the error message. See requirements Item 5.
 - **Verification**: Run `npx vitest run tests/instance-manager.test.ts` — all tests pass including the new one.
 
 ### TASK-007: Raise `instance-manager.ts` branch coverage — synthetic failure path
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Add a test to `tests/instance-manager.test.ts` for the synthetic failure path at lines 435-440 in `runSingleInstanceWithRetries()`. Set up a scenario where `respawn()` catches an error internally so `latestState.result` is undefined but `latestState.error` is set. Verify the synthetic failure object has `stdout: ''`, `stderr` containing the error, `exitCode: 1`, `success: false`. See requirements Item 5.
 - **Verification**: Run `npx vitest run --coverage tests/instance-manager.test.ts` — branch coverage should be above 95%.
 
 ### TASK-008: Add end-to-end test for plan subcommand
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: Create `tests/e2e-plan.test.ts` mirroring the structure of `tests/e2e.test.ts`. Start the test fixture web app, construct a complete `ParsedPlanArgs` object (with `suppressOpen: true` and all required fields), call `runPlanDiscovery(args)` with 1 instance and 1 round. Verify: `discovery.html` exists and has content, `plan.md` exists and has content, `discovery.html` contains at least one discovery area, `plan.md` contains structured plan sections. Clean up output and temp dirs. This test should NOT run in the normal `vitest run` suite — configure it like the existing e2e test. See requirements Item 4.
 - **Verification**: Run `npx vitest run tests/e2e-plan.test.ts` (requires Claude CLI and Playwright MCP). The test should pass and no browser should open.

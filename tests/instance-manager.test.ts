@@ -369,6 +369,61 @@ describe('spawnInstances', () => {
     expect(states).toHaveLength(0);
     expect(mockRunClaude).not.toHaveBeenCalled();
   });
+
+  it('handles Promise.allSettled rejection when promptBuilder throws an Error', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    const configs: InstanceConfig[] = [
+      { ...BASE_CONFIG, instanceNumber: 1 },
+      {
+        ...BASE_CONFIG,
+        instanceNumber: 2,
+        promptBuilder: () => { throw new Error('prompt builder crashed'); },
+      },
+    ];
+
+    const states = await spawnInstances(configs);
+
+    expect(states).toHaveLength(2);
+    expect(states[0].status).toBe('completed');
+    expect(states[0].instanceNumber).toBe(1);
+    expect(states[1].instanceNumber).toBe(2);
+    expect(states[1].status).toBe('failed');
+    expect(states[1].error).toBe('prompt builder crashed');
+  });
+
+  it('handles Promise.allSettled rejection with non-Error throw via String(result.reason)', async () => {
+    mockRunClaude.mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    const configs: InstanceConfig[] = [
+      { ...BASE_CONFIG, instanceNumber: 1 },
+      {
+        ...BASE_CONFIG,
+        instanceNumber: 2,
+        // eslint-disable-next-line @typescript-eslint/no-throw-literal
+        promptBuilder: () => { throw 'string rejection reason'; },
+      },
+    ];
+
+    const states = await spawnInstances(configs);
+
+    expect(states).toHaveLength(2);
+    expect(states[0].status).toBe('completed');
+    expect(states[0].instanceNumber).toBe(1);
+    expect(states[1].instanceNumber).toBe(2);
+    expect(states[1].status).toBe('failed');
+    expect(states[1].error).toBe('string rejection reason');
+  });
 });
 
 describe('spawnInstance with custom timeout', () => {
@@ -519,6 +574,37 @@ describe('runInstanceRounds with custom config values', () => {
     expect(result.retries[0].attempts).toBe(3); // default MAX_RETRIES
     // 1 initial + 3 retries = 4 total calls
     expect(mockRunClaude).toHaveBeenCalledTimes(4);
+  });
+
+  it('creates synthetic failure when rate-limit retry respawn throws (result undefined)', async () => {
+    // Call 1: rate-limit error from initial spawn
+    mockRunClaude.mockResolvedValueOnce({
+      stdout: '',
+      stderr: 'Error: rate limit exceeded',
+      exitCode: 1,
+      success: false,
+    });
+    // Call 2: respawn during rate-limit retry throws — spawnInstanceWithResume catches it,
+    // setting state.error but leaving state.result undefined → synthetic failure path
+    mockRunClaude.mockRejectedValueOnce(new Error('ECONNRESET'));
+    // Call 3: normal retry succeeds
+    mockRunClaude.mockResolvedValueOnce({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+      success: true,
+    });
+
+    const result = await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      rateLimitRetries: 3,
+      maxRetries: 1,
+    });
+
+    expect(result.status).toBe('completed');
+    expect(mockRunClaude).toHaveBeenCalledTimes(3);
+    expect(result.retries).toHaveLength(1);
+    expect(result.retries[0].succeeded).toBe(true);
   });
 });
 
