@@ -1,14 +1,9 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 3,
+  "lastIteration": 4,
   "startedAt": "2026-04-14T19:31:21.220Z",
   "iteration": 8,
   "devloopVersion": "4.0.2",
-  "activeTask": {
-    "taskId": "TASK-005f",
-    "taskTitle": "Create barrel index.ts, update all imports, delete original consolidation.ts",
-    "iterationNumber": 4,
-    "startedAt": "2026-04-14T19:54:07.428Z"
-  }
+  "activeTask": null
 }
