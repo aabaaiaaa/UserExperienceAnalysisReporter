@@ -1,5 +1,4 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { exec } from 'node:child_process';
 import { join } from 'node:path';
 import { ParsedArgs } from './cli.js';
 import { initWorkspace, cleanupTempDir } from './file-manager.js';
@@ -28,6 +27,7 @@ import {
 import { ProgressDisplay } from './progress-display.js';
 import { buildProgressCallback } from './progress-callbacks.js';
 import { formatHtmlReport, ReportMetadata } from './html-report.js';
+import { openInBrowser } from './browser-open.js';
 import { setVerbose, debug } from './logger.js';
 import { MAX_AUTO_INSTANCES } from './config.js';
 import { createSignalManager } from './signal-handler.js';
@@ -409,12 +409,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
 
     // Open the HTML report in the default browser
     if (!args.suppressOpen) {
-      const openCmd = process.platform === 'win32' ? `start "" "${reportPath}"`
-        : process.platform === 'darwin' ? `open "${reportPath}"`
-        : `xdg-open "${reportPath}"`;
-      exec(openCmd, (err) => {
-        if (err) debug(`Failed to open report in browser: ${err.message}`);
-      });
+      openInBrowser(reportPath);
     }
   } finally {
     signals.cleanup();

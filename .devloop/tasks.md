@@ -11,7 +11,7 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/instance-manager.test.ts` — all existing tests pass. Add a test that creates an `InstanceConfig` with a custom `promptBuilder`, calls `spawnInstance`, and verifies the custom prompt builder was used (mock `runClaude` and check the prompt argument).
 
 ### TASK-002: Wire `buildDiscoveryPrompt` into plan orchestrator
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: In `plan-orchestrator.ts`, update the `RoundExecutionConfig` construction (around lines 232-243) to include `promptBuilder: buildDiscoveryPrompt`. Import `buildDiscoveryPrompt` from `instance-manager.js`. This ensures the plan subcommand uses the discovery-only prompt instead of the analysis prompt. See requirements Item 0.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — all existing tests pass. The integration test added in TASK-012 will provide deeper verification.
@@ -35,7 +35,7 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` — all existing tests pass.
 
 ### TASK-005b: Add tests for `progress-callbacks.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-005
 - **Description**: Create `tests/progress-callbacks.test.ts` with targeted tests for the extracted `buildProgressCallback()`. Test that each callback method (onRoundStart, onRoundComplete, onFailure, onRetry, onRetrySuccess, onRateLimited, onRateLimitResolved, onCompleted, onPermanentlyFailed, onProgressUpdate) calls the corresponding `ProgressDisplay` method with the correct arguments. Use a mock `ProgressDisplay`.
 - **Verification**: `npx vitest run tests/progress-callbacks.test.ts` — all tests pass.
@@ -47,13 +47,13 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` — all existing tests pass.
 
 ### TASK-006b: Add tests for `signal-handler.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-006
 - **Description**: Create `tests/signal-handler.test.ts` with targeted tests: (1) `raceSignal` resolves when the wrapped promise resolves, (2) `raceSignal` rejects with the ErrorClass when signal fires, (3) `signalReceived` is false initially and true after signal, (4) `cleanup()` removes the signal listeners, (5) multiple calls to the signal handler are idempotent (second call is a no-op). Mock `process.on`/`process.removeListener` and `killAllChildProcesses`.
 - **Verification**: `npx vitest run tests/signal-handler.test.ts` — all tests pass.
 
 ### TASK-007: Extract browser open to `browser-open.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Create `src/browser-open.ts` with an `openInBrowser(filePath: string): void` function that uses the platform-specific `exec()` pattern (`win32` → `start ""`, `darwin` → `open`, else → `xdg-open`). Import `debug` from `./logger.js` for error logging. Update both `orchestrator.ts:483-490` and `plan-orchestrator.ts:336-343` to use `openInBrowser()` instead of inline `exec()`. See requirements Item 6b.
 - **Verification**: `npx vitest run tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` — all existing tests pass.
@@ -65,7 +65,7 @@ See `.devloop/requirements.md` for full context on each item.
 - **Verification**: `npx vitest run tests/browser-open.test.ts` — all tests pass.
 
 ### TASK-008: Remove inline `formatDuration` from `plan-orchestrator.ts`
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: Remove the inline `formatDuration` function at `plan-orchestrator.ts:314-319` and replace with an import of `formatDuration` from `./progress-display.js` (already exported at line 52). The progress-display version pads seconds (e.g., `1m05s` vs `1m 5s`) — this is the preferred format. See requirements Item 6c.
 - **Verification**: `npx vitest run tests/plan-orchestrator.test.ts` — all existing tests pass.

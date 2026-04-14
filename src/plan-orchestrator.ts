@@ -1,10 +1,10 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
-import { exec } from 'node:child_process';
 import { join } from 'node:path';
 import { ParsedPlanArgs } from './cli.js';
 import { initWorkspace, cleanupTempDir, getInstancePaths } from './file-manager.js';
 import { distributePlan } from './work-distribution.js';
 import {
+  buildDiscoveryPrompt,
   runInstanceRounds,
   RoundExecutionConfig,
   RoundExecutionResult,
@@ -14,9 +14,10 @@ import {
   writeConsolidatedDiscovery,
   generatePlanTemplate,
 } from './consolidation.js';
-import { ProgressDisplay } from './progress-display.js';
+import { ProgressDisplay, formatDuration } from './progress-display.js';
 import { buildProgressCallback } from './progress-callbacks.js';
 import { formatDiscoveryHtml, DiscoveryMetadata } from './discovery-html.js';
+import { openInBrowser } from './browser-open.js';
 import { setVerbose, debug } from './logger.js';
 import { MAX_AUTO_INSTANCES } from './config.js';
 import { createSignalManager } from './signal-handler.js';
@@ -168,6 +169,7 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
         ? extractAreasFromPlanChunk(chunk)
         : ['Full exploration'],
       progress: progressCallback,
+      promptBuilder: buildDiscoveryPrompt,
     }));
 
     debug(`Spawning ${configs.length} instance(s) for ${args.rounds} round(s) of discovery`);
@@ -239,13 +241,6 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
     // 7. Show final output paths and summary
     display.stop();
 
-    const formatDuration = (ms: number): string => {
-      const totalSec = Math.round(ms / 1000);
-      const min = Math.floor(totalSec / 60);
-      const sec = totalSec % 60;
-      return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
-    };
-
     console.log('');
     console.log('  Plan discovery complete!');
     console.log('');
@@ -262,12 +257,7 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
 
     // 8. Open discovery.html in the default browser
     if (!args.suppressOpen) {
-      const openCmd = process.platform === 'win32' ? `start "" "${discoveryHtmlPath}"`
-        : process.platform === 'darwin' ? `open "${discoveryHtmlPath}"`
-        : `xdg-open "${discoveryHtmlPath}"`;
-      exec(openCmd, (err) => {
-        if (err) debug(`Failed to open discovery HTML in browser: ${err.message}`);
-      });
+      openInBrowser(discoveryHtmlPath);
     }
   } finally {
     signals.cleanup();
