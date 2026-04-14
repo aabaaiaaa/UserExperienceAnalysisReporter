@@ -55,7 +55,7 @@
 - **Verification**: Run `npx tsc --noEmit` — no type errors.
 
 ### TASK-006e: Create barrel index.ts, update all imports, delete original instance-manager.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-006a, TASK-006b, TASK-006c, TASK-006d
 - **Description**: Create `src/instance-manager/index.ts` as a barrel file re-exporting all public APIs from the submodules, plus the re-exports of `killAllChildProcesses` and `getActiveProcessCount` from `../claude-cli.js`. Update all import paths in 3 source files (`src/orchestrator.ts`, `src/plan-orchestrator.ts`, `src/progress-callbacks.ts`) and 9 test files (`tests/instance-manager.test.ts`, `tests/orchestrator.test.ts`, `tests/plan-orchestrator.test.ts`, `tests/coverage-gaps.test.ts`, `tests/failure-retry-resume.test.ts`, `tests/progress-recalibration.test.ts`, `tests/rate-limit.test.ts`, `tests/round-execution.test.ts`, `tests/verify-task-007.test.ts`) to use the new barrel path. Also update `vi.mock` paths in any test files that mock `instance-manager`. Delete the original `src/instance-manager.ts`. See requirements.md Item 4 for full context.
 - **Verification**: Run `npx vitest run tests/instance-manager.test.ts tests/round-execution.test.ts tests/coverage-gaps.test.ts tests/failure-retry-resume.test.ts tests/verify-task-007.test.ts tests/progress-recalibration.test.ts tests/rate-limit.test.ts tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` — all tests pass. Run `npx tsc --noEmit` — no type errors. Grep for remaining imports of `./instance-manager.js` or `../src/instance-manager.js` outside the new directory (should find none).

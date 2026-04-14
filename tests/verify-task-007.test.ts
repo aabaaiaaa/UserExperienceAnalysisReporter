@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resolve, join } from 'node:path';
-import { spawnInstance, buildInstancePrompt, InstanceConfig } from '../src/instance-manager.js';
+import { spawnInstance, buildInstancePrompt, InstanceConfig } from '../src/instance-manager/index.js';
 
 // Mock the claude-cli module so we never actually call the CLI
 vi.mock('../src/claude-cli.js', () => ({

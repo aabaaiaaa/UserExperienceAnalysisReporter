@@ -6,7 +6,7 @@ import {
   runInstanceRounds,
   RoundExecutionConfig,
   InstanceConfig,
-} from '../src/instance-manager.js';
+} from '../src/instance-manager/index.js';
 
 const TEST_TEMP_DIR = resolve('.uxreview-temp-round-test');
 

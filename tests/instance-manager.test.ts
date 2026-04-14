@@ -10,7 +10,7 @@ import {
   InstanceConfig,
   RoundExecutionConfig,
   ProgressCallback,
-} from '../src/instance-manager.js';
+} from '../src/instance-manager/index.js';
 
 // Mock the claude-cli module
 vi.mock('../src/claude-cli.js', () => ({

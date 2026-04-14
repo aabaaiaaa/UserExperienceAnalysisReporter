@@ -26,7 +26,7 @@ vi.mock('../src/claude-cli.js', () => ({
 }));
 
 import { runClaude } from '../src/claude-cli.js';
-import { runInstanceRounds, RoundExecutionConfig } from '../src/instance-manager.js';
+import { runInstanceRounds, RoundExecutionConfig } from '../src/instance-manager/index.js';
 import { ProgressDisplay } from '../src/progress-display.js';
 import { Checkpoint } from '../src/checkpoint.js';
 import { appendDiscoveryRound, DiscoveryRound, extractDiscoveryItems } from '../src/discovery.js';

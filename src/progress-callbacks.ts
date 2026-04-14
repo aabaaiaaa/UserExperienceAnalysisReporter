@@ -1,5 +1,5 @@
 import { ProgressDisplay } from './progress-display.js';
-import { ProgressCallback } from './instance-manager.js';
+import { ProgressCallback } from './instance-manager/index.js';
 
 /**
  * Build a ProgressCallback that wires runInstanceRounds state transitions

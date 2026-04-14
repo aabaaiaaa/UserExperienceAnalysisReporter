@@ -16,7 +16,7 @@ import {
   runInstanceRounds,
   RoundExecutionConfig,
   ProgressCallback,
-} from '../src/instance-manager.js';
+} from '../src/instance-manager/index.js';
 
 // ─── Rate limit detection ─────────────────────────────────────────
 

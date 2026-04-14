@@ -18,8 +18,8 @@ vi.mock('../src/claude-cli.js', () => ({
 }));
 
 // Mock instance-manager
-vi.mock('../src/instance-manager.js', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../src/instance-manager.js')>();
+vi.mock('../src/instance-manager/index.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/instance-manager/index.js')>();
   return {
     ...original,
     runInstanceRounds: vi.fn(),
@@ -113,7 +113,7 @@ vi.mock('../src/browser-open.js', () => ({
 
 // Import mocked modules
 import { distributePlan } from '../src/work-distribution.js';
-import { runInstanceRounds, RoundExecutionResult } from '../src/instance-manager.js';
+import { runInstanceRounds, RoundExecutionResult } from '../src/instance-manager/index.js';
 import { killAllChildProcesses } from '../src/claude-cli.js';
 import {
   consolidateReports,

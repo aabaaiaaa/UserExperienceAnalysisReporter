@@ -54,7 +54,7 @@ import {
   runInstanceRounds,
   RoundExecutionConfig,
   ProgressCallback,
-} from '../src/instance-manager.js';
+} from '../src/instance-manager/index.js';
 import { sleep } from '../src/rate-limit.js';
 import { ClaudeCliResult } from '../src/claude-cli.js';
 

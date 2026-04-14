@@ -7,7 +7,7 @@ import {
   runInstanceRounds,
   RoundExecutionConfig,
   RoundExecutionResult,
-} from './instance-manager.js';
+} from './instance-manager/index.js';
 import {
   consolidateReports,
   reassignAndRemapScreenshots,

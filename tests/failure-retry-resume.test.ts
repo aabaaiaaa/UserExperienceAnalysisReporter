@@ -7,7 +7,7 @@ import {
   RoundExecutionConfig,
   InstanceConfig,
   DEFAULT_MAX_RETRIES,
-} from '../src/instance-manager.js';
+} from '../src/instance-manager/index.js';
 import { Checkpoint, createInitialCheckpoint } from '../src/checkpoint.js';
 
 const TEST_TEMP_DIR = resolve('.uxreview-temp-retry-test');
