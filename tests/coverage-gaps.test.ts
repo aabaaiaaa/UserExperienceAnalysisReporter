@@ -208,6 +208,57 @@ describe('Inner rate-limit retry during normal retries', () => {
   });
 });
 
+// ─── rounds.ts: 'Unknown error' fallback when state.error is falsy ──
+
+describe('rounds.ts "Unknown error" fallback branches', () => {
+  beforeEach(() => {
+    mkdirSync(join(TEST_TEMP_DIR, 'instance-1'), { recursive: true });
+    mkdirSync(join(TEST_TEMP_DIR, 'instance-1', 'screenshots'), { recursive: true });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (existsSync(TEST_TEMP_DIR)) {
+      rmSync(TEST_TEMP_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('uses "Unknown error" fallback when state.error is empty string', async () => {
+    // Throwing Error('') makes spawning set state.error = '' (falsy),
+    // triggering the || 'Unknown error' fallbacks in rounds.ts lines 176, 182, 217, 225
+    mockRunClaude.mockRejectedValue(new Error(''));
+
+    const callbacks: ProgressCallback = {
+      onFailure: vi.fn(),
+      onPermanentlyFailed: vi.fn(),
+      onRetry: vi.fn(),
+      onRoundStart: vi.fn(),
+      onProgressUpdate: vi.fn(),
+    };
+
+    const result = await runInstanceRounds({
+      ...BASE_ROUND_CONFIG,
+      totalRounds: 1,
+      maxRetries: 1,
+      progress: callbacks,
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.permanentlyFailed).toBe(true);
+
+    // Line 176: cb?.onFailure?.(instanceNumber, round, state.error || 'Unknown error')
+    expect(callbacks.onFailure).toHaveBeenCalledWith(1, 1, 'Unknown error');
+
+    // Line 182: errors: [state.error || 'Unknown error']
+    // Line 217: retryInfo.errors.push(state.error || 'Unknown error')
+    expect(result.retries[0].errors).toEqual(['Unknown error', 'Unknown error']);
+
+    // Line 225: cb?.onPermanentlyFailed?.(instanceNumber, state.error || 'Unknown error')
+    expect(callbacks.onPermanentlyFailed).toHaveBeenCalledWith(1, 'Unknown error');
+  });
+});
+
 // ─── instance-manager: outer rate-limit with missing checkpoint ────
 
 describe('Outer rate-limit retry with missing checkpoint', () => {
