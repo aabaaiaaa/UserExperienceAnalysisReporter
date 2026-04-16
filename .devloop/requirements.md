@@ -1,280 +1,313 @@
-# UX Analysis Reporter — Iteration 12 Requirements
+# UX Analysis Reporter — Iteration 13 Requirements
 
 ## Overview
 
-This iteration is driven by a critical safety bug discovered when the user ran `uxreview plan --url http://localhost:5173 --intro "..."` from a project directory (`SpaceAgencySimDocs/`) and got:
+Iteration 12 shipped only three of six planned tasks correctly. The critical data-loss hazard that motivated that iteration — `rmSync` silently wiping a user's current working directory on macOS/Linux when `--output .` is passed — is only partially mitigated. A1 (changing the plan subcommand default) landed, but A2 (skipping `rmSync` in plan mode) and A3 (the refuse-to-delete guard) were marked `done` without any implementation.
 
-```
-Fatal error: EBUSY: resource busy or locked, rmdir 'C:\Users\jeastaugh\source\repos\Experiments\SpaceAgencySimDocs'
-```
+The full review for iteration 12 lives at `.devloop/archive/iteration-10/review.md`. It confirms:
 
-The tool was attempting to **recursively delete the user's current working directory**. On Windows, the OS-level lock on the cwd surfaced an `EBUSY` error and saved the user's files. **On macOS or Linux, the same code path would have silently wiped the entire directory** — including any uncommitted work.
+- `src/plan-orchestrator.ts:93` still calls `initWorkspace(args.instances, args.output)` with no third argument, so `initOutputDir` still wipes the resolved output path.
+- No `assertSafeRemovalTarget` helper exists. `src/file-manager.ts:154-166` is unchanged from iteration 11. No cwd/home/root checks exist. No new tests.
+- The main `uxreview` subcommand is entirely unchanged — `uxreview --url X --output .` still reaches the `rmSync` path.
 
-This iteration also picks up three carryover items from the iteration 11 review (currently the latest archived review at `.devloop/archive/iteration-9/review.md`): two branch-coverage gaps that emerged from the iteration 11 instance-manager split, plus a global test timeout config.
-
-The prior iteration left the project at 1036/1036 tests passing across 43 test files, with overall coverage at 99.18% statements, 96.61% branches, 99.48% functions, 99.18% lines. Two submodules sit below the 95% per-file branch threshold: `instance-manager/spawning.ts` (89.28%) and `instance-manager/rounds.ts` (93.15%).
+Iteration 13 is a **focused follow-up iteration** that completes the A2/A3 work and lands two small quality-of-life improvements the iteration 12 reviewer flagged as non-blocking polish. Part B of iteration 12 (coverage carryovers, global test timeout) is already complete and is not revisited here.
 
 ---
 
-## Part A — The rmdir CWD bug
+## Scope
 
-### Root cause
+Five changes, all narrow:
 
-A four-step trace explains the failure:
+1. **Rename `append` → `cleanExisting` with inverted polarity** in `initOutputDir` and `initWorkspace`. The boolean flag currently means "preserve existing" to callers and "skip `rmSync`" to the implementation — a footgun. Inverting to `cleanExisting` (with `false` as the safe/preserve default) makes call sites self-documenting and, importantly, lets us implement A2 cleanly as `cleanExisting: false` at the plan call site.
+2. **Implement A2** (`src/plan-orchestrator.ts:93`): pass `cleanExisting: false` so the plan subcommand never wipes the output directory. This fold-in is part of change 1 above.
+3. **Implement A3**: add `assertSafeRemovalTarget` to `src/file-manager.ts`, called immediately before `rmSync`, refusing to delete cwd / ancestor-of-cwd / home / filesystem root.
+4. **Debug log before `rmSync`**: add a `debug()` line immediately before the destructive removal so future bug reports can correlate.
+5. **Integration-style test**: verify the main `uxreview` subcommand also refuses `--output .` (not only plan), since A3 protects every entry point but only plan had an explicit bug report.
 
-1. **`src/cli.ts:403-405`** — `parsePlanArgs` defaults `--output` to `'.'` when the flag isn't provided:
-   ```typescript
-   output: (() => {
-     const outputRaw = raw.get('output');
-     return typeof outputRaw === 'string' ? outputRaw : '.';
-   })(),
-   ```
-2. **`src/plan-orchestrator.ts:93`** — `runPlanDiscovery` passes that string straight through to `initWorkspace`:
-   ```typescript
-   const workspace = await initWorkspace(args.instances, args.output);
-   ```
-   Note no `append` argument, so `append` is `undefined`/falsy.
-3. **`src/file-manager.ts:154-160`** — `initOutputDir` resolves the path (yielding the cwd) and unconditionally `rmSync`s it when `append` is falsy:
-   ```typescript
-   const outputDir = resolve(outputPath || DEFAULT_OUTPUT_DIR);
-   if (existsSync(outputDir) && !append) {
-     rmSync(outputDir, { recursive: true, force: true });
-   }
-   ```
-4. On Windows the `rmSync` fails with `EBUSY` because the cwd is locked. On Unix-like systems the `rmSync` would succeed and the user would lose every file in the directory.
-
-The main subcommand (`uxreview` without `plan`) is unaffected by the default — it defaults `--output` to `'./uxreview-output'`, a dedicated subdirectory. Only the `plan` subcommand has the dangerous default. However, the underlying `initOutputDir` would still happily wipe a user's directory if anyone passed `--output .` (or any other dangerous path) explicitly. We must address both the surface bug and the underlying hazard.
-
-### Severity
-
-**Critical** — potential silent loss of user data. The only reason the user did not lose their `SpaceAgencySimDocs` files is that they were on Windows. This is a "fix immediately" bug.
-
-### Three layered fixes
-
-The fix is intentionally layered to provide defense in depth: the default change makes the common case safe, the plan-mode behavior change removes the destructive operation entirely from a flow that doesn't need it, and the safety guard catches every other path through the code.
-
-#### A1. Change the `plan` subcommand default for `--output`
-
-The default `'.'` was unsafe by design. Change it to a dedicated subdirectory matching the main command's pattern.
-
-- **`src/cli.ts:403-405`** — change the default from `'.'` to `'./uxreview-plan'`.
-- **`src/cli.ts:84`** — update help text from `(default: . current directory)` to `(default: ./uxreview-plan)`.
-- **`tests/cli.test.ts:264, 322-325, 454`** — three assertions currently expect `'.'`. Update to `'./uxreview-plan'`. Rename the test at line 322 (`'defaults output to "."'`) to `'defaults output to "./uxreview-plan"'`.
-- **`README.md`** — search for any mention of the `.` default for `plan` and update.
-
-The plan subcommand's emitted "Tip" line at `plan-orchestrator.ts:255` will now print `uxreview --url <X> --plan ./uxreview-plan/plan.md`, which is still a valid chained command.
-
-#### A2. Don't wipe the output directory in plan mode
-
-The `plan` subcommand only writes a small, fixed set of files (`plan.md`, `discovery.html`, `discovery.md`, plus the `screenshots/` subdirectory). There is no reason to wipe the entire output directory before writing them — `writeFileSync` will overwrite files in place, and `mkdirSync({recursive: true})` is idempotent.
-
-The simplest, lowest-risk change is to pass `append: true` when `plan-orchestrator` calls `initWorkspace`:
-
-- **`src/plan-orchestrator.ts:93`** — change to:
-  ```typescript
-  // Pass append=true to skip output-dir cleanup. The plan subcommand only writes
-  // a small fixed set of files; wiping the output directory is unnecessary and
-  // dangerous (see A1/A3 — the default output is the current working directory's
-  // child, but a misconfigured run could still target a sensitive location).
-  const workspace = await initWorkspace(args.instances, args.output, true);
-  ```
-
-**Tradeoff acknowledged:** If a previous `plan` run wrote screenshots that have unique filenames, those stale files persist alongside new ones in the `screenshots/` subdirectory. They are not referenced by the new `plan.md` / `discovery.html` / `discovery.md`, so they don't affect correctness — they just take disk space. This is acceptable. (Users who care can manually delete the output directory between runs.)
-
-**Alternative considered and rejected:** Renaming `initOutputDir`'s `append` parameter to `preserveExisting` for clarity. Rejected to keep iteration scope tight; the existing semantics already do exactly what we need, and a comment at the call site makes the intent clear.
-
-#### A3. Refuse-to-delete safety guard in `initOutputDir`
-
-Add a defensive check that throws a descriptive error before `rmSync` if the resolved target is a path it should never delete. This protects the main subcommand and any future code path that calls `initOutputDir`.
-
-The guard refuses removal when the target equals or is an ancestor of:
-- The current working directory (`process.cwd()`)
-- The user's home directory (`os.homedir()`)
-- A filesystem root (`C:\`, `D:\`, `/`, etc. — derived via `path.parse(target).root`)
-
-**Implementation notes:**
-- Resolve both the target path and the comparison paths through `fs.realpathSync.native()` to canonicalize symlinks. Fall back to `path.resolve()` if `realpathSync` throws (e.g., the target was just resolved but doesn't exist on disk yet — though in our case the guard runs after an `existsSync` check, so realpath should succeed).
-- On Windows, paths are case-insensitive. Lowercase both sides before string comparison when `process.platform === 'win32'`.
-- Use `path.sep` (not a hardcoded `'/'`) when checking the ancestor relationship — i.e., `cwd.startsWith(target + path.sep)`.
-- The thrown error must clearly state which dangerous category triggered the refusal and tell the user how to recover. Example:
-  ```
-  Refusing to delete output directory C:\Users\jeastaugh\source\repos\Experiments\SpaceAgencySimDocs:
-  it is the current working directory.
-  Choose a different --output path (e.g. --output ./uxreview-output).
-  ```
-
-**Not overridable.** No `--force` flag. If a user has a legitimate reason to wipe their cwd or home, they can do it themselves with `rm -rf`. The guard exists for situations where something has gone wrong.
-
-**File changes:**
-- **`src/file-manager.ts`** — add a private helper (e.g., `assertSafeRemovalTarget(targetPath: string): void`) and call it before `rmSync(outputDir, ...)` at line 159. Add `import { homedir } from 'node:os';` and `import { realpathSync } from 'node:fs';` (or merge with existing imports).
-
-**Test changes:**
-- **`tests/file-manager.test.ts`** — add tests covering:
-  - Throws when target equals cwd
-  - Throws when target is an ancestor of cwd
-  - Throws when target equals home
-  - Throws when target equals a filesystem root
-  - On Windows: throws when target equals cwd with different case
-  - Does NOT throw for a safe target (e.g., a fresh `./uxreview-output` subdirectory)
-  - Throws message matches the expected pattern (test the error message contains the offending category name)
+Also: add a regression test that verifies `plan-orchestrator` passes `cleanExisting: false` to `initWorkspace`. The iteration 12 reviewer specifically noted that no test catches `plan-orchestrator.ts:93`'s call-signature shape — mock-based tests in `tests/plan-orchestrator.test.ts` don't detect it.
 
 ---
 
-## Part B — Iteration 11 review carryovers
+## Part A — Rename `append` → `cleanExisting` (inverted polarity)
 
-These items were flagged as "should fix" in `.devloop/archive/iteration-9/review.md` (despite the file path saying iteration-9, the document is the iteration 11 review per its own header). They are independent of Part A and of each other.
+### Current shape
 
-### B1. Raise `instance-manager/spawning.ts` branch coverage above 95%
+`src/file-manager.ts:154-166`:
 
-Current: **89.28%** branch coverage. Uncovered lines: 85, 105, 109.
-
-**Line 85** — `const basePrompt = config.promptBuilder?.(config) ?? buildInstancePrompt(config);` inside `spawnInstanceWithResume`. The truthy branch of the optional chaining call is not exercised. (Line 20 in `spawnInstance` has a similar expression; tests at `tests/instance-manager.test.ts:276` and `:445` already exercise that path, but neither triggers `spawnInstanceWithResume` with a custom `promptBuilder`.)
-
-**Lines 105, 109** — the `catch (err)` block in `spawnInstanceWithResume`:
 ```typescript
-} catch (err) {
-  state.status = 'failed';
-  state.error = err instanceof Error ? err.message : String(err);
+export function initOutputDir(outputPath?: string, append?: boolean): string {
+  const outputDir = resolve(outputPath || DEFAULT_OUTPUT_DIR);
+  debug(`Initializing output directory: ${outputDir}${append ? ' (append mode)' : ''}`);
+
+  if (existsSync(outputDir) && !append) {
+    rmSync(outputDir, { recursive: true, force: true });
+  }
+
+  mkdirSync(outputDir, { recursive: true });
+  mkdirSync(join(outputDir, 'screenshots'), { recursive: true });
+
+  return outputDir;
 }
 ```
-The `Error` and non-`Error` branches of the ternary are both untested for the resume code path.
 
-**Test additions** in `tests/instance-manager.test.ts` (or, if there's a dedicated `tests/spawning.test.ts`, there):
-1. Call `spawnInstanceWithResume` with a config that includes a custom `promptBuilder`. Assert the builder was called and its result was used (e.g., spy on `runClaude` and inspect the `prompt` argument).
-2. Mock `runClaude` to throw a real `Error` instance. Call `spawnInstanceWithResume`. Assert the returned state has `status: 'failed'` and `error` matches the thrown message.
-3. Mock `runClaude` to throw a non-`Error` value (string or plain object). Call `spawnInstanceWithResume`. Assert `error` matches `String(thrownValue)`.
+`src/file-manager.ts:172-182` forwards the same flag to `initOutputDir`:
 
-### B2. Raise `instance-manager/rounds.ts` branch coverage above 95%
-
-Current: **93.15%** branch coverage. Uncovered lines: 176-182, 217, 225.
-
-**Lines 176-182** — entry into the failure block after `state = await handleRateLimitRetries(...)` returns a still-failed state. Specifically:
 ```typescript
-if (state.status === 'failed') {
-  cb?.onFailure?.(config.instanceNumber, round, state.error || 'Unknown error');
-
-  const retryInfo: RetryInfo = {
-    round,
-    attempts: 0,
-    succeeded: false,
-    errors: [state.error || 'Unknown error'],
-  };
+export async function initWorkspace(instanceCount: number, outputPath?: string, append?: boolean): Promise<WorkspaceLayout> {
+  const tempDir = await initTempDir(instanceCount);
+  const outputDir = initOutputDir(outputPath, append);
+  ...
+}
 ```
-The `state.error || 'Unknown error'` fallback (the falsy `state.error` branch) is the gap.
 
-**Line 217** — `retryInfo.errors.push(state.error || 'Unknown error');` inside the retry loop after a retry attempt fails again. Same falsy-`state.error` branch.
+Call sites today:
 
-**Line 225** — `cb?.onPermanentlyFailed?.(config.instanceNumber, state.error || 'Unknown error');` after retries exhaust. Same falsy-`state.error` branch.
+- `src/orchestrator.ts:115` — `await initWorkspace(args.instances, args.output, args.append)`. Main subcommand passes the CLI `--append` flag straight through.
+- `src/plan-orchestrator.ts:93` — `await initWorkspace(args.instances, args.output)`. No third arg; `append` is undefined/falsy; output dir gets wiped.
 
-**Investigate first.** `tests/round-execution.test.ts`, `tests/coverage-gaps.test.ts`, and `tests/instance-manager.test.ts` all have tests touching the retry-exhaust path. The previous iteration added tests for permanent failure (`tests/coverage-gaps.test.ts` was used for similar branches). The remaining gap is likely the `state.error` being falsy (empty string, null, undefined) — a configuration where `runClaude` returns a failed result with no `stderr` and `exitCode` produces an empty error string. Add a focused test in `tests/coverage-gaps.test.ts` (or `tests/round-execution.test.ts`) that:
-1. Mocks `runClaude` to consistently return `{success: false, exitCode: 0, stdout: '', stderr: ''}` (resulting in a falsy `state.error`).
-2. Configures `maxRetries: 1` (or low) so the retry loop exhausts quickly.
-3. Calls `runInstanceRounds` and asserts:
-   - `cb.onFailure` was called with `'Unknown error'` as the error string
-   - `cb.onPermanentlyFailed` was called with `'Unknown error'`
-   - `result.retries[0].errors` contains `'Unknown error'` entries
+### Target shape
 
-### B3. Add global test timeout to `vitest.config.ts`
-
-Add `testTimeout: 10000` to the `test` block. This prevents recurrence of the iteration 10 plan-signal-test timeout regression as the codebase grows.
-
-**Change** to `vitest.config.ts:4-18`:
 ```typescript
-export default defineConfig({
-  test: {
-    include: ['tests/**/*.test.ts'],
-    exclude: ['tests/e2e.test.ts', 'tests/e2e-plan.test.ts'],
-    testTimeout: 10000,
-    coverage: {
-      // ... unchanged
-    },
-  },
+export function initOutputDir(outputPath?: string, cleanExisting: boolean = true): string {
+  const outputDir = resolve(outputPath || DEFAULT_OUTPUT_DIR);
+  debug(`Initializing output directory: ${outputDir}${cleanExisting ? '' : ' (preserve mode)'}`);
+
+  if (existsSync(outputDir) && cleanExisting) {
+    assertSafeRemovalTarget(outputDir);
+    debug(`Removing existing output directory: ${outputDir}`);
+    rmSync(outputDir, { recursive: true, force: true });
+  }
+
+  mkdirSync(outputDir, { recursive: true });
+  mkdirSync(join(outputDir, 'screenshots'), { recursive: true });
+
+  return outputDir;
+}
+
+export async function initWorkspace(
+  instanceCount: number,
+  outputPath?: string,
+  cleanExisting: boolean = true,
+): Promise<WorkspaceLayout> {
+  const tempDir = await initTempDir(instanceCount);
+  const outputDir = initOutputDir(outputPath, cleanExisting);
+  ...
+}
+```
+
+Key choices:
+
+- **Default is `true`** (clean existing) to preserve current behavior for every call site that omits the argument. Changing the default to `false` would silently turn every subcommand into append-mode.
+- **Polarity inverts.** Old `append: true` ≡ new `cleanExisting: false`. Old `append: false` (or undefined) ≡ new `cleanExisting: true`.
+- **Call site updates**:
+  - `src/orchestrator.ts:115` — `await initWorkspace(args.instances, args.output, !args.append)`. The CLI flag `--append` keeps its user-facing name and meaning ("preserve existing"); internally we invert at the call boundary.
+  - `src/plan-orchestrator.ts:93` — `await initWorkspace(args.instances, args.output, false)`. Add a comment explaining the intent:
+    ```typescript
+    // cleanExisting: false — the plan subcommand only writes a small fixed set of files
+    // (plan.md, discovery.html, discovery.md, screenshots/). mkdirSync is idempotent and
+    // writeFileSync overwrites in place, so wiping the output directory is unnecessary and
+    // dangerous (see requirements.md Part A and the A3 safety guard).
+    const workspace = await initWorkspace(args.instances, args.output, false);
+    ```
+
+### Test updates
+
+Only `tests/file-manager.test.ts` passes the flag directly. Two call sites at lines 142 and 149:
+
+- Line 142: `initOutputDir(undefined, true);` — was "enter append mode". Flip to `initOutputDir(undefined, false);` (cleanExisting=false ≡ preserve).
+- Line 149: `initOutputDir('./test-output-custom', true);` → `initOutputDir('./test-output-custom', false);`.
+
+Also rename the describe/it strings if they reference "append mode" explicitly — use "preserve mode" or similar.
+
+All other tests mock `initWorkspace` entirely and don't care about the flag shape.
+
+### Rejected alternatives
+
+- **Keep `append`, just implement A2.** Leaves the footgun polarity in place; a future reader of `plan-orchestrator.ts` still has to mentally translate `true` → "skip rmSync" → "don't destroy my output dir". User explicitly chose the rename.
+- **Discriminated union `{mode: 'clean'} | {mode: 'preserve'}`.** More ceremonial than the problem warrants. Boolean with an unambiguous positive name is enough.
+
+---
+
+## Part B — Safety guard (A3)
+
+Add a private helper in `src/file-manager.ts` that refuses to delete a set of dangerous paths. Call it immediately before `rmSync` inside `initOutputDir`.
+
+### Paths to refuse
+
+- The current working directory (`process.cwd()`)
+- Any ancestor of the current working directory
+- The user's home directory (`os.homedir()`)
+- A filesystem root (`path.parse(target).root` — e.g. `C:\`, `D:\`, `/`)
+
+### Implementation notes
+
+- **Canonicalize.** Resolve both the target path and each comparison path through `fs.realpathSync.native()` so symlinks and `..` segments don't sneak past the check. Fall back to `path.resolve()` when `realpathSync` throws — which can happen if the path doesn't exist on disk. In our case the guard runs after an `existsSync` check so `realpathSync` should succeed on the target, but `homedir()` / cwd / root are virtually guaranteed to resolve.
+- **Case-insensitive on Windows.** When `process.platform === 'win32'`, lowercase both sides before string comparison. Unix stays case-sensitive.
+- **Ancestor check.** Use `path.sep` — `cwd.startsWith(target + path.sep)` — not a hardcoded `'/'`. A simple `startsWith` is not enough because `/foo/barbaz` starts with `/foo/bar` but is not an ancestor relationship.
+- **No `--force` override.** A user with a legitimate reason to wipe a dangerous path can use `rm -rf` themselves.
+
+### Error messages
+
+The thrown `Error` must state *which* dangerous category matched and tell the user how to recover. Suggested format:
+
+```
+Refusing to delete output directory <target>: <reason>.
+Choose a different --output path (e.g. --output ./uxreview-output).
+```
+
+Where `<reason>` is one of:
+
+- `it is the current working directory`
+- `it is an ancestor of the current working directory`
+- `it is the user's home directory`
+- `it is a filesystem root`
+
+### Imports to add
+
+```typescript
+import { realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { parse as parsePath, sep } from 'node:path';
+```
+
+Merge with the existing `node:fs` / `node:path` imports at the top of the file.
+
+### Debug log addition
+
+Inside the same `if` block that calls `rmSync`, immediately before the `assertSafeRemovalTarget(outputDir)` call, add:
+
+```typescript
+debug(`Removing existing output directory: ${outputDir}`);
+```
+
+This provides a breadcrumb in logs for any future data-loss investigation. The exact ordering (debug → assert → rmSync) is important: if the assertion throws, users still see the log line and know what path the tool tried to delete.
+
+---
+
+## Part C — Testing
+
+### Unit tests for the safety guard
+
+Add to `tests/file-manager.test.ts` (new describe block, ideally grouped with the existing `initOutputDir` tests):
+
+1. **Refuses when target equals cwd.** Call `initOutputDir('.')` from within a temp directory and expect it to throw. Error message must contain "current working directory".
+2. **Refuses when target is an ancestor of cwd.** Chdir into a nested temp subdirectory, then call `initOutputDir('..')` (or similar resolving upward). Expect throw; error message must contain "ancestor".
+3. **Refuses when target equals home.** Call `initOutputDir(os.homedir())`. Expect throw; error message must contain "home directory".
+4. **Refuses when target equals a filesystem root.** Call `initOutputDir` with `path.parse(process.cwd()).root` (which resolves to `C:\` on Windows or `/` on Unix). Expect throw; error message must contain "filesystem root".
+5. **Case-insensitive on Windows.** Only runs on Windows (`it.runIf(process.platform === 'win32')` or skip on non-Windows). Call `initOutputDir` with cwd lowercased/uppercased; expect the same throw as test 1.
+6. **Safe target does NOT throw.** Call `initOutputDir('./test-output-safe')` in a temp subdirectory; expect no throw; expect the directory to be created and `screenshots/` subdirectory present.
+7. **Error message contains actionable recovery hint.** Trigger any of the failures above and assert the message contains `--output` (the CLI-level hint).
+
+Use the existing `beforeEach/afterEach` patterns in `tests/file-manager.test.ts` that create/clean a test-output directory. Be careful in test 2 not to actually delete the parent directory — the throw should happen *before* `rmSync` fires.
+
+### Regression test for the A2 fix
+
+Add to `tests/plan-orchestrator.test.ts`. The existing test file already mocks `initWorkspace`, so we can spy on the call and assert its arguments:
+
+```typescript
+it('calls initWorkspace with cleanExisting=false to preserve output directory', async () => {
+  // ...standard test setup...
+  await runPlanDiscovery(args);
+  expect(mockInitWorkspace).toHaveBeenCalledWith(
+    expect.any(Number),   // instances
+    expect.any(String),   // output path
+    false,                // cleanExisting — preserve existing output
+  );
 });
 ```
 
-No source or test changes needed. Verification: run the existing test suite — all tests should still pass (10s is well above any individual test's actual runtime).
+This test fails if someone in a future iteration removes the third argument or flips it to `true`. It is the specific regression the iteration 12 reviewer flagged as missing.
+
+### Integration test: main subcommand refuses `--output .`
+
+Add a focused integration test that proves the guard protects the main `uxreview` subcommand, not only the plan flow. The cleanest place is a new describe block in `tests/file-manager.test.ts` titled "main subcommand protection":
+
+```typescript
+it('main orchestrator path: initOutputDir("." ) refuses with descriptive error', () => {
+  // Simulates the chain: CLI --output . → orchestrator → initWorkspace → initOutputDir
+  // We test at initOutputDir directly since orchestrator mocks file-manager in all
+  // other tests. This test verifies the protection is enforced at the single
+  // chokepoint that every subcommand flows through.
+  expect(() => initOutputDir('.')).toThrow(/current working directory/i);
+});
+```
+
+Rationale: the orchestrator tests all mock `file-manager` entirely, so we cannot meaningfully assert the throw bubbles up through `runOrchestrator`. But since `initOutputDir` is the single chokepoint that every subcommand invokes (via `initWorkspace`), a direct test at that boundary proves the protection for every entry point. The comment above makes the test's framing explicit.
+
+*(Alternative considered and rejected: spawning a real `node dist/cli.js --url X --output .` subprocess. Too slow for normal test runs, and fragile on CI.)*
 
 ---
 
-## Dependencies between items
-
-```
-A1 (default change)         — independent
-A2 (plan skip rmSync)       — independent
-A3 (safety guard)           — independent of A1/A2 but complements them
-B1 (spawning.ts coverage)   — independent
-B2 (rounds.ts coverage)     — independent
-B3 (test timeout config)    — independent
-```
-
-Suggested execution order: A1 → A3 → A2, then B1, B2, B3 (or any order within B). A1 and A3 should land before A2 so that even if A2 has issues the user is no longer at risk.
-
----
-
-## Testing strategy
-
-### Coverage
-
-All changes must keep overall coverage above the 95% threshold (currently 96.61% branch). B1 and B2 should raise the per-file branch coverage of `instance-manager/spawning.ts` and `instance-manager/rounds.ts` above 95%.
-
-### New tests
-
-| Item | Test file | What it covers |
-|------|-----------|----------------|
-| A3 | `tests/file-manager.test.ts` | `initOutputDir` refuses dangerous targets with descriptive error |
-| B1 | `tests/instance-manager.test.ts` (or `tests/spawning.test.ts` if introduced) | `spawnInstanceWithResume` calls custom `promptBuilder`; catch block handles `Error` and non-`Error` throws |
-| B2 | `tests/coverage-gaps.test.ts` (or `tests/round-execution.test.ts`) | `state.error` falsy fallback in retry loop reports `'Unknown error'` to all three callbacks |
-
-### Modified tests
+## File change summary
 
 | File | Change |
 |------|--------|
-| `tests/cli.test.ts` | Three assertions of `result.output === '.'` (lines 264, 322-325, 454) updated to `'./uxreview-plan'`; test name at line 322 updated |
+| `src/file-manager.ts` | Rename `append` → `cleanExisting` with inverted polarity on `initOutputDir` and `initWorkspace`; add `assertSafeRemovalTarget` helper; add debug log before `rmSync`; add imports for `realpathSync`, `homedir`, `parse`, `sep` |
+| `src/orchestrator.ts:115` | Update call to `initWorkspace(args.instances, args.output, !args.append)` |
+| `src/plan-orchestrator.ts:93` | Update call to `initWorkspace(args.instances, args.output, false)` with explanatory comment |
+| `tests/file-manager.test.ts` | Update 2 existing call sites (lines 142, 149) to new polarity; add 7 guard unit tests; add 1 main-subcommand protection test |
+| `tests/plan-orchestrator.test.ts` | Add regression test asserting `initWorkspace` receives `cleanExisting: false` |
 
-### Verification commands
-
-| Item | Command |
-|------|---------|
-| A1 | `npx vitest run tests/cli.test.ts` |
-| A2 | `npx vitest run tests/plan-orchestrator.test.ts` (verify nothing breaks) |
-| A3 | `npx vitest run tests/file-manager.test.ts` |
-| B1 | `npx vitest run --coverage tests/instance-manager.test.ts tests/spawning.test.ts` (verify branch coverage of `instance-manager/spawning.ts` is > 95%) |
-| B2 | `npx vitest run --coverage tests/round-execution.test.ts tests/coverage-gaps.test.ts tests/instance-manager.test.ts` (verify branch coverage of `instance-manager/rounds.ts` is > 95%) |
-| B3 | `npx vitest run` (full suite still green; reporter shows the timeout config taking effect) |
-
-### Manual sanity check (after merge)
-
-From a non-project directory containing arbitrary files, run:
-```
-uxreview plan --url http://localhost:5173 --intro "..."
-```
-Confirm:
-1. The directory is **not** wiped.
-2. A `./uxreview-plan/` subdirectory is created with the expected files.
-3. If the user explicitly passes `--output .` (without `--keep-temp`), the tool refuses with a clear error about the cwd being unsafe.
+No CLI flag names change. No user-facing docs change. `README.md` is unaffected.
 
 ---
 
 ## Out of scope
 
-The following remain deferred (no change from prior iterations):
+Remains deferred (no change from prior iterations):
 
-- Shell metacharacter risk in `browser-open.ts` — already migrated to `execFile()` in iteration 11; no further action needed.
-- `Number() || fallback` masking instance 0 in `checkpoint.ts:54` (unreachable, instance numbering starts at 1)
-- `rate-limit.ts` at 75% function coverage (`sleep()` always mocked — methodology artifact)
-- Finding severity filtering (`--min-severity`)
-- Claude Agent SDK migration
-- Structured IPC (replacing file-based communication)
-- Report diffing for `--append` mode
-- `validate-plan` subcommand
-- `--from-plan` pipeline flag
-- Incremental discovery (`--append` for plan mode)
-- Consolidation as a separate CLI subcommand
-- AbortController for cancellation
-- Large dataset / performance testing
-- Concurrent write race condition tests
-- Base orchestrator / composition pattern
-- Persistent rate-limit retry budget across sequential runs
-- Lightweight arg parsing library migration (`node:util parseArgs`)
-- Renaming `initOutputDir`'s `append` parameter (semantic clarity, low value)
-- A `--force` override for the safety guard (intentionally not exposed)
+- Shell metacharacter risk in `browser-open.ts` — already migrated to `execFile()` in iteration 11.
+- `Number() || fallback` masking instance 0 in `checkpoint.ts:54` (unreachable).
+- `rate-limit.ts` at 75% function coverage (methodology artifact).
+- Finding severity filtering (`--min-severity`).
+- Claude Agent SDK migration.
+- Structured IPC (replacing file-based communication).
+- Report diffing for `--append` mode.
+- `validate-plan` subcommand.
+- `--from-plan` pipeline flag.
+- Incremental discovery (`--append` for plan mode).
+- Consolidation as a separate CLI subcommand.
+- AbortController for cancellation.
+- Large dataset / performance testing.
+- Concurrent write race condition tests.
+- Base orchestrator / composition pattern (plan vs main orchestrator duplication).
+- Persistent rate-limit retry budget across sequential runs.
+- Lightweight arg parsing library migration (`node:util parseArgs`).
+- A `--force` override for the safety guard (intentionally not exposed).
+- Reorganizing test-file layout along domain boundaries.
+
+### Deliberately not carried forward from the iteration 12 reviewer's recommendations
+
+- **Correcting `.devloop/archive/iteration-10/tasks.md`** — that file is a historical artifact; patching it does not affect correctness. Not worth a commit.
+- **Investigating the devloop automation that silently skipped tasks** — out of scope for this repository (lives in the DevLoop tool itself, not UserExperienceAnalysisReporter).
+
+---
+
+## Verification strategy
+
+### Per-task verification
+
+Each task has a targeted verification command in `tasks.md`. No task runs the full suite.
+
+### End-of-iteration sanity check
+
+After all tasks land, a reviewer should confirm:
+
+1. `npx tsc --noEmit` passes (full type-check — this is cheap).
+2. `npx vitest run tests/file-manager.test.ts tests/orchestrator.test.ts tests/plan-orchestrator.test.ts` passes — the suites touched by the rename.
+3. Overall coverage remains above the 95% branch threshold (not measured per-task to keep task runtimes tight).
+
+### Manual post-merge validation
+
+From a non-project directory containing arbitrary files, run:
+
+```
+uxreview plan --url http://localhost:5173 --intro "..."
+```
+
+Confirm:
+
+1. The directory is not wiped.
+2. A `./uxreview-plan/` subdirectory is created with the expected files.
+3. `uxreview plan --url X --output .` exits with a clear "refusing to delete … current working directory" error.
+4. `uxreview --url X --output .` (main subcommand, no `plan`) exits with the same error.
