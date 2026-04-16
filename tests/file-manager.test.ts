@@ -132,21 +132,21 @@ describe('file-manager', () => {
       expect(existsSync(join(outputDir, 'screenshots'))).toBe(true);
     });
 
-    it('preserves existing output directory in append mode', () => {
+    it('preserves existing output directory in preserve mode', () => {
       const outputDir = initOutputDir();
       const { writeFileSync } = require('node:fs');
       writeFileSync(join(outputDir, 'report.md'), '# Existing report');
       writeFileSync(join(outputDir, 'screenshots', 'old-screenshot.png'), 'img-data');
 
-      // Re-init with append — existing files should be preserved
-      initOutputDir(undefined, true);
+      // Re-init with cleanExisting=false — existing files should be preserved
+      initOutputDir(undefined, false);
       expect(existsSync(join(outputDir, 'report.md'))).toBe(true);
       expect(existsSync(join(outputDir, 'screenshots', 'old-screenshot.png'))).toBe(true);
       expect(existsSync(join(outputDir, 'screenshots'))).toBe(true);
     });
 
-    it('creates output directory in append mode when it does not exist', () => {
-      const outputDir = initOutputDir('./test-output-custom', true);
+    it('creates output directory in preserve mode when it does not exist', () => {
+      const outputDir = initOutputDir('./test-output-custom', false);
       expect(existsSync(outputDir)).toBe(true);
       expect(existsSync(join(outputDir, 'screenshots'))).toBe(true);
     });

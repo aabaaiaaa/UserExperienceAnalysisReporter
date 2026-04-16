@@ -18,7 +18,7 @@ See `.devloop/requirements.md` for full narrative context. Each task references 
 - **Verification**: `npx tsc --noEmit` exits 0 (full project type-check — cheap, validates the rename cleanly integrates at both call sites).
 
 ### TASK-003: Update existing file-manager tests for the renamed parameter
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: In `tests/file-manager.test.ts`, update the two call sites that pass the boolean flag directly:
   - Line 142: `initOutputDir(undefined, true);` → `initOutputDir(undefined, false);` (preserve-mode invocation under inverted polarity)
