@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 2,
+  "lastIteration": 3,
   "startedAt": "2026-04-16T23:04:40.415Z",
   "iteration": 11,
   "devloopVersion": "4.1.0",
   "activeTask": {
-    "taskId": "TASK-003",
-    "taskTitle": "Update existing file-manager tests for the renamed parameter",
-    "iterationNumber": 3,
-    "startedAt": "2026-04-16T23:07:14.360Z"
+    "taskId": "TASK-004",
+    "taskTitle": "Add assertSafeRemovalTarget helper in file-manager (A3 guard + debug log)",
+    "iterationNumber": 4,
+    "startedAt": "2026-04-16T23:08:07.090Z"
   }
 }

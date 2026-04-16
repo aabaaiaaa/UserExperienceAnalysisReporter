@@ -27,7 +27,7 @@ See `.devloop/requirements.md` for full narrative context. Each task references 
 - **Verification**: `npx vitest run tests/file-manager.test.ts` — all existing tests pass (16 tests, same count as before).
 
 ### TASK-004: Add assertSafeRemovalTarget helper in file-manager (A3 guard + debug log)
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: In `src/file-manager.ts`, add a private helper `assertSafeRemovalTarget(targetPath: string): void` that throws a descriptive Error when `targetPath` resolves to any of:
   - The current working directory (`process.cwd()`)

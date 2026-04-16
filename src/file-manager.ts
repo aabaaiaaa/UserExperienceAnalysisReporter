@@ -1,5 +1,6 @@
-import { mkdirSync, rmSync, existsSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { mkdirSync, rmSync, existsSync, readdirSync, realpathSync } from 'node:fs';
+import { join, resolve, parse as parsePath, sep } from 'node:path';
+import { homedir } from 'node:os';
 import { debug } from './logger.js';
 
 const TEMP_DIR_NAME = '.uxreview-temp';
@@ -143,6 +144,57 @@ export async function initTempDir(instanceCount: number): Promise<string> {
   return tempDir;
 }
 
+function canonicalize(p: string): string {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    return resolve(p);
+  }
+}
+
+function normalizeForCompare(p: string): string {
+  return process.platform === 'win32' ? p.toLowerCase() : p;
+}
+
+/**
+ * Throws if `targetPath` resolves to a path that must never be recursively
+ * removed: the current working directory, any ancestor of it, the user's
+ * home directory, or a filesystem root. The check canonicalizes paths via
+ * `fs.realpathSync.native()` so symlinks and `..` segments cannot sneak past.
+ */
+function assertSafeRemovalTarget(targetPath: string): void {
+  const target = normalizeForCompare(canonicalize(targetPath));
+  const cwd = normalizeForCompare(canonicalize(process.cwd()));
+  const home = normalizeForCompare(canonicalize(homedir()));
+  const root = normalizeForCompare(parsePath(target).root);
+
+  const recoveryHint = 'Choose a different --output path (e.g. --output ./uxreview-output).';
+
+  if (target === cwd) {
+    throw new Error(
+      `Refusing to delete output directory ${targetPath}: it is the current working directory. ${recoveryHint}`,
+    );
+  }
+
+  if (cwd.startsWith(target + sep)) {
+    throw new Error(
+      `Refusing to delete output directory ${targetPath}: it is an ancestor of the current working directory. ${recoveryHint}`,
+    );
+  }
+
+  if (target === home) {
+    throw new Error(
+      `Refusing to delete output directory ${targetPath}: it is the user's home directory. ${recoveryHint}`,
+    );
+  }
+
+  if (root !== '' && target === root) {
+    throw new Error(
+      `Refusing to delete output directory ${targetPath}: it is a filesystem root. ${recoveryHint}`,
+    );
+  }
+}
+
 /**
  * Initialize the output directory.
  *
@@ -157,6 +209,8 @@ export function initOutputDir(outputPath?: string, cleanExisting: boolean = true
   debug(`Initializing output directory: ${outputDir}${cleanExisting ? '' : ' (preserve mode)'}`);
 
   if (existsSync(outputDir) && cleanExisting) {
+    debug(`Removing existing output directory: ${outputDir}`);
+    assertSafeRemovalTarget(outputDir);
     rmSync(outputDir, { recursive: true, force: true });
   }
 
