@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, parse as parsePath } from 'node:path';
+import { homedir } from 'node:os';
 import {
   getTempDir,
   getInstanceDir,
@@ -149,6 +150,47 @@ describe('file-manager', () => {
       const outputDir = initOutputDir('./test-output-custom', false);
       expect(existsSync(outputDir)).toBe(true);
       expect(existsSync(join(outputDir, 'screenshots'))).toBe(true);
+    });
+  });
+
+  describe('initOutputDir safety guard', () => {
+    it('refuses when target equals the current working directory', () => {
+      expect(() => initOutputDir('.')).toThrow(/current working directory/i);
+    });
+
+    it('refuses when target is an ancestor of the current working directory', () => {
+      const parentBefore = resolve('..');
+      expect(existsSync(parentBefore)).toBe(true);
+      expect(() => initOutputDir('..')).toThrow(/ancestor/i);
+      // Guard must throw BEFORE rmSync runs — parent dir must still exist
+      expect(existsSync(parentBefore)).toBe(true);
+    });
+
+    it("refuses when target equals the user's home directory", () => {
+      expect(() => initOutputDir(homedir())).toThrow(/home directory/i);
+    });
+
+    it('refuses when target equals a filesystem root', () => {
+      const root = parsePath(process.cwd()).root;
+      expect(() => initOutputDir(root)).toThrow(/filesystem root/i);
+    });
+
+    it.runIf(process.platform === 'win32')(
+      'refuses when target is the cwd in a different case (Windows)',
+      () => {
+        const cwdUpper = process.cwd().toUpperCase();
+        expect(() => initOutputDir(cwdUpper)).toThrow(/current working directory/i);
+      },
+    );
+
+    it('does not throw for a safe target and creates the directory', () => {
+      const outputDir = initOutputDir('./test-output-custom');
+      expect(existsSync(outputDir)).toBe(true);
+      expect(existsSync(join(outputDir, 'screenshots'))).toBe(true);
+    });
+
+    it('error message includes the --output recovery hint', () => {
+      expect(() => initOutputDir('.')).toThrow(/--output/);
     });
   });
 

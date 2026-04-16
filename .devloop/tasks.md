@@ -44,7 +44,7 @@ See `.devloop/requirements.md` for full narrative context. Each task references 
 - **Verification**: `npx tsc --noEmit src/file-manager.ts` exits 0 with no errors.
 
 ### TASK-005: Add unit tests for the safety guard in file-manager.test.ts
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-004, TASK-003
 - **Description**: Add a new describe block in `tests/file-manager.test.ts` (grouped near the existing `initOutputDir` tests) with seven tests per requirements.md "Part C — Unit tests for the safety guard":
   1. Refuses when target equals cwd (call `initOutputDir('.')`, assert throw with message matching `/current working directory/i`).
