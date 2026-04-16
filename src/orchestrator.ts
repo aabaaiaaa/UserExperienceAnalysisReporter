@@ -112,7 +112,7 @@ export async function orchestrate(args: ParsedArgs): Promise<void> {
   }
 
   // 1. Initialize workspace
-  const workspace = await initWorkspace(args.instances, args.output, args.append);
+  const workspace = await initWorkspace(args.instances, args.output, !args.append);
 
   // 2. Set up progress display
   const instanceNumbers = Array.from({ length: args.instances }, (_, i) => i + 1);

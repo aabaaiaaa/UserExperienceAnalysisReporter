@@ -90,7 +90,11 @@ export async function runPlanDiscovery(args: ParsedPlanArgs): Promise<void> {
   setVerbose(args.verbose);
 
   // 1. Initialize workspace
-  const workspace = await initWorkspace(args.instances, args.output);
+  // cleanExisting: false — the plan subcommand only writes a small fixed set of files
+  // (plan.md, discovery.html, discovery.md, screenshots/). mkdirSync is idempotent and
+  // writeFileSync overwrites in place, so wiping the output directory is unnecessary and
+  // dangerous (see requirements.md Part A and the A3 safety guard).
+  const workspace = await initWorkspace(args.instances, args.output, false);
 
   // 2. Set up progress display
   const instanceNumbers = Array.from({ length: args.instances }, (_, i) => i + 1);

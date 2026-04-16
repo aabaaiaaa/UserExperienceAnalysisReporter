@@ -9,7 +9,7 @@ See `.devloop/requirements.md` for full narrative context. Each task references 
 - **Verification**: `npx tsc --noEmit src/file-manager.ts` exits 0 and no errors are reported for file-manager.ts itself. (Call sites in orchestrator.ts/plan-orchestrator.ts will still pass old-shape args and may compile cleanly since `append` was optional and `cleanExisting` has a default — type-check should still succeed.)
 
 ### TASK-002: Update call sites in orchestrator and plan-orchestrator (implements A2)
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-001
 - **Description**: Update the two `initWorkspace` call sites to use the new `cleanExisting` parameter:
   - `src/orchestrator.ts:115` — change `await initWorkspace(args.instances, args.output, args.append)` to `await initWorkspace(args.instances, args.output, !args.append)`. The CLI `--append` flag keeps its external meaning ("preserve existing output"); we invert at the call boundary.
