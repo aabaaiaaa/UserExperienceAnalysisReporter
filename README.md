@@ -6,7 +6,7 @@ The tool runs unattended. You provide a URL, context about the app, and a review
 
 ## Prerequisites
 
-- **Node.js** >= 16.9.0
+- **Node.js** >= 20.0.0
 - **Claude Code CLI** installed and authenticated (`claude` available on PATH)
 - **Playwright MCP** configured in Claude Code (used by Claude to interact with the browser)
 
@@ -31,7 +31,10 @@ If installed locally, run via `npx uxreview` instead of `uxreview`.
 ```
 uxreview --url <url> --intro <text|filepath> --plan <text|filepath> [options]
 uxreview --show-default-scope
+uxreview plan --url <url> [options]
 ```
+
+The `plan` subcommand runs a discovery-only pass and generates a reusable review plan — see [The `plan` Subcommand](#the-plan-subcommand) below.
 
 ### Required Parameters
 
@@ -114,6 +117,62 @@ uxreview \
   --plan ./docs/review-plan.md \
   --scope my-scope.md
 ```
+
+## The `plan` Subcommand
+
+`uxreview plan` runs a discovery-only pass over a web app and generates a structured `plan.md` file that can be fed back into the main command as `--plan`. Use this when you want the tool to explore the app first and propose review areas rather than specifying them up front.
+
+```
+uxreview plan --url <url> [options]
+```
+
+### What it does
+
+Spawns Claude Code instance(s) with a discovery-focused prompt. Each instance explores the app via Playwright MCP, capturing screenshots and building an area/element inventory. No findings are produced. Results are consolidated into:
+
+- `plan.md` — a structured plan template ready to feed into `uxreview --plan`
+- `discovery.html` — self-contained HTML report of what was explored (opens automatically unless `--suppress-open`)
+- `discovery.md` — markdown version of the discovery document
+- `screenshots/` — evidence captured during exploration
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--url <url>` | — | **Required.** URL of the web application to analyze (http:// or https://). |
+| `--intro <text\|filepath>` | empty | Optional introduction/context about the app. |
+| `--plan <text\|filepath>` | empty | Optional broad exploration areas. If omitted, Claude does free exploration. |
+| `--scope <text\|filepath>` | Built-in default | Custom evaluation scope. |
+| `--instances <n>` | `1` | Number of parallel Claude instances. Values > 1 require `--plan` to distribute work. |
+| `--rounds <n>` | `1` | Number of discovery rounds per instance. |
+| `--output <dir>` | `.` (current directory) | Output directory for deliverables. |
+| `--keep-temp` | `false` | Preserve `.uxreview-temp/` after the run. |
+| `--dry-run` | `false` | Preview work distribution and exit without running instances. |
+| `--verbose` | `false` | Enable debug logging to stderr. |
+| `--suppress-open` | `false` | Do not open `discovery.html` after completion. |
+
+> **Note:** `--append`, `--max-retries`, `--instance-timeout`, and `--rate-limit-retries` are not applicable to the `plan` subcommand and will be ignored with a warning if passed.
+
+### Example workflow
+
+```bash
+# 1. Discover the app and generate a plan template
+uxreview plan \
+  --url https://myapp.example.com \
+  --intro ./docs/app-intro.md \
+  --output ./plan-output
+
+# 2. Edit plan-output/plan.md to refine the proposed review areas
+
+# 3. Run the full review using the generated plan
+uxreview \
+  --url https://myapp.example.com \
+  --intro ./docs/app-intro.md \
+  --plan ./plan-output/plan.md \
+  --output ./ux-report
+```
+
+This workflow complements the [Reusing the Discovery Doc as a Plan](#reusing-the-discovery-doc-as-a-plan) pattern — use the `plan` subcommand when you want a discovery-only pass with no findings generated, or the main command with `--plan` pointed at a prior `discovery.md` when you already have a review output to build on.
 
 ## Output Files
 
@@ -297,6 +356,7 @@ The `.uxreview-temp/` directory contains all intermediate state:
 
 ```
 .uxreview-temp/
+  work-distribution.md            # Claude-generated plan split (one chunk per instance)
   instance-1/           # Per-instance working directory
     checkpoint.json     # Round progress and resume state
     discovery.md        # Instance-scoped discovery document
