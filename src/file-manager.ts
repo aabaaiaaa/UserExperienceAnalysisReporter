@@ -176,12 +176,6 @@ function assertSafeRemovalTarget(targetPath: string): void {
     );
   }
 
-  if (cwd.startsWith(target + sep)) {
-    throw new Error(
-      `Refusing to delete output directory ${targetPath}: it is an ancestor of the current working directory. ${recoveryHint}`,
-    );
-  }
-
   if (target === home) {
     throw new Error(
       `Refusing to delete output directory ${targetPath}: it is the user's home directory. ${recoveryHint}`,
@@ -191,6 +185,12 @@ function assertSafeRemovalTarget(targetPath: string): void {
   if (root !== '' && target === root) {
     throw new Error(
       `Refusing to delete output directory ${targetPath}: it is a filesystem root. ${recoveryHint}`,
+    );
+  }
+
+  if (cwd.startsWith(target + sep)) {
+    throw new Error(
+      `Refusing to delete output directory ${targetPath}: it is an ancestor of the current working directory. ${recoveryHint}`,
     );
   }
 }
