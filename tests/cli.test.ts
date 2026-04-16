@@ -261,7 +261,7 @@ describe('parsePlanArgs', () => {
     expect(result.plan).toBe('');
     expect(result.instances).toBe(1);
     expect(result.rounds).toBe(1);
-    expect(result.output).toBe('.');
+    expect(result.output).toBe('./uxreview-plan');
     expect(result.keepTemp).toBe(false);
     expect(result.dryRun).toBe(false);
     expect(result.verbose).toBe(false);
@@ -319,9 +319,9 @@ describe('parsePlanArgs', () => {
     }
   });
 
-  it('defaults output to "."', () => {
+  it('defaults output to "./uxreview-plan"', () => {
     const result = parsePlanArgs(planRequiredArgs);
-    expect(result.output).toBe('.');
+    expect(result.output).toBe('./uxreview-plan');
   });
 
   it('defaults instances to 1', () => {
@@ -451,7 +451,7 @@ describe('parsePlanArgs', () => {
     expect(result.verbose).toBe(true);
     expect(result.rounds).toBe(2);
     expect(result.instances).toBe(1);
-    expect(result.output).toBe('.');
+    expect(result.output).toBe('./uxreview-plan');
     expect(result.scope).toBe(DEFAULT_SCOPE);
   });
 });

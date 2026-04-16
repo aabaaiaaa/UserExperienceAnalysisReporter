@@ -145,7 +145,7 @@ Spawns Claude Code instance(s) with a discovery-focused prompt. Each instance ex
 | `--scope <text\|filepath>` | Built-in default | Custom evaluation scope. |
 | `--instances <n>` | `1` | Number of parallel Claude instances. Values > 1 require `--plan` to distribute work. |
 | `--rounds <n>` | `1` | Number of discovery rounds per instance. |
-| `--output <dir>` | `.` (current directory) | Output directory for deliverables. |
+| `--output <dir>` | `./uxreview-plan` | Output directory for deliverables. |
 | `--keep-temp` | `false` | Preserve `.uxreview-temp/` after the run. |
 | `--dry-run` | `false` | Preview work distribution and exit without running instances. |
 | `--verbose` | `false` | Enable debug logging to stderr. |

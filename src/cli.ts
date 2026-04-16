@@ -81,7 +81,7 @@ Options:
   --instances <n>          Number of parallel Claude Code instances (default: 1)
                            Requires --plan when > 1 to distribute work across instances
   --rounds <n>             Number of review rounds per instance (default: 1)
-  --output <dir>           Output directory for deliverables (default: . current directory)
+  --output <dir>           Output directory for deliverables (default: ./uxreview-plan)
   --keep-temp              Preserve the .uxreview-temp/ working directory after the run
   --dry-run                Preview work distribution without running instances
   --verbose                Enable debug logging to stderr
@@ -402,7 +402,7 @@ export function parsePlanArgs(argv: string[]): ParsedPlanArgs {
     rounds: roundsRaw !== undefined && roundsRaw !== true ? Number(roundsRaw) : 1,
     output: (() => {
       const outputRaw = raw.get('output');
-      return typeof outputRaw === 'string' ? outputRaw : '.';
+      return typeof outputRaw === 'string' ? outputRaw : './uxreview-plan';
     })(),
     keepTemp: raw.has('keep-temp'),
     dryRun: raw.has('dry-run'),
