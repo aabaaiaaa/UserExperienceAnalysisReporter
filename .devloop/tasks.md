@@ -3,7 +3,7 @@
 See `.devloop/requirements.md` for full narrative context. Each task references the relevant section(s) there.
 
 ### TASK-001: Rename `append` → `cleanExisting` with inverted polarity in file-manager
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: none
 - **Description**: In `src/file-manager.ts`, rename the `append?: boolean` parameter to `cleanExisting: boolean = true` on both `initOutputDir` (line 154) and `initWorkspace` (line 172). Invert polarity: the old meaning of `append: true` becomes `cleanExisting: false`. Update the `rmSync` guard at line 158 from `if (existsSync(outputDir) && !append)` to `if (existsSync(outputDir) && cleanExisting)`. Update the `debug(...)` line 156 to reflect the new flag (e.g., `${cleanExisting ? '' : ' (preserve mode)'}`). Update `initWorkspace` to forward the new flag. Also update both JSDoc blocks to reflect the new parameter name, default, and meaning. Default MUST be `true` to preserve existing behavior for callers that omit the arg. Do NOT change any call sites in this task — that's TASK-002. See requirements.md "Part A".
 - **Verification**: `npx tsc --noEmit src/file-manager.ts` exits 0 and no errors are reported for file-manager.ts itself. (Call sites in orchestrator.ts/plan-orchestrator.ts will still pass old-shape args and may compile cleanly since `append` was optional and `cleanExisting` has a default — type-check should still succeed.)

@@ -144,18 +144,19 @@ export async function initTempDir(instanceCount: number): Promise<string> {
 }
 
 /**
- * Initialize the output directory. By default, removes any existing output to
- * avoid mixing stale data with new results.
+ * Initialize the output directory.
  *
- * When `append` is true, the existing output directory is preserved so that new
- * findings can be added alongside previous results. The directory (and its
- * screenshots subdirectory) is still created if it doesn't already exist.
+ * When `cleanExisting` is true (the default), any existing output directory is
+ * removed first to avoid mixing stale data with new results. When false, the
+ * existing output directory is preserved so that new findings can be added
+ * alongside previous results. Either way, the directory (and its screenshots
+ * subdirectory) is created if it doesn't already exist.
  */
-export function initOutputDir(outputPath?: string, append?: boolean): string {
+export function initOutputDir(outputPath?: string, cleanExisting: boolean = true): string {
   const outputDir = resolve(outputPath || DEFAULT_OUTPUT_DIR);
-  debug(`Initializing output directory: ${outputDir}${append ? ' (append mode)' : ''}`);
+  debug(`Initializing output directory: ${outputDir}${cleanExisting ? '' : ' (preserve mode)'}`);
 
-  if (existsSync(outputDir) && !append) {
+  if (existsSync(outputDir) && cleanExisting) {
     rmSync(outputDir, { recursive: true, force: true });
   }
 
@@ -168,10 +169,17 @@ export function initOutputDir(outputPath?: string, append?: boolean): string {
 /**
  * Initialize the full workspace: temp directory and output directory.
  * Returns the layout with all resolved paths.
+ *
+ * `cleanExisting` is forwarded to `initOutputDir`: true (the default) removes
+ * any existing output directory first; false preserves it.
  */
-export async function initWorkspace(instanceCount: number, outputPath?: string, append?: boolean): Promise<WorkspaceLayout> {
+export async function initWorkspace(
+  instanceCount: number,
+  outputPath?: string,
+  cleanExisting: boolean = true,
+): Promise<WorkspaceLayout> {
   const tempDir = await initTempDir(instanceCount);
-  const outputDir = initOutputDir(outputPath, append);
+  const outputDir = initOutputDir(outputPath, cleanExisting);
 
   const instanceDirs: string[] = [];
   for (let i = 1; i <= instanceCount; i++) {

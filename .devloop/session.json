@@ -1,8 +1,14 @@
 {
-  "phase": "init",
+  "phase": "run",
   "sessionId": null,
   "lastIteration": 0,
-  "startedAt": "2026-04-16T22:55:01.847Z",
+  "startedAt": "2026-04-16T23:04:40.415Z",
   "iteration": 11,
-  "devloopVersion": "4.1.0"
+  "devloopVersion": "4.1.0",
+  "activeTask": {
+    "taskId": "TASK-001",
+    "taskTitle": "Rename `append` → `cleanExisting` with inverted polarity in file-manager",
+    "iterationNumber": 1,
+    "startedAt": "2026-04-16T23:04:40.493Z"
+  }
 }
