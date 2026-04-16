@@ -1,14 +1,14 @@
 {
   "phase": "run",
   "sessionId": null,
-  "lastIteration": 4,
+  "lastIteration": 5,
   "startedAt": "2026-04-16T23:04:40.415Z",
   "iteration": 11,
   "devloopVersion": "4.1.0",
   "activeTask": {
-    "taskId": "TASK-005",
-    "taskTitle": "Add unit tests for the safety guard in file-manager.test.ts",
-    "iterationNumber": 5,
-    "startedAt": "2026-04-16T23:09:29.780Z"
+    "taskId": "TASK-006",
+    "taskTitle": "Add regression test + main-subcommand protection test",
+    "iterationNumber": 6,
+    "startedAt": "2026-04-16T23:11:38.984Z"
   }
 }

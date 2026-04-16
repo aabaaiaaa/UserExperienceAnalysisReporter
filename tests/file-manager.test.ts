@@ -194,6 +194,17 @@ describe('file-manager', () => {
     });
   });
 
+  describe('main subcommand protection', () => {
+    it('refuses to wipe the current working directory via initOutputDir(".")', () => {
+      // initOutputDir is the single chokepoint every subcommand (plan or main)
+      // flows through when preparing an output directory. A direct test here
+      // proves end-to-end protection for the main `uxreview` subcommand as well:
+      // if a user (or misconfigured caller) passes `--output .`, the guard must
+      // fire before rmSync touches the cwd.
+      expect(() => initOutputDir('.')).toThrow(/current working directory/i);
+    });
+  });
+
   describe('initWorkspace', () => {
     it('initializes both temp and output directories', async () => {
       const layout = await initWorkspace(2);

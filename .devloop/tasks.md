@@ -58,7 +58,7 @@ See `.devloop/requirements.md` for full narrative context. Each task references 
 - **Verification**: `npx vitest run tests/file-manager.test.ts` — all tests pass, test count increases by at least 6 (test 5 is Windows-only and may skip on CI).
 
 ### TASK-006: Add regression test + main-subcommand protection test
-- **Status**: pending
+- **Status**: done
 - **Dependencies**: TASK-002, TASK-005
 - **Description**: Two small tests, each in the file that corresponds to the protected code path:
   1. **In `tests/plan-orchestrator.test.ts`**: add a test named something like `'calls initWorkspace with cleanExisting=false to preserve output directory'`. Use the existing `mockInitWorkspace` (line 148). Run through `runPlanDiscovery` with standard fixture args and assert `expect(mockInitWorkspace).toHaveBeenCalledWith(expect.any(Number), expect.any(String), false)`. This is the regression test for TASK-002 — if someone later drops the third argument or flips it to `true`, this test fails.

@@ -372,6 +372,37 @@ describe('runPlanDiscovery', () => {
     expect(htmlContent).toContain('<!DOCTYPE html>');
   });
 
+  it('calls initWorkspace with cleanExisting=false to preserve output directory', async () => {
+    const args = makePlanArgs({ instances: 1 });
+
+    mockRunInstanceRounds.mockImplementation(async (config) => {
+      config.progress?.onCompleted?.(config.instanceNumber);
+      return makeSuccessResult(config.instanceNumber, 1);
+    });
+
+    mockConsolidateDiscoveryDocs.mockResolvedValue({
+      content: '## Area',
+      instanceCount: 1,
+      usedClaude: false,
+    });
+
+    mockGeneratePlanTemplate.mockResolvedValue('## Area');
+
+    mockInitWorkspace.mockReturnValue({
+      tempDir: resolve('.uxreview-temp-plan-test'),
+      instanceDirs: [join(resolve('.uxreview-temp-plan-test'), 'instance-1')],
+      outputDir: OUTPUT_DIR,
+    });
+
+    await runPlanDiscovery(args);
+
+    expect(mockInitWorkspace).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(String),
+      false,
+    );
+  });
+
   it('handles signal interruption with cleanup', async () => {
     const args = makePlanArgs();
 

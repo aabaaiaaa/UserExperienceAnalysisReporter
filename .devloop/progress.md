@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 6
-- **Completed**: 5
-- **Remaining**: 1
-- **Last Updated**: 2026-04-16T23:11:36.820Z
+- **Completed**: 6
+- **Remaining**: 0
+- **Last Updated**: 2026-04-16T23:12:58.582Z
 
 ## Iteration Log
 
@@ -52,4 +52,13 @@
 - **Exit Status**: success
 - **Tokens**: 453,676 total (13 in, 7,043 out, 48,679 cache-create, 397,941 cache-read)
 - **Cost**: $0.6794
+
+### Iteration 6 - 2026-04-16T23:12:58.580Z
+- **Task Attempted**: TASK-006
+- **Task Completed**: TASK-006
+- **Summary**: Completed Add regression test + main-subcommand protection test
+- **Duration**: 1m 20s
+- **Exit Status**: success
+- **Tokens**: 638,945 total (17 in, 3,342 out, 47,037 cache-create, 588,549 cache-read)
+- **Cost**: $0.6719
 
