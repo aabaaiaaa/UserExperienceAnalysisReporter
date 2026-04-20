@@ -277,7 +277,11 @@ Track what you explore using this exact markdown format. For each UI area you vi
 - **Checked**:
   - [What you evaluated, e.g., "Layout consistency"]
   - [Another criterion, e.g., "Form validation feedback"]
+- **Screenshots**:
+  - I${instanceNumber}-UXR-NNN.png
 \`\`\`
+
+Under **Screenshots**, list the filenames of every screenshot you captured while exploring this area (one per line, using the naming convention from the Screenshots section below). If you took no screenshots for this area, omit the **Screenshots** bullet entirely. These filenames are what the HTML report uses to attach images to the right area, so do not invent or rename them.
 
 Group entries under round headings. Start with:
 

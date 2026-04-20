@@ -42,36 +42,47 @@ function makeMetadata(overrides: Partial<DiscoveryMetadata> = {}): DiscoveryMeta
   };
 }
 
-const SIMPLE_DISCOVERY = `## Navigation Bar
+const SIMPLE_DISCOVERY = `# Navigation Bar
 
 - Logo and branding
 - Main navigation links
 - Search functionality
 
-## Dashboard
+# Dashboard
 
 - Widget layout
 - Data visualisation charts
 `;
 
-const NESTED_DISCOVERY = `## Navigation
+const NESTED_DISCOVERY = `# Navigation
 
 - Top nav links
 - Breadcrumb trail
 
-### Mobile Menu
+## Mobile Menu
 
 - Hamburger button
 - Slide-out panel
 
-### Search Bar
+## Search Bar
 
 - Auto-complete dropdown
 - Search filters
 
-## Settings
+# Settings
 
 - User preferences form
+`;
+
+const HIERARCHICAL_DISCOVERY = `# Landing Screen
+
+- Logo and Title
+  - Checked: Visual hierarchy, typeface consistency
+  - Sub-elements:
+    - Circular blue ring logo
+    - "SPACE AGENCY" heading
+- Agency Name Text Field
+  - Checked: Placeholder visibility, 0/48 character counter
 `;
 
 describe('formatDiscoveryHtml', () => {
@@ -172,7 +183,7 @@ describe('formatDiscoveryHtml', () => {
   });
 
   it('escapes HTML special characters in content', () => {
-    const dangerousContent = `## <script>alert("xss")</script>
+    const dangerousContent = `# <script>alert("xss")</script>
 
 - Item with <b>bold</b> & "quotes"
 - Another item with 'single quotes'
@@ -217,6 +228,74 @@ describe('formatDiscoveryHtml', () => {
     expect(html).toContain('3');
     expect(html).toContain('class="metadata"');
   });
+
+  it('renders nested bullets as nested <ul> elements', () => {
+    const html = formatDiscoveryHtml(HIERARCHICAL_DISCOVERY, makeMetadata());
+
+    // Area heading rendered
+    expect(html).toContain('<summary>Landing Screen</summary>');
+
+    // Top-level bullet rendered
+    expect(html).toContain('<li>Logo and Title');
+    // Second-level bullet rendered inside nested <ul>
+    expect(html).toContain('<li>Checked: Visual hierarchy, typeface consistency');
+    expect(html).toContain('<li>Sub-elements:');
+    // Third-level bullet rendered inside doubly-nested <ul>
+    expect(html).toContain('<li>Circular blue ring logo');
+    expect(html).toContain('<li>&quot;SPACE AGENCY&quot; heading');
+
+    // Sibling top-level bullet after a deeply-nested one
+    expect(html).toContain('<li>Agency Name Text Field');
+
+    // Structural check: at least two nested <ul> opens inside the first area
+    const areaStart = html.indexOf('<summary>Landing Screen</summary>');
+    const areaEnd = html.indexOf('</details>', areaStart);
+    const areaHtml = html.slice(areaStart, areaEnd);
+    const nestedUlCount = (areaHtml.match(/<ul>/g) ?? []).length;
+    expect(nestedUlCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('renders real consolidation-style discovery content (regression)', () => {
+    // This fixture mirrors the format emitted by buildDiscoveryConsolidationPrompt
+    // in src/consolidation/discovery.ts: # top-level areas, indented nested bullets,
+    // optional Screenshots entries. The prior parser only matched `## ` headings and
+    // flattened all bullets — so this content produced an empty HTML body.
+    const content = `# Landing / New Game Screen
+
+- Logo and Title Treatment
+  - Checked: Visual hierarchy, typeface consistency
+  - Sub-elements:
+    - Circular blue ring logo
+    - "SPACE AGENCY" heading
+- Agency Name Text Field
+  - Checked: Placeholder visibility, character counter
+
+# Tutorial Welcome Modal
+
+- Modal Heading
+  - Checked: Heading styling, sub-label tracking
+- "Let's Go!" Button
+  - Checked: Primary-CTA styling consistency
+`;
+
+    const html = formatDiscoveryHtml(content, makeMetadata());
+
+    // Both areas must appear as collapsible sections
+    expect(html).toContain('<summary>Landing / New Game Screen</summary>');
+    expect(html).toContain('<summary>Tutorial Welcome Modal</summary>');
+    expect(html).toContain('id="landing-new-game-screen"');
+    expect(html).toContain('id="tutorial-welcome-modal"');
+
+    // TOC must reference both
+    expect(html).toContain('href="#landing-new-game-screen"');
+    expect(html).toContain('href="#tutorial-welcome-modal"');
+
+    // Deeply nested bullet content must be present
+    expect(html).toContain('Logo and Title Treatment');
+    expect(html).toContain('Sub-elements:');
+    expect(html).toContain('Circular blue ring logo');
+    expect(html).toContain('Modal Heading');
+  });
 });
 
 describe('screenshot embedding', () => {
@@ -235,7 +314,7 @@ describe('screenshot embedding', () => {
   it('embeds screenshots as base64 when referenced in content', () => {
     writeFileSync(join(screenshotsDir, 'I1-UXR-001.png'), TINY_PNG);
 
-    const content = `## Navigation
+    const content = `# Navigation
 
 - Logo link: see I1-UXR-001.png
 - Main menu links
@@ -252,7 +331,7 @@ describe('screenshot embedding', () => {
     writeFileSync(join(screenshotsDir, 'I1-UXR-099.png'), TINY_PNG);
 
     // Content does NOT reference I1-UXR-099.png
-    const content = `## Navigation
+    const content = `# Navigation
 
 - Logo link
 - Main menu links
@@ -270,7 +349,7 @@ describe('screenshot embedding', () => {
   it('does not show unmatched section when all screenshots are matched', () => {
     writeFileSync(join(screenshotsDir, 'I1-UXR-001.png'), TINY_PNG);
 
-    const content = `## Navigation
+    const content = `# Navigation
 
 - Logo link: I1-UXR-001.png
 `;
@@ -283,7 +362,7 @@ describe('screenshot embedding', () => {
   });
 
   it('handles empty screenshots directory', () => {
-    const content = `## Navigation
+    const content = `# Navigation
 
 - Logo link
 `;
@@ -298,11 +377,11 @@ describe('screenshot embedding', () => {
   it('embeds screenshots referenced in sub-areas', () => {
     writeFileSync(join(screenshotsDir, 'I2-UXR-005.png'), TINY_PNG);
 
-    const content = `## Navigation
+    const content = `# Navigation
 
 - Top nav links
 
-### Mobile Menu
+## Mobile Menu
 
 - Hamburger button screenshot: I2-UXR-005.png
 `;
@@ -319,7 +398,7 @@ describe('screenshot embedding', () => {
     writeFileSync(join(screenshotsDir, 'I1-UXR-001.png'), TINY_PNG);
     writeFileSync(join(screenshotsDir, 'I1-UXR-002.png'), TINY_PNG);
 
-    const content = `## Navigation
+    const content = `# Navigation
 
 - Logo: I1-UXR-001.png
 - Menu: I1-UXR-002.png
@@ -333,6 +412,27 @@ describe('screenshot embedding', () => {
     expect(html).toContain('alt="I1-UXR-002.png"');
   });
 
+  it('embeds screenshots listed on a nested Screenshots bullet inside the area', () => {
+    writeFileSync(join(screenshotsDir, 'I1-UXR-010.png'), TINY_PNG);
+    writeFileSync(join(screenshotsDir, 'I2-UXR-011.png'), TINY_PNG);
+
+    // Mirrors the Screenshots convention documented in buildDiscoveryInstructions
+    // and preserved by the consolidation prompt.
+    const content = `# Landing Screen
+
+- Logo and Title
+  - Checked: Visual hierarchy
+  - Screenshots: I1-UXR-010.png, I2-UXR-011.png
+`;
+
+    const html = formatDiscoveryHtml(content, makeMetadata(), screenshotsDir);
+
+    expect(html).toContain('alt="I1-UXR-010.png"');
+    expect(html).toContain('alt="I2-UXR-011.png"');
+    // Both should be matched to the area, not the fallback section
+    expect(html).not.toContain('id="unmatched-screenshots"');
+  });
+
   it('logs debug message when readdirSync throws in screenshot listing', () => {
     // Create the screenshots directory so existsSync returns true,
     // then make readdirSync throw via the mock trigger
@@ -343,7 +443,7 @@ describe('screenshot embedding', () => {
     try {
       // This should not throw — the catch returns [] and logs debug
       const html = formatDiscoveryHtml(
-        '## Test Area\n- item one',
+        '# Test Area\n- item one',
         makeMetadata(),
         screenshotsDir,
       );

@@ -71,9 +71,10 @@ function toAnchorId(text: string): string {
  * Parse discovery markdown content into structured area sections.
  *
  * Expects:
- * - `## Heading` lines as top-level area sections
- * - `### Sub-heading` lines as nested sub-areas
- * - Bullet list lines under headings as content items
+ * - `# Heading` lines as top-level area sections
+ * - `## Sub-heading` lines as nested sub-areas
+ * - Bullet list lines under headings as content items (indentation preserved for
+ *   nested rendering)
  */
 function parseDiscoveryMarkdown(content: string): AreaSection[] {
   const lines = content.split('\n');
@@ -82,9 +83,9 @@ function parseDiscoveryMarkdown(content: string): AreaSection[] {
   let currentSubArea: SubArea | null = null;
 
   for (const line of lines) {
-    // Check for ## heading (but NOT ### — exactly two hashes)
-    const h2Match = line.match(/^## (.+)$/);
-    if (h2Match) {
+    // Check for # heading (but NOT ## — exactly one hash)
+    const h1Match = line.match(/^# (.+)$/);
+    if (h1Match) {
       // Finish any pending sub-area
       if (currentSubArea && currentArea) {
         currentArea.subAreas.push(currentSubArea);
@@ -92,7 +93,7 @@ function parseDiscoveryMarkdown(content: string): AreaSection[] {
       }
       // Start a new top-level area
       currentArea = {
-        heading: h2Match[1].trim(),
+        heading: h1Match[1].trim(),
         contentLines: [],
         subAreas: [],
       };
@@ -100,15 +101,15 @@ function parseDiscoveryMarkdown(content: string): AreaSection[] {
       continue;
     }
 
-    // Check for ### sub-heading
-    const h3Match = line.match(/^### (.+)$/);
-    if (h3Match && currentArea) {
+    // Check for ## sub-heading
+    const h2Match = line.match(/^## (.+)$/);
+    if (h2Match && currentArea) {
       // Finish any pending sub-area
       if (currentSubArea) {
         currentArea.subAreas.push(currentSubArea);
       }
       currentSubArea = {
-        heading: h3Match[1].trim(),
+        heading: h2Match[1].trim(),
         contentLines: [],
       };
       continue;
@@ -142,36 +143,70 @@ function extractScreenshotRefs(text: string): string[] {
 }
 
 /**
- * Render content lines as HTML, converting markdown bullets to list items.
+ * Render a contiguous run of bullets as a nested `<ul>` tree, preserving
+ * indentation-based hierarchy. Each entry is `{indent, text}` where `indent` is
+ * the number of leading whitespace characters on the original line.
+ */
+function renderBulletTree(bullets: { indent: number; text: string }[]): string {
+  if (bullets.length === 0) return '';
+
+  const out: string[] = [];
+  const stack: number[] = [];
+
+  for (const b of bullets) {
+    while (stack.length > 0 && stack[stack.length - 1] > b.indent) {
+      out.push('</li></ul>');
+      stack.pop();
+    }
+
+    if (stack.length === 0 || stack[stack.length - 1] < b.indent) {
+      out.push('<ul>');
+      stack.push(b.indent);
+    } else {
+      out.push('</li>');
+    }
+
+    out.push(`<li>${escapeHtml(b.text)}`);
+  }
+
+  while (stack.length > 0) {
+    out.push('</li></ul>');
+    stack.pop();
+  }
+
+  return out.join('\n');
+}
+
+/**
+ * Render content lines as HTML, converting markdown bullets to nested list
+ * items (indentation preserved) and any non-bullet text lines to `<p>`.
  */
 function renderContentLines(lines: string[]): string {
   if (lines.length === 0) return '';
 
-  const htmlLines: string[] = [];
-  let inList = false;
+  const htmlParts: string[] = [];
+  let bulletBuffer: { indent: number; text: string }[] = [];
+
+  const flushBullets = () => {
+    if (bulletBuffer.length === 0) return;
+    htmlParts.push(renderBulletTree(bulletBuffer));
+    bulletBuffer = [];
+  };
 
   for (const line of lines) {
-    const bulletMatch = line.match(/^\s*[-*]\s+(.+)/);
+    if (!line.trim()) continue;
+
+    const bulletMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
     if (bulletMatch) {
-      if (!inList) {
-        htmlLines.push('<ul>');
-        inList = true;
-      }
-      htmlLines.push(`  <li>${escapeHtml(bulletMatch[1])}</li>`);
+      bulletBuffer.push({ indent: bulletMatch[1].length, text: bulletMatch[2] });
     } else {
-      if (inList) {
-        htmlLines.push('</ul>');
-        inList = false;
-      }
-      htmlLines.push(`<p>${escapeHtml(line.trim())}</p>`);
+      flushBullets();
+      htmlParts.push(`<p>${escapeHtml(line.trim())}</p>`);
     }
   }
+  flushBullets();
 
-  if (inList) {
-    htmlLines.push('</ul>');
-  }
-
-  return htmlLines.join('\n');
+  return htmlParts.join('\n');
 }
 
 /**

@@ -72,6 +72,7 @@ Use this exact markdown format. Each top-level heading is a UI area. Under each 
 
 - [Feature/Element]
   - Checked: [what was evaluated]
+  - Screenshots: I1-UXR-001.png, I2-UXR-003.png
 - [Feature/Element]
   - Checked: [what was evaluated]
   - Sub-elements:
@@ -88,7 +89,8 @@ RULES:
 - Keep all unique elements and checks — do not discard observations, only deduplicate exact repetitions.
 - Order areas logically (e.g., navigation first, then main content areas, then settings/footer).
 - The document should read as a comprehensive map of what was explored, suitable for planning future review passes.
-- Do NOT include instance numbers, timestamps, or navigation paths in the output — those are internal tracking details.
+- Do NOT include timestamps or navigation paths in the output — those are internal tracking details.
+- PRESERVE every screenshot filename that matches the pattern \`I{N}-UXR-NNN.png\` or \`I{N}-UXR-NNN-{a-z}.png\` from the input discovery documents. These filenames look like they contain instance numbers, but they are NOT tracking details — they are references that the HTML report uses to attach images to the correct area. Keep each filename verbatim (do not rename, renumber, or drop them). Attach them to the most relevant feature/element bullet, or list them at the end of the area as a \`- Screenshots: ...\` bullet. If a screenshot appeared under a specific area in the source, keep it under the corresponding merged area.
 - Output ONLY the consolidated document in the format above. No commentary or explanation.
 
 DISCOVERY DOCUMENTS:

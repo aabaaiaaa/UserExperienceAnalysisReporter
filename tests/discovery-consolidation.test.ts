@@ -284,12 +284,24 @@ describe('buildDiscoveryConsolidationPrompt', () => {
     expect(prompt).toContain('review plan');
   });
 
-  it('instructs not to include timestamps or instance numbers', () => {
+  it('instructs not to include timestamps or navigation paths', () => {
     const docs = [{ instanceNumber: 1, content: 'doc 1' }];
 
     const prompt = buildDiscoveryConsolidationPrompt(docs);
 
-    expect(prompt).toContain('Do NOT include instance numbers, timestamps');
+    expect(prompt).toContain('Do NOT include timestamps or navigation paths');
+  });
+
+  it('instructs to preserve screenshot filenames in the consolidated output', () => {
+    const docs = [{ instanceNumber: 1, content: 'doc 1' }];
+
+    const prompt = buildDiscoveryConsolidationPrompt(docs);
+
+    // Screenshot filenames embed the instance number, so without an explicit
+    // "preserve" rule Claude strips them as tracking details and the HTML
+    // report loses its per-area image attachments.
+    expect(prompt).toContain('PRESERVE every screenshot filename');
+    expect(prompt).toContain('I{N}-UXR-NNN.png');
   });
 });
 
